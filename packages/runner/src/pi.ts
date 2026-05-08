@@ -1,0 +1,98 @@
+import { spawn } from "node:child_process";
+import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import type { Automation } from "./automation.js";
+import { skillPath, workspaceDir } from "./paths.js";
+import type { RunLog } from "./run-log.js";
+import { pushOutputFromPiEvent, pushTraceLine } from "./run-log.js";
+
+export async function runPiAutomation(args: {
+  automation: Automation;
+  log: RunLog;
+}): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; skillFile: string }> {
+  const { automation, log } = args;
+  const skillFile = skillPath(automation.skill);
+  if (!existsSync(skillFile)) throw new Error(`Skill not found: ${skillFile}`);
+
+  const cwd = workspaceDir(automation.name);
+  await mkdir(cwd, { recursive: true });
+
+  const piArgs = ["--mode", "json", "--no-session", "--skill", skillFile];
+  if (automation.model) piArgs.push("--model", automation.model);
+  piArgs.push(automation.prompt);
+
+  pushTraceLine(log, {
+    type: "agenthq_pi_start",
+    command: "pi",
+    args: piArgs.map((arg) => (arg === automation.prompt ? "<prompt>" : arg)),
+    cwd,
+  });
+
+  return await new Promise((resolve, reject) => {
+    const child = spawn("pi", piArgs, {
+      cwd,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    child.on("error", reject);
+
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdoutBuffer += chunk;
+      flushLines(stdoutBuffer, (line) => {
+        stdoutBuffer = line.remaining;
+        writePiLine(log, line.value);
+      });
+    });
+
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderrBuffer += chunk;
+      flushLines(stderrBuffer, (line) => {
+        stderrBuffer = line.remaining;
+        if (line.value.trim()) {
+          log.errorLines.push(line.value);
+          pushTraceLine(log, { type: "agenthq_stderr", text: line.value });
+        }
+      });
+    });
+
+    child.on("close", (exitCode, signal) => {
+      if (stdoutBuffer.trim()) writePiLine(log, stdoutBuffer.trimEnd());
+      if (stderrBuffer.trim()) {
+        log.errorLines.push(stderrBuffer.trimEnd());
+        pushTraceLine(log, { type: "agenthq_stderr", text: stderrBuffer.trimEnd() });
+      }
+      resolve({ exitCode, signal, skillFile });
+    });
+  });
+}
+
+function writePiLine(log: RunLog, line: string): void {
+  const trimmed = line.endsWith("\r") ? line.slice(0, -1) : line;
+  if (!trimmed) return;
+  try {
+    const parsed = JSON.parse(trimmed);
+    pushTraceLine(log, trimmed);
+    pushOutputFromPiEvent(log, parsed);
+  } catch {
+    pushTraceLine(log, { type: "agenthq_non_json_stdout", text: trimmed });
+  }
+}
+
+function flushLines(
+  buffer: string,
+  onLine: (line: { value: string; remaining: string }) => void,
+): void {
+  while (true) {
+    const index = buffer.indexOf("\n");
+    if (index === -1) return;
+    const value = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    onLine({ value, remaining: buffer });
+  }
+}

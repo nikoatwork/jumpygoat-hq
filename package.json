@@ -1,0 +1,24 @@
+{
+  "name": "agenthq",
+  "private": true,
+  "packageManager": "pnpm@10.10.0",
+  "scripts": {
+    "build": "pnpm --filter @agenthq/runner build && pnpm --filter @agenthq/web build",
+    "setup:db": "pnpm --filter @agenthq/runner exec tsx ../../scripts/setup-db.ts",
+    "doctor": "pnpm --filter @agenthq/runner exec tsx ../../scripts/doctor.ts",
+    "install:cron": "pnpm --filter @agenthq/runner exec tsx ../../scripts/install-cron.ts",
+    "uninstall:cron": "pnpm --filter @agenthq/runner exec tsx ../../scripts/uninstall-cron.ts",
+    "list:cron": "pnpm --filter @agenthq/runner exec tsx ../../scripts/list-cron.ts",
+    "runner": "pnpm --filter @agenthq/runner start",
+    "web": "pnpm --filter @agenthq/web start",
+    "dev": "pnpm --filter @agenthq/runner dev",
+    "dev:web": "pnpm --filter @agenthq/web dev",
+    "validate:web": "playwright test",
+    "validate:backend": "pnpm --filter @agenthq/runner exec tsx ../../scripts/smoke-runner.ts",
+    "validate": "pnpm validate:web && pnpm validate:backend"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "typescript": "^5.9.3"
+  }
+}
