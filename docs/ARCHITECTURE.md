@@ -91,7 +91,7 @@ error_text text
 connector_actions_json text
 ```
 
-`output_text` is assistant text deltas. `trace_text` is raw Pi JSON event lines. `error_text` is stderr/errors. `connector_actions_json` records notification/write-back actions requested, skipped, sent, or failed.
+`output_text` is assistant text deltas. `trace_text` is raw Pi JSON event lines. The web viewer derives a compact human-readable timeline from this JSONL at render time while keeping the raw trace as the canonical artifact. `error_text` is stderr/errors. `connector_actions_json` records notification/write-back actions requested, skipped, sent, or failed.
 
 ### Schedule
 
@@ -135,7 +135,7 @@ Routes:
 - `/skills/:name`
 - `/skills/:name/edit`
 - `/runs`
-- `/runs/:id`
+- `/runs/:id` with run metadata, derived trace timeline, output/error text, connector metadata, and raw trace JSONL in `<details>`
 
 Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw skill create/update/delete, and “Run now,” which shells out to `pnpm runner <automation>`.
 

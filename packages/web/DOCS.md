@@ -25,7 +25,7 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 - `POST /skills/:name` — validate and update `skills/<name>/SKILL.md`
 - `POST /skills/:name/delete` — confirmed delete, blocked while referenced by automations
 - `GET /runs` — recent SQLite runs
-- `GET /runs/:id` — run detail, output/error, raw trace hidden in `<details>`
+- `GET /runs/:id` — run detail, derived readable trace timeline, output/error, raw trace JSONL hidden in `<details>`
 
 ## Files
 

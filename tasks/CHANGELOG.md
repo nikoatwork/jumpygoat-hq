@@ -2,6 +2,10 @@
 
 This changelog tracks project work at the task-list level. Completed task-list entries also live in `tasks/done/CHANGELOG.md`.
 
+## 2026-05-11
+
+- feat: added a derived readable run timeline for Pi JSONL traces on web run detail pages, keeping raw traces available for debugging.
+
 ## 2026-05-08
 
 - chore: reframed agenthq around personal scheduled Pi skills instead of workflow-builder/custom-agent runtime — see `tasks/vision.md`, `tasks/spec.md`.
@@ -17,6 +21,7 @@ This changelog tracks project work at the task-list level. Completed task-list e
 
 - `tasks/done/2026-05-08_tasks-01-local-mvp.md` — closed; Pi/model live smoke was intentionally skipped to avoid token spend.
 - `tasks/done/2026-05-08_tasks-04-minimal-web.md` — closed; route/build/manual page checks passed, model-spending run-now verification skipped.
+- `tasks/todo/tasks-readable-run-traces.md` — in progress; derived trace timeline implemented and awaiting archive decision.
 - `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.
 - `tasks/todo/tasks-03-control-plane.md` — conceptually superseded by `tasks-04-minimal-web.md` for the read-only/minimal viewer; full browser editing remains deferred.
 - `tasks/done/2026-05-08_tasks-04-resend-notifications.md` — closed; build, web smoke, backend smoke, real Resend send, and no-notification smoke passed.

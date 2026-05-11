@@ -21,6 +21,7 @@ import {
 import { date, duration, errorPage, escapeHtml, icon, layout, notFound, runLink, status } from "./html.js";
 import { dbPath } from "./paths.js";
 import { getRun, listAutomations, listInstalledCronBlocks, listRuns, listSkills } from "./readers.js";
+import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
 
 export type ResponseData = { status: number; headers?: Record<string, string>; body: string };
 
@@ -347,11 +348,18 @@ function runDetailPage(id: string): string {
       <tr><th>Exit</th><td>${escapeHtml(run.exit_code ?? "")}</td></tr>
       <tr><th>Connector actions</th><td><pre>${escapeHtml(formatConnectorActions(run.connector_actions_json))}</pre></td></tr>
     </table>
+    <h3>Timeline</h3>
+    ${traceLog(formatTraceLog(run.trace_text))}
     <h3>Output</h3>
     ${run.output_text ? `<pre>${escapeHtml(run.output_text)}</pre>` : "<p class=\"muted\">No output text captured.</p>"}
     ${run.error_text ? `<h3>Error</h3><pre>${escapeHtml(run.error_text)}</pre>` : ""}
-    <details><summary>Raw trace</summary><pre>${escapeHtml(run.trace_text)}</pre></details>
+    <details><summary>Raw trace JSONL</summary><pre>${escapeHtml(run.trace_text)}</pre></details>
   `);
+}
+
+function traceLog(entries: TraceLogEntry[]): string {
+  if (entries.length === 0) return "<p class=\"muted\">No trace events captured.</p>";
+  return `<table class="trace-log"><tr><th>Kind</th><th>Event</th><th>Detail</th></tr>${entries.map((entry) => `<tr><td><span class="trace-kind trace-${escapeHtml(entry.category)}">${escapeHtml(entry.category)}</span></td><td>${escapeHtml(entry.label)}</td><td>${escapeHtml(entry.detail || "")}</td></tr>`).join("")}</table>`;
 }
 
 function runsTable(runs: ReturnType<typeof listRuns>): string {

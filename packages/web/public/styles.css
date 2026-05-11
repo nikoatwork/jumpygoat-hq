@@ -242,6 +242,18 @@ td.actions details[open] {
 td.actions form { align-items: center; gap: var(--space-2); }
 td.actions details form { margin: 0; }
 summary { cursor: pointer; color: var(--cyan); }
+.trace-log td { vertical-align: top; }
+.trace-kind {
+  display: inline-block;
+  min-width: 5.5rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  text-transform: uppercase;
+}
+.trace-run, .trace-session { color: var(--cyan); }
+.trace-assistant, .trace-connector { color: var(--green); }
+.trace-prompt, .trace-pi, .trace-tool { color: var(--yellow); }
+.trace-stderr, .trace-error { color: var(--red); }
 .ok { color: var(--green); }
 .error { color: var(--red); }
 .running { color: var(--yellow); }
