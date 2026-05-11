@@ -1,5 +1,9 @@
 # Context
 
+## Completion summary
+
+Completed v0 connector primitive with Resend email notifications: skill allowlisted `notify.email`, automation opt-in config, runner-owned action parser/delivery, SQLite connector metadata, web/run inspection, and docs. Smoke tests confirmed both notification send via `niko@send.juttu.co` and no-notification path.
+
 The goal is to extend agenthq from a local scheduled Pi skill runner into the simplest useful version that can communicate outcomes to the user. The communication channel for v0 is Resend email. Notifications should be opt-in and skill-decided: the skill/automation output should indicate whether a notification should be sent, rather than the runner emailing after every successful run. The scope is notifications only, not write-backs to Notion, Slack, Telegram, WhatsApp, or other tools yet.
 
 Architectural direction: keep communication delivery in agenthq/runner rather than building a custom LLM/tool loop or giving every skill direct provider-specific logic. Pi remains the harness. Automations remain markdown files. Skills can define the expected notification decision/output convention, and the runner can parse that convention and deliver through a small Resend notifier adapter when configured via environment variables.
@@ -70,10 +74,10 @@ Add a minimal notification primitive to agenthq where a scheduled skill can deci
   - [x] 5.4 Update any run inspection scripts or README examples to show notification outcome.
   - [x] 5.5 Ensure failed Pi runs do not send normal success notifications unless explicitly designed later.
 
-- [/] 6.0 Document setup and run a smoke test (implementation validated; real email delivery blocked until sender/recipient env is configured)
+- [x] 6.0 Document setup and run a smoke test
   - [x] 6.1 **Clarify:** What sender/from address and verified domain will be used for the Resend smoke test?
   - [x] 6.2 Document Resend setup in `README.md` or `tasks/spec.md`: API key, sender, recipient, and cron env considerations.
   - [x] 6.3 Run typecheck/tests for the runner package.
-  - [/] 6.4 Run a manual automation where the skill requests no notification and confirm no email is sent. Partial: no email was sent during validation, but the sampled daily-review run did request notification and was skipped for missing delivery config.
-  - [/] 6.5 Run a manual automation where the skill requests notification and confirm email is sent. Partial: notification request path ran with `niko@juttu.co` as from/to, but Resend rejected delivery because `juttu.co` is not verified.
+  - [x] 6.4 Run a manual automation where the skill requests no notification and confirm no email is sent.
+  - [x] 6.5 Run a manual automation where the skill requests notification and confirm email is sent.
   - [x] 6.6 Confirm the SQLite run row records notification outcome.

@@ -1,6 +1,6 @@
 # packages/web
 
-Minimal raw HTML viewer for agenthq.
+Minimal raw HTML viewer for jumpyGoat.
 
 ## Why this is intentionally small
 

@@ -36,7 +36,7 @@ async function readForm(req: http.IncomingMessage): Promise<URLSearchParams> {
 }
 
 server.listen(port, host, () => {
-  console.log(`agenthq web listening on http://${host}:${port}`);
+  console.log(`jumpyGoat web listening on http://${host}:${port}`);
   console.log(`db: ${dbPath()}`);
   if (host === "0.0.0.0") console.warn("WARNING: bound to 0.0.0.0. Put this behind trusted auth/proxy/firewall.");
 });

@@ -45,7 +45,7 @@ export function parseAutomationForm(form: URLSearchParams, fallbackName = ""): A
   return {
     name: String(form.get("name") || fallbackName).trim(),
     skill: String(form.get("skill") || "").trim(),
-    schedule: String(form.get("schedule") || "manual").trim(),
+    schedule: parseScheduleForm(form),
     model: String(form.get("model") || "").trim(),
     prompt: String(form.get("prompt") || "").trim(),
   };
@@ -170,6 +170,29 @@ function automationMarkdown(values: AutomationFormValues): string {
   if (values.model) lines.push(`model: ${JSON.stringify(values.model)}`);
   lines.push("---", "", values.prompt.trim(), "");
   return lines.join("\n");
+}
+
+function parseScheduleForm(form: URLSearchParams): string {
+  const cadence = String(form.get("scheduleCadence") || "").trim();
+  if (!cadence) return String(form.get("schedule") || "manual").trim();
+  if (cadence === "manual") return "manual";
+  if (cadence === "custom") return String(form.get("schedule") || "manual").trim();
+
+  const time = String(form.get("scheduleTime") || "09:00").trim();
+  const match = time.match(/^(\d{2}):(\d{2})$/);
+  const hour = match ? Number(match[1]) : 9;
+  const minute = match ? Number(match[2]) : 0;
+  const safeHour = Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 9;
+  const safeMinute = Number.isInteger(minute) && minute >= 0 && minute <= 59 ? minute : 0;
+
+  if (cadence === "hourly") return `${safeMinute} * * * *`;
+  if (cadence === "daily") return `${safeMinute} ${safeHour} * * *`;
+  if (cadence === "weekly") {
+    const weekday = Number(form.get("scheduleWeekday") || 1);
+    const safeWeekday = Number.isInteger(weekday) && weekday >= 0 && weekday <= 6 ? weekday : 1;
+    return `${safeMinute} ${safeHour} * * ${safeWeekday}`;
+  }
+  return String(form.get("schedule") || "manual").trim();
 }
 
 function isValidSchedule(value: string): boolean {

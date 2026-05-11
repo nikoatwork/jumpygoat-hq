@@ -1,4 +1,12 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
+
 import type { RunRow } from "./readers.js";
+
+const require = createRequire(import.meta.url);
+const pepiconsRoot = path.dirname(path.dirname(path.dirname(require.resolve("pepicons"))));
+const iconCache = new Map<string, string>();
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -15,32 +23,28 @@ export function layout(title: string, body: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)} · agenthq</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; line-height: 1.4; }
-    nav a { margin-right: 1rem; }
-    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-    th, td { border: 1px solid #ddd; padding: 0.4rem; vertical-align: top; }
-    th { text-align: left; background: #f7f7f7; }
-    pre { background: #f7f7f7; padding: 1rem; overflow: auto; }
-    code { background: #f7f7f7; padding: 0.1rem 0.2rem; }
-    .ok { color: green; } .error { color: #b00020; } .running { color: #9a6700; }
-    .muted { color: #666; }
-    .stack label { display: block; margin: 0.8rem 0; font-weight: 600; }
-    input, select, textarea { box-sizing: border-box; width: 100%; max-width: 100%; padding: 0.4rem; font: inherit; }
-    textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    td.actions form { display: inline; }
-    td.actions details { margin-top: 0.4rem; }
-    button { cursor: pointer; }
-  </style>
+  <title>${escapeHtml(title)} · jumpyGoat</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>agenthq</h1>
-  <nav><a href="/">Dashboard</a><a href="/automations">Automations</a><a href="/skills">Skills</a><a href="/runs">Runs</a></nav>
+  <h1>jumpyGoat</h1>
+  <nav><a href="/">${icon("grid")}Dashboard</a><a href="/automations">${icon("gear")}Automations</a><a href="/skills">${icon("book")}Skills</a><a href="/runs">${icon("clock")}Runs</a></nav>
   <hr>
-  ${body}
+  <main>
+    ${body}
+  </main>
 </body>
 </html>`;
+}
+
+export function icon(name: string): string {
+  const cached = iconCache.get(name);
+  if (cached) return cached;
+  const filePath = path.join(pepiconsRoot, "svg", "pencil", `${name}.svg`);
+  const svg = readFileSync(filePath, "utf8")
+    .replace("<svg ", `<svg class="icon" aria-hidden="true" focusable="false" `);
+  iconCache.set(name, svg);
+  return svg;
 }
 
 export function status(value: string): string {

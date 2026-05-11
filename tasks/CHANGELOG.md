@@ -11,7 +11,7 @@ This changelog tracks project work at the task-list level. Completed task-list e
 - docs: converted `AGENTS.md` into a concise documentation map plus hard constraints.
 - chore: added local self-validating loop for coding agents — Playwright web smoke checks, one Pi-backed backend smoke, and validation skill/docs — completed in `tasks/done/2026-05-08_tasks-self-validating-loop.md`.
 - feat: added lean file-native web CRUD for automations and cautious raw skill authoring, with validation and guarded deletes — completed in `tasks/done/2026-05-08_tasks-05-web-crud.md`.
-- feat: added v0 connector primitive with Resend email notification parsing/delivery, skill allowed intents, automation opt-in config, and run metadata; live email delivery awaits sender/recipient config.
+- feat: added v0 connector primitive with Resend email notification parsing/delivery, skill allowed intents, automation opt-in config, and run metadata — completed in `tasks/done/2026-05-08_tasks-04-resend-notifications.md`.
 
 ## Current task-list status
 
@@ -19,6 +19,6 @@ This changelog tracks project work at the task-list level. Completed task-list e
 - `tasks/done/2026-05-08_tasks-04-minimal-web.md` — closed; route/build/manual page checks passed, model-spending run-now verification skipped.
 - `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.
 - `tasks/todo/tasks-03-control-plane.md` — conceptually superseded by `tasks-04-minimal-web.md` for the read-only/minimal viewer; full browser editing remains deferred.
-- `tasks/todo/tasks-04-resend-notifications.md` — implementation mostly complete; build/web/backend validation passed, but real Resend email delivery smoke is blocked until sender/recipient config is provided.
+- `tasks/done/2026-05-08_tasks-04-resend-notifications.md` — closed; build, web smoke, backend smoke, real Resend send, and no-notification smoke passed.
 - `tasks/done/2026-05-08_tasks-self-validating-loop.md` — closed; build, Playwright web smoke, and Pi-backed backend smoke passed.
 - `tasks/done/2026-05-08_tasks-05-web-crud.md` — closed; build, Playwright web smoke, and manual CRUD route/action checks passed.

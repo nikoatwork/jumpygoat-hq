@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import {
   createAutomation,
   createSkill,
@@ -16,7 +18,7 @@ import {
   type AutomationFormValues,
   type SkillFormValues,
 } from "./actions.js";
-import { date, duration, errorPage, escapeHtml, layout, notFound, runLink, status } from "./html.js";
+import { date, duration, errorPage, escapeHtml, icon, layout, notFound, runLink, status } from "./html.js";
 import { dbPath } from "./paths.js";
 import { getRun, listAutomations, listInstalledCronBlocks, listRuns, listSkills } from "./readers.js";
 
@@ -24,6 +26,7 @@ export type ResponseData = { status: number; headers?: Record<string, string>; b
 
 export async function route(method: string, url: URL, form?: URLSearchParams): Promise<ResponseData> {
   try {
+    if (method === "GET" && url.pathname === "/styles.css") return stylesheet();
     if (method === "GET" && url.pathname === "/") return html(await dashboard());
     if (method === "GET" && url.pathname === "/automations") return html(await automationsPage(url));
     if (method === "GET" && url.pathname === "/automations/new") return html(await automationFormPage("Create automation", parseAutomationForm(new URLSearchParams()), []));
@@ -76,6 +79,11 @@ export async function route(method: string, url: URL, form?: URLSearchParams): P
 
 function html(body: string, status = 200): ResponseData {
   return { status, headers: { "content-type": "text/html; charset=utf-8" }, body };
+}
+
+async function stylesheet(): Promise<ResponseData> {
+  const body = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  return { status: 200, headers: { "content-type": "text/css; charset=utf-8", "cache-control": "no-store" }, body };
 }
 
 function redirect(location: string): ResponseData {
@@ -159,19 +167,19 @@ async function automationsPage(url: URL): Promise<string> {
   const rows = automations.map((a) => `<tr>
     <td><a href="/automations/${encodeURIComponent(a.name)}"><code>${escapeHtml(a.name)}</code></a>${a.warning ? `<br><b>${escapeHtml(a.warning)}</b>` : ""}</td>
     <td>${escapeHtml(a.skill)}</td>
-    <td><code>${escapeHtml(a.schedule)}</code></td>
+    <td>${scheduleLabel(a.schedule)}</td>
     <td>${escapeHtml(a.model || "default")}</td>
     <td>${cronNames.has(a.name) ? "yes" : "no"}</td>
-    <td>${escapeHtml(a.promptPreview)}</td>
+    <td>${clamp(a.promptPreview)}</td>
     <td class="actions">
-      <form method="post" action="/automations/${encodeURIComponent(a.name)}/run"><button type="submit">Run now</button></form>
-      <a href="/automations/${encodeURIComponent(a.name)}/edit">Edit</a>
-      <details><summary>Delete</summary>${deleteAutomationForm(a.name)}</details>
+      <form method="post" action="/automations/${encodeURIComponent(a.name)}/run"><button type="submit">${icon("play")}Run now</button></form>
+      <a href="/automations/${encodeURIComponent(a.name)}/edit">${icon("pen")}Edit</a>
+      <details><summary>${icon("trash")}Delete</summary>${deleteAutomationForm(a.name)}</details>
     </td>
   </tr>`).join("");
   return layout("Automations", `
     <h2>Automations</h2>
-    <p><a href="/automations/new">Create automation</a></p>
+    <p><a href="/automations/new" class="button-link">${icon("plus")}Create automation</a></p>
     ${message}
     ${automations.length === 0 ? "<p>No automations found.</p>" : `<table><tr><th>Name</th><th>Skill</th><th>Schedule</th><th>Model</th><th>Cron installed</th><th>Prompt</th><th>Action</th></tr>${rows}</table>`}
   `);
@@ -184,7 +192,7 @@ async function automationDetailPage(name: string): Promise<string> {
     <p><a href="/automations/${encodeURIComponent(name)}/edit">Edit</a> <a href="/automations">Back to automations</a></p>
     <table>
       <tr><th>Skill</th><td>${escapeHtml(automation.skill)}</td></tr>
-      <tr><th>Schedule</th><td><code>${escapeHtml(automation.schedule)}</code></td></tr>
+      <tr><th>Schedule</th><td>${scheduleLabel(automation.schedule)}</td></tr>
       <tr><th>Model</th><td>${escapeHtml(automation.model || "default")}</td></tr>
     </table>
     <h3>Prompt</h3>
@@ -202,19 +210,96 @@ async function automationFormPage(title: string, values: AutomationFormValues, e
     <form method="post" action="${action}" class="stack">
       <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
       <label>Skill <select name="skill" required>${skills.map((s) => `<option value="${escapeHtml(s.name)}" ${s.name === values.skill ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select></label>
-      <label>Schedule <input name="schedule" value="${escapeHtml(values.schedule || "manual")}" required></label>
+      ${scheduleFields(values.schedule || "manual")}
       <label>Model <input name="model" value="${escapeHtml(values.model)}" placeholder="default"></label>
       <label>Prompt <textarea name="prompt" rows="16" required>${escapeHtml(values.prompt)}</textarea></label>
-      <p><button type="submit">Save</button> <a href="/automations">Cancel</a></p>
+      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/automations">Cancel</a></p>
     </form>
   `);
+}
+
+type ScheduleUi = { cadence: string; time: string; weekday: string; raw: string };
+
+function scheduleFields(schedule: string): string {
+  const ui = scheduleToUi(schedule);
+  const cadenceOptions = [
+    ["manual", "Manual"],
+    ["hourly", "Hourly"],
+    ["daily", "Daily"],
+    ["weekly", "Weekly"],
+    ["custom", "Custom cron"],
+  ];
+  const weekdayOptions = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return `
+    <fieldset class="schedule-card">
+      <legend>Schedule</legend>
+      <div class="schedule-grid">
+        <label>Cadence <select name="scheduleCadence" required>${cadenceOptions.map(([value, label]) => `<option value="${value}" ${ui.cadence === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+        <label>Time <input type="time" name="scheduleTime" value="${escapeHtml(ui.time)}"></label>
+        <label>Weekday <select name="scheduleWeekday">${weekdayOptions.map((label, value) => `<option value="${value}" ${ui.weekday === String(value) ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+      </div>
+      <details ${ui.cadence === "custom" ? "open" : ""}>
+        <summary>Advanced cron / raw value</summary>
+        <input name="schedule" value="${escapeHtml(ui.raw)}" required>
+        <p class="muted">Use <code>manual</code> or a 5-field cron expression. Simple cadence values above are saved as cron.</p>
+      </details>
+    </fieldset>`;
+}
+
+function scheduleLabel(schedule: string): string {
+  const ui = scheduleToUi(schedule);
+  const raw = `<code>${escapeHtml(schedule)}</code>`;
+  if (ui.cadence === "manual") return `Manual <span class="muted">(${raw})</span>`;
+  if (ui.cadence === "hourly") return `Hourly at ${escapeHtml(formatMinute(ui.time))} <span class="muted">(${raw})</span>`;
+  if (ui.cadence === "daily") return `Daily at ${escapeHtml(formatTime(ui.time))} <span class="muted">(${raw})</span>`;
+  if (ui.cadence === "weekly") return `${escapeHtml(weekdayName(ui.weekday))}s at ${escapeHtml(formatTime(ui.time))} <span class="muted">(${raw})</span>`;
+  return raw;
+}
+
+function scheduleToUi(schedule: string): ScheduleUi {
+  const raw = schedule || "manual";
+  if (raw === "manual") return { cadence: "manual", time: "09:00", weekday: "1", raw };
+  const parts = raw.trim().split(/\s+/);
+  if (parts.length !== 5) return { cadence: "custom", time: "09:00", weekday: "1", raw };
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  if (numberIn(minute, 0, 59) && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") return { cadence: "hourly", time: `00:${pad2(minute)}`, weekday: "1", raw };
+  if (numberIn(minute, 0, 59) && numberIn(hour, 0, 23) && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") return { cadence: "daily", time: `${pad2(hour)}:${pad2(minute)}`, weekday: "1", raw };
+  if (numberIn(minute, 0, 59) && numberIn(hour, 0, 23) && dayOfMonth === "*" && month === "*" && numberIn(dayOfWeek, 0, 6)) return { cadence: "weekly", time: `${pad2(hour)}:${pad2(minute)}`, weekday: dayOfWeek, raw };
+  return { cadence: "custom", time: "09:00", weekday: "1", raw };
+}
+
+function numberIn(value = "", min: number, max: number): boolean {
+  if (!/^\d+$/.test(value)) return false;
+  const number = Number(value);
+  return number >= min && number <= max;
+}
+
+function pad2(value = "0"): string {
+  return String(Number(value)).padStart(2, "0");
+}
+
+function formatTime(value: string): string {
+  const [hourText = "0", minuteText = "0"] = value.split(":");
+  const hour = Number(hourText);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minuteText.padStart(2, "0")} ${suffix}`;
+}
+
+function formatMinute(value: string): string {
+  const minute = value.split(":")[1] || "00";
+  return `:${minute.padStart(2, "0")}`;
+}
+
+function weekdayName(value: string): string {
+  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Number(value)] || "Monday";
 }
 
 async function skillsPage(url: URL): Promise<string> {
   const skills = await listSkills();
   const message = pageMessage(url, ["created", "updated", "deleted"]);
-  const rows = skills.map((s) => `<tr><td><a href="/skills/${encodeURIComponent(s.name)}"><code>${escapeHtml(s.name)}</code></a>${s.warning ? `<br><b>${escapeHtml(s.warning)}</b>` : ""}</td><td>${escapeHtml(s.description)}</td><td><code>${escapeHtml(s.path)}</code></td><td class="actions"><a href="/skills/${encodeURIComponent(s.name)}/edit">Edit</a><details><summary>Delete</summary>${deleteSkillForm(s.name)}</details></td></tr>`).join("");
-  return layout("Skills", `<h2>Skills</h2><p><a href="/skills/new">Create skill</a></p>${message}${skills.length === 0 ? "<p>No skills found.</p>" : `<table><tr><th>Name</th><th>Description</th><th>Path</th><th>Action</th></tr>${rows}</table>`}`);
+  const rows = skills.map((s) => `<tr><td><a href="/skills/${encodeURIComponent(s.name)}"><code>${escapeHtml(s.name)}</code></a>${s.warning ? `<br><b>${escapeHtml(s.warning)}</b>` : ""}</td><td>${clamp(s.description)}</td><td>${clampCode(s.path)}</td><td class="actions"><a href="/skills/${encodeURIComponent(s.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteSkillForm(s.name)}</details></td></tr>`).join("");
+  return layout("Skills", `<h2>Skills</h2><p><a href="/skills/new" class="button-link">${icon("plus")}Create skill</a></p>${message}${skills.length === 0 ? "<p>No skills found.</p>" : `<table><tr><th>Name</th><th>Description</th><th>Path</th><th>Action</th></tr>${rows}</table>`}`);
 }
 
 async function skillDetailPage(name: string): Promise<string> {
@@ -236,7 +321,7 @@ function skillFormPage(title: string, values: SkillFormValues, errors: string[],
     <form method="post" action="${action}" class="stack">
       <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
       <label>SKILL.md <textarea name="content" rows="24" required>${escapeHtml(values.content)}</textarea></label>
-      <p><button type="submit">Save</button> <a href="/skills">Cancel</a></p>
+      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/skills">Cancel</a></p>
     </form>
   `);
 }
@@ -271,7 +356,15 @@ function runDetailPage(id: string): string {
 
 function runsTable(runs: ReturnType<typeof listRuns>): string {
   if (runs.length === 0) return "<p>No runs found.</p>";
-  return `<table><tr><th>Run</th><th>Automation</th><th>Skill</th><th>Status</th><th>Connector</th><th>Started</th><th>Duration</th><th>Exit</th></tr>${runs.map((r) => `<tr><td>${runLink(r)}</td><td>${escapeHtml(r.automation)}</td><td>${escapeHtml(r.skill)}</td><td>${status(r.status)}</td><td>${escapeHtml(connectorSummary(r.connector_actions_json))}</td><td>${date(r.started_at)}</td><td>${duration(r.duration_ms)}</td><td>${escapeHtml(r.exit_code ?? "")}</td></tr>`).join("")}</table>`;
+  return `<table><tr><th>Run</th><th>Automation</th><th>Skill</th><th>Status</th><th>Connector</th><th>Started</th><th>Duration</th><th>Exit</th></tr>${runs.map((r) => `<tr><td>${runLink(r)}</td><td>${escapeHtml(r.automation)}</td><td>${escapeHtml(r.skill)}</td><td>${status(r.status)}</td><td>${clamp(connectorSummary(r.connector_actions_json))}</td><td>${date(r.started_at)}</td><td>${duration(r.duration_ms)}</td><td>${escapeHtml(r.exit_code ?? "")}</td></tr>`).join("")}</table>`;
+}
+
+function clamp(value: string): string {
+  return `<div tabindex="0" data-tooltip="${escapeHtml(value)}"><div class="cell-clamp">${escapeHtml(value)}</div></div>`;
+}
+
+function clampCode(value: string): string {
+  return `<div tabindex="0" data-tooltip="${escapeHtml(value)}"><div class="cell-clamp"><code>${escapeHtml(value)}</code></div></div>`;
 }
 
 function connectorSummary(json?: string): string {
@@ -300,11 +393,11 @@ function errorsList(errors: string[]): string {
 }
 
 function deleteAutomationForm(name: string): string {
-  return `<form method="post" action="/automations/${encodeURIComponent(name)}/delete"><input name="confirm" placeholder="type ${escapeHtml(name)}"><button type="submit">Delete</button></form>`;
+  return `<form method="post" action="/automations/${encodeURIComponent(name)}/delete"><input name="confirm" placeholder="type ${escapeHtml(name)}"><button type="submit">${icon("trash")}Delete</button></form>`;
 }
 
 function deleteSkillForm(name: string): string {
-  return `<form method="post" action="/skills/${encodeURIComponent(name)}/delete"><input name="confirm" placeholder="type ${escapeHtml(name)}"><button type="submit">Delete</button></form>`;
+  return `<form method="post" action="/skills/${encodeURIComponent(name)}/delete"><input name="confirm" placeholder="type ${escapeHtml(name)}"><button type="submit">${icon("trash")}Delete</button></form>`;
 }
 
 function pageMessage(url: URL, keys: string[]): string {
