@@ -1,14 +1,7 @@
-import type { Automation } from "./automation.js";
-import type { SkillMeta } from "./skill.js";
-
-export type ConnectorActionRecord = {
-  intent: string;
-  connector?: string;
-  status: string;
-  to?: string;
-  providerMessageId?: string;
-  error?: string;
-};
+import type { Automation } from "../automation.js";
+import type { SkillMeta } from "../skill.js";
+import { sendResendEmail } from "./resend/index.js";
+import type { ConnectorActionRecord, ConnectorIntent } from "./types.js";
 
 type ParsedNotification =
   | { kind: "none" }
@@ -29,11 +22,12 @@ type EmailConfig = {
   subjectPrefix?: string;
 };
 
-export async function processConnectorActions(args: {
+export async function processLegacyConnectorActions(args: {
   automation: Automation;
   skill: SkillMeta;
   outputText: string;
   runSucceeded: boolean;
+  alreadyHandledIntents?: Set<ConnectorIntent | string>;
 }): Promise<ConnectorActionRecord[]> {
   const parsed = parseNotificationAction(args.outputText);
   if (parsed.kind === "none") return [];
@@ -43,6 +37,9 @@ export async function processConnectorActions(args: {
   }
 
   const action = parsed.action;
+  if (args.alreadyHandledIntents?.has(action.type)) {
+    return [{ intent: action.type, status: "skipped_tool_already_used" }];
+  }
   if (!args.runSucceeded) {
     return [{ intent: action.type, status: "skipped_run_failed" }];
   }
@@ -63,6 +60,7 @@ export async function processConnectorActions(args: {
       to: config.to,
       subject: `${config.subjectPrefix || ""}${action.subject}`,
       body: action.body,
+      headers: { "X-AgentHQ-Legacy-Action": "true" },
     });
     return [{ intent: action.type, connector: config.connector, to: config.to, status: "sent", providerMessageId }];
   } catch (error) {
@@ -75,7 +73,7 @@ export function parseNotificationAction(outputText: string): ParsedNotification 
   if (!match) return { kind: "none" };
 
   try {
-    const parsed = JSON.parse(match[1] || "");
+    const parsed = JSON.parse(match[1] || "") as { type?: unknown; notify?: unknown; subject?: unknown; body?: unknown };
     const type = parsed.type || (parsed.notify === true ? "notify.email" : undefined);
     if (type !== "notify.email") throw new Error("Notification action type must be notify.email.");
     if (typeof parsed.subject !== "string" || !parsed.subject.trim()) throw new Error("Notification action requires a non-empty subject string.");
@@ -95,42 +93,4 @@ function resolveEmailConfig(automation: Automation): EmailConfig {
     from: email?.from || process.env.AGENTHQ_NOTIFY_EMAIL_FROM,
     subjectPrefix: email?.subjectPrefix ?? process.env.AGENTHQ_NOTIFY_SUBJECT_PREFIX ?? "",
   };
-}
-
-async function sendResendEmail(args: {
-  apiKey: string;
-  from: string;
-  to: string;
-  subject: string;
-  body: string;
-}): Promise<string | undefined> {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${args.apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      from: args.from,
-      to: [args.to],
-      subject: args.subject,
-      text: args.body,
-    }),
-  });
-
-  const text = await response.text();
-  let body: unknown;
-  try {
-    body = text ? JSON.parse(text) : undefined;
-  } catch {
-    body = text;
-  }
-
-  if (!response.ok) {
-    const detail = typeof body === "object" && body && "message" in body ? String((body as { message: unknown }).message) : text;
-    throw new Error(`Resend API ${response.status}: ${detail}`);
-  }
-
-  if (typeof body === "object" && body && "id" in body) return String((body as { id: unknown }).id);
-  return undefined;
 }

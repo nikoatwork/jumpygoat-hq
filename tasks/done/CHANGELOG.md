@@ -1,5 +1,9 @@
 # completed task changelog
 
+## 2026-05-11
+
+- feat: runner-gated Pi connector tools — Firecrawl web search/scrape/crawl, Resend in-run email, connector trace summaries, and docs ([task](2026-05-11_tasks-firecrawl-connector.md))
+
 ## 2026-05-08
 
 - feat: local Pi-backed scheduled skill MVP — runner, automation parser, SQLite run storage, Pi auth/env handling, doctor command, cron scripts ([task](2026-05-08_tasks-01-local-mvp.md))

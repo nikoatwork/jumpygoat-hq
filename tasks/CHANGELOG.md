@@ -5,6 +5,7 @@ This changelog tracks project work at the task-list level. Completed task-list e
 ## 2026-05-11
 
 - feat: added a derived readable run timeline for Pi JSONL traces on web run detail pages, keeping raw traces available for debugging.
+- feat: added runner-gated Pi connector tools for Firecrawl web actions and Resend email notifications, with connector trace summaries and docs — completed in `tasks/done/2026-05-11_tasks-firecrawl-connector.md`.
 
 ## 2026-05-08
 
@@ -17,11 +18,13 @@ This changelog tracks project work at the task-list level. Completed task-list e
 - feat: added lean file-native web CRUD for automations and cautious raw skill authoring, with validation and guarded deletes — completed in `tasks/done/2026-05-08_tasks-05-web-crud.md`.
 - feat: added v0 connector primitive with Resend email notification parsing/delivery, skill allowed intents, automation opt-in config, and run metadata — completed in `tasks/done/2026-05-08_tasks-04-resend-notifications.md`.
 
+
 ## Current task-list status
 
 - `tasks/done/2026-05-08_tasks-01-local-mvp.md` — closed; Pi/model live smoke was intentionally skipped to avoid token spend.
 - `tasks/done/2026-05-08_tasks-04-minimal-web.md` — closed; route/build/manual page checks passed, model-spending run-now verification skipped.
 - `tasks/todo/tasks-readable-run-traces.md` — in progress; derived trace timeline implemented and awaiting archive decision.
+- `tasks/done/2026-05-11_tasks-firecrawl-connector.md` — closed; connector tests, build, backend smoke, and web smoke passed.
 - `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.
 - `tasks/todo/tasks-03-control-plane.md` — conceptually superseded by `tasks-04-minimal-web.md` for the read-only/minimal viewer; full browser editing remains deferred.
 - `tasks/done/2026-05-08_tasks-04-resend-notifications.md` — closed; build, web smoke, backend smoke, real Resend send, and no-notification smoke passed.

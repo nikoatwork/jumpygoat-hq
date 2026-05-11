@@ -9,4 +9,4 @@ notify:
 
 Read the files in this workspace and produce a concise daily brief.
 Write the brief to `today.md`.
-Only request an email notification if the review finds a blocker, risk, overdue item, or meaningful status change worth interrupting me about.
+Only call the email notification tool if the review finds a blocker, risk, overdue item, or meaningful status change worth interrupting me about.

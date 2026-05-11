@@ -3,7 +3,7 @@
 agenthq is a personal runner for scheduled Pi skills.
 
 ```txt
-automation.md -> runner -> pi --mode json -> optional connector action -> SQLite run row -> raw HTML viewer
+automation.md -> runner -> gated Pi connector extension -> pi --mode json -> SQLite run row -> raw HTML viewer
 ```
 
 ## Concepts
@@ -40,16 +40,25 @@ Prompt body sent to Pi.
 
 Automations are edited as files. The filename is the automation id.
 
-Optional connector config may enable runner-owned external actions, such as Resend email notifications:
+Optional connector config may enable runner-owned external tools. Connector exposure requires both gates:
+
+1. automation frontmatter enables the intent/provider; and
+2. skill frontmatter `allowedIntents` includes the provider-neutral intent.
+
+Examples:
 
 ```yaml
+web:
+  search:
+    enabled: true
+    connector: firecrawl
 notify:
   email:
     enabled: true
     connector: resend
 ```
 
-Skills still decide whether to request an action by emitting a fenced `agenthq-action` JSON block, and the runner executes only allowed/enabled intents.
+The runner passes a static Pi extension for enabled/allowed tools only. Pi can then call `web_search`, `web_scrape`, `web_crawl`, and `notify_email` during the run and observe successes/failures in context. Legacy post-run fenced `agenthq-action` email blocks remain temporarily for compatibility, but in-run Pi tools are the default connector architecture.
 
 ### Workspace
 
@@ -91,7 +100,7 @@ error_text text
 connector_actions_json text
 ```
 
-`output_text` is assistant text deltas. `trace_text` is raw Pi JSON event lines. The web viewer derives a compact human-readable timeline from this JSONL at render time while keeping the raw trace as the canonical artifact. `error_text` is stderr/errors. `connector_actions_json` records notification/write-back actions requested, skipped, sent, or failed.
+`output_text` is assistant text deltas. `trace_text` is raw Pi JSON event lines. The web viewer derives a compact human-readable timeline from this JSONL at render time while keeping the raw trace as the canonical artifact. `error_text` is stderr/errors. `connector_actions_json` records compact connector tool/action summaries for requests, skips, successes, and failures.
 
 ### Schedule
 
@@ -157,16 +166,17 @@ The backend smoke writes and verifies one SQLite `runs` row, then prints output/
 2. Runner parses `automations/<automation>.md`.
 3. Runner resolves `skills/<skill>/SKILL.md`.
 4. Runner inserts `runs.status = running`.
-5. Runner spawns Pi:
+5. Runner resolves connector gates and spawns Pi:
 
    ```bash
-   pi --mode json --no-session --skill <skill-file> [--model <model>] <prompt>
+   pi --mode json --no-session --skill <skill-file> [--extension <connector-extension>] [--model <model>] <prompt>
    ```
 
 6. Pi runs in `workspaces/<automation>/`.
 7. Runner captures Pi events and assistant output.
-8. Runner updates the SQLite row with status, duration, output, trace, and errors.
-9. Web viewer displays the result.
+8. Runner extracts compact connector action summaries from Pi tool trace events and any legacy post-run actions.
+9. Runner updates the SQLite row with status, duration, output, trace, errors, and `connector_actions_json`.
+10. Web viewer displays the result.
 
 ## Auth/secrets
 

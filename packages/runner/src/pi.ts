@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Automation } from "./automation.js";
+import { connectorPlanEnv, connectorToolNames, type ConnectorPlan } from "./connectors/index.js";
 import { skillPath, workspaceDir } from "./paths.js";
 import type { RunLog } from "./run-log.js";
 import { pushOutputFromPiEvent, pushTraceLine } from "./run-log.js";
@@ -9,8 +11,9 @@ import { pushOutputFromPiEvent, pushTraceLine } from "./run-log.js";
 export async function runPiAutomation(args: {
   automation: Automation;
   log: RunLog;
+  connectorPlan?: ConnectorPlan;
 }): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; skillFile: string }> {
-  const { automation, log } = args;
+  const { automation, log, connectorPlan } = args;
   const skillFile = skillPath(automation.skill);
   if (!existsSync(skillFile)) throw new Error(`Skill not found: ${skillFile}`);
 
@@ -19,7 +22,19 @@ export async function runPiAutomation(args: {
 
   const piArgs = ["--mode", "json", "--no-session", "--skill", skillFile];
   if (automation.model) piArgs.push("--model", automation.model);
+  if (connectorPlan && connectorPlan.tools.length > 0) {
+    piArgs.push("--extension", connectorExtensionPath());
+  }
   piArgs.push(automation.prompt);
+
+  if (connectorPlan && connectorPlan.tools.length > 0) {
+    pushTraceLine(log, {
+      type: "agenthq_connector_plan",
+      run_id: connectorPlan.runId,
+      tools: connectorToolNames(connectorPlan),
+      intents: connectorPlan.tools.map((tool) => tool.intent),
+    });
+  }
 
   pushTraceLine(log, {
     type: "agenthq_pi_start",
@@ -31,7 +46,11 @@ export async function runPiAutomation(args: {
   return await new Promise((resolve, reject) => {
     const child = spawn("pi", piArgs, {
       cwd,
-      env: process.env,
+      env: {
+        ...process.env,
+        AGENTHQ_RUN_ID: connectorPlan?.runId,
+        AGENTHQ_CONNECTORS_CONFIG_JSON: connectorPlan && connectorPlan.tools.length > 0 ? connectorPlanEnv(connectorPlan) : undefined,
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -70,6 +89,12 @@ export async function runPiAutomation(args: {
       resolve({ exitCode, signal, skillFile });
     });
   });
+}
+
+function connectorExtensionPath(): string {
+  const compiled = fileURLToPath(new URL("./connectors/pi-extension.js", import.meta.url));
+  if (existsSync(compiled)) return compiled;
+  return fileURLToPath(new URL("./connectors/pi-extension.ts", import.meta.url));
 }
 
 function writePiLine(log: RunLog, line: string): void {

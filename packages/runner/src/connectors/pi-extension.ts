@@ -1,0 +1,29 @@
+import { createFirecrawlTools } from "./firecrawl/index.js";
+import { createResendTools } from "./resend/index.js";
+import type { ConnectorRuntimeConfig, ConnectorToolDefinition, ConnectorToolName } from "./types.js";
+
+const CONFIG_ENV = "AGENTHQ_CONNECTORS_CONFIG_JSON";
+
+type PiLike = {
+  registerTool(tool: ConnectorToolDefinition): void;
+};
+
+export default function agenthqConnectorExtension(pi: PiLike): void {
+  const runtime = parseRuntimeConfig(process.env[CONFIG_ENV]);
+  if (!runtime || runtime.tools.length === 0) return;
+
+  const allowedNames = new Set<ConnectorToolName>(runtime.tools.map((tool) => tool.toolName));
+  const definitions = [...createFirecrawlTools(runtime), ...createResendTools(runtime)];
+  for (const definition of definitions) {
+    if (allowedNames.has(definition.name)) pi.registerTool(definition);
+  }
+}
+
+export function parseRuntimeConfig(raw: string | undefined): ConnectorRuntimeConfig | undefined {
+  if (!raw) return undefined;
+  const parsed = JSON.parse(raw) as ConnectorRuntimeConfig;
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.tools)) {
+    throw new Error(`${CONFIG_ENV} must contain a connector runtime config with a tools array.`);
+  }
+  return parsed;
+}
