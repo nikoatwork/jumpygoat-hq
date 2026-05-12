@@ -2,7 +2,7 @@
 
 Personal scheduled Pi skill runner.
 
-See `docs/ARCHITECTURE.md` for the current concepts and runtime flow.
+See `docs/ARCHITECTURE.md` for the current concepts and runtime flow. For a server setup with systemd, see `docs/DEPLOY.md`.
 
 ## What this is
 
