@@ -1,5 +1,9 @@
 # Readable Run Traces
 
+## Completion Summary
+
+Completed on 2026-05-12. The web run detail page now renders a deterministic readable timeline from raw Pi JSONL traces, with compacted assistant/tool events, resilient raw fallbacks, tests, docs, and web validation complete.
+
 ## Goal
 
 Make run detail pages easier to inspect by deriving a deterministic, human-readable event log from the existing Pi JSONL `trace_text`. Keep the raw trace available, but show a compact timeline first so routine runs do not require reading low-level `message_update` deltas.

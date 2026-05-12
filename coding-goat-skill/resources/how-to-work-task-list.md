@@ -139,7 +139,9 @@ When user confirms (responds "y" or "yes"):
    ---
    ```
 
-3. **Append to changelog** (`tasks/done/CHANGELOG.md`):
+3. **Append to the canonical task changelog**:
+   - Use the changelog named in `AGENTS.md`/the project agent map when present; otherwise prefer `tasks/CHANGELOG.md`.
+   - Do not create or maintain duplicate done-folder changelogs.
    - Add one line under today's date heading: `- feat/fix/chore: [concise summary] — [link to task file]`
    - Link the completed task file so readers can find deeper context
    - If today's date heading doesn't exist yet, create it

@@ -1,6 +1,11 @@
 # agenthq task changelog
 
-This changelog tracks project work at the task-list level. Completed task-list entries also live in `tasks/done/CHANGELOG.md`.
+This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
+
+## 2026-05-12
+
+- chore: consolidated task changelog history into canonical `tasks/CHANGELOG.md` and removed the duplicate done-folder changelog.
+- feat: completed readable run traces — derived timeline for Pi JSONL traces on web run detail pages, with raw traces retained for debugging — completed in `tasks/done/2026-05-12_tasks-readable-run-traces.md`.
 
 ## 2026-05-11
 
@@ -23,7 +28,7 @@ This changelog tracks project work at the task-list level. Completed task-list e
 
 - `tasks/done/2026-05-08_tasks-01-local-mvp.md` — closed; Pi/model live smoke was intentionally skipped to avoid token spend.
 - `tasks/done/2026-05-08_tasks-04-minimal-web.md` — closed; route/build/manual page checks passed, model-spending run-now verification skipped.
-- `tasks/todo/tasks-readable-run-traces.md` — in progress; derived trace timeline implemented and awaiting archive decision.
+- `tasks/done/2026-05-12_tasks-readable-run-traces.md` — closed; derived trace timeline implemented, docs/tests updated, and web validation completed.
 - `tasks/done/2026-05-11_tasks-firecrawl-connector.md` — closed; connector tests, build, backend smoke, and web smoke passed.
 - `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.
 - `tasks/todo/tasks-03-control-plane.md` — conceptually superseded by `tasks-04-minimal-web.md` for the read-only/minimal viewer; full browser editing remains deferred.

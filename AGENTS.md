@@ -7,7 +7,7 @@ Use this file as a map. Detailed product/runtime docs live elsewhere.
 - Architecture/status quo: `docs/ARCHITECTURE.md`
 - Vision: `tasks/vision.md`
 - Spec/phase plan: `tasks/spec.md`
-- Task changelog: `tasks/CHANGELOG.md`
+- Canonical task changelog: `tasks/CHANGELOG.md`
 - Completed local MVP task: `tasks/done/2026-05-08_tasks-01-local-mvp.md`
 - Completed minimal web task: `tasks/done/2026-05-08_tasks-04-minimal-web.md`
 - Open tasks: `tasks/todo/`
