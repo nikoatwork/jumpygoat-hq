@@ -15,7 +15,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: `pnpm setup:db && HOST=${host} PORT=${port} pnpm dev:web`,
+    command: `HOST=${host} PORT=${port} pnpm dev:web`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
-const automation = process.env.AGENTHQ_SMOKE_AUTOMATION || process.argv[2] || "daily-review";
+const explicitAutomation = Boolean(process.env.AGENTHQ_SMOKE_AUTOMATION || process.argv[2]);
+const automation = process.env.AGENTHQ_SMOKE_AUTOMATION || process.argv[2] || "agenthq-smoke";
 const dbFile = process.env.AGENTHQ_DB_PATH || path.join(repoRoot, "data", "agenthq.sqlite");
 const startedAt = new Date().toISOString();
+const cleanupPaths: string[] = [];
+const cleanupDirs: string[] = [];
 
 function section(title: string): void {
   console.log(`\n== ${title} ==`);
@@ -49,12 +53,56 @@ function latestRun(): Record<string, unknown> | undefined {
   }
 }
 
+function ensureDefaultSmokeFixture(): void {
+  if (explicitAutomation) return;
+
+  const automationFile = path.join(repoRoot, "automations", `${automation}.md`);
+  const skillDir = path.join(repoRoot, "skills", automation);
+  const skillFile = path.join(skillDir, "SKILL.md");
+
+  if (!existsSync(skillFile)) {
+    if (!existsSync(skillDir)) cleanupDirs.push(skillDir);
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(skillFile, `---\nname: ${automation}\ndescription: Temporary local backend validation skill.\n---\n\n# Backend Smoke\n\nReply with one concise sentence confirming the smoke run executed.\n`, "utf8");
+    cleanupPaths.push(skillFile);
+  }
+
+  if (!existsSync(automationFile)) {
+    mkdirSync(path.dirname(automationFile), { recursive: true });
+    writeFileSync(automationFile, `---\nskill: "${automation}"\nschedule: "manual"\n---\n\nRun the backend smoke check and reply concisely.\n`, "utf8");
+    cleanupPaths.push(automationFile);
+  }
+
+  if (cleanupPaths.length) {
+    section("local smoke fixture");
+    console.log(`created temporary gitignored fixture for ${automation}`);
+  }
+}
+
+function cleanupDefaultSmokeFixture(): void {
+  for (const cleanupPath of cleanupPaths) {
+    try {
+      rmSync(cleanupPath, { recursive: true, force: true });
+    } catch (error) {
+      console.error(`warning: failed to remove temporary fixture ${cleanupPath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  for (const cleanupDir of cleanupDirs.reverse()) {
+    try {
+      rmSync(cleanupDir, { force: true });
+    } catch {
+      // Leave non-empty pre-existing parent structure alone.
+    }
+  }
+}
+
 let failed = false;
 
 section("agenthq backend smoke");
 console.log(`automation: ${automation}`);
 console.log(`db: ${dbFile}`);
 console.log(`started_after: ${startedAt}`);
+ensureDefaultSmokeFixture();
 
 const setup = run("pnpm", ["setup:db"]);
 if (setup.status !== 0) failed = true;
@@ -111,6 +159,8 @@ if (!row) {
     console.log(tail(trace));
   }
 }
+
+cleanupDefaultSmokeFixture();
 
 if (failed) {
   section("validation failed");

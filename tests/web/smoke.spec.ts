@@ -11,13 +11,12 @@ test("dashboard renders core navigation and run summary", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Recent runs" })).toBeVisible();
 });
 
-test("automations page exposes daily-review and run action", async ({ page }) => {
+test("automations page renders template empty state or local automations", async ({ page }) => {
   await page.goto("/automations");
 
   await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "daily-review" }).first()).toBeVisible();
-  await expect(page.getByText("Cron installed")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Run now" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create automation" })).toBeVisible();
+  await expect(page.locator("body")).toContainText(/No automations found|Cron installed/);
 });
 
 test("runs page renders either empty state or run table", async ({ page }) => {

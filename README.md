@@ -14,10 +14,11 @@ No workflow builder. No custom agent loop. Pi is the harness.
 
 ```bash
 pnpm install
-pnpm setup:db
 pnpm build
 pnpm run doctor
 ```
+
+This public repo is a template: it ships with no active skills, automations, or SQLite data. Local `skills/*`, `automations/*.md`, `data/`, and `workspaces/` are gitignored so a personalized checkout can stay private.
 
 Pi must also be installed and authenticated/configured. Preferred personal setup is to log into Pi as the same Unix user that will run cron:
 
@@ -63,24 +64,31 @@ notify:
     connector: resend
     to: you@example.com
     from: "AgentHQ <agent@yourdomain.com>"
-    subjectPrefix: "[daily-review] "
+    subjectPrefix: "[agenthq] "
 ```
 
 For real delivery, verify the `from` domain/address in Resend. Cron jobs must have the same `.env.local` file or exported env vars available.
 
-## Run the sample automation manually
+## Create a local automation
 
-```bash
-pnpm runner daily-review
+Create a local skill with the web UI at `/skills/new`, or by writing `skills/<name>/SKILL.md`. Then create a local automation at `/automations/new`, or by writing `automations/<name>.md`:
+
+```md
+---
+skill: your-skill
+schedule: "manual"
+---
+
+Your prompt for Pi.
 ```
 
-Then inspect:
+Run it manually:
 
 ```bash
-sqlite3 data/agenthq.sqlite 'select id, automation, status, started_at, duration_ms, connector_actions_json from runs order by started_at desc limit 5;'
-sqlite3 data/agenthq.sqlite 'select output_text from runs order by started_at desc limit 1;'
-ls workspaces/daily-review
+pnpm runner <automation-name>
 ```
+
+Run history is created locally under `data/agenthq.sqlite` and is gitignored.
 
 ## Check the environment
 
@@ -113,7 +121,7 @@ Use these from the repo root while developing:
 
 ```bash
 pnpm validate:web       # Playwright smoke checks for the raw HTML web UI
-pnpm validate:backend   # runs one Pi-backed smoke automation, default daily-review
+pnpm validate:backend   # creates/runs one temporary Pi-backed smoke automation
 pnpm validate           # web smoke, then backend smoke
 ```
 
@@ -123,10 +131,10 @@ Frontend validation starts the local web server on `127.0.0.1:3123` by default. 
 pnpm exec playwright install chromium
 ```
 
-Backend validation runs exactly one automation and prints the runner stdout/stderr plus the latest run summary, output tail, error tail, and trace tail. It requires local Pi auth/provider setup and may call OpenAI Codex. Override the automation only when intentional:
+Backend validation runs exactly one automation and prints the runner stdout/stderr plus the latest run summary, output tail, error tail, and trace tail. By default it creates a temporary gitignored `agenthq-smoke` skill/automation if needed, runs it, and removes the fixture. It requires local Pi auth/provider setup and may call OpenAI Codex. Override the automation only when intentional:
 
 ```bash
-AGENTHQ_SMOKE_AUTOMATION=daily-review pnpm validate:backend
+AGENTHQ_SMOKE_AUTOMATION=<automation-name> pnpm validate:backend
 ```
 
 Common failures:
@@ -134,7 +142,7 @@ Common failures:
 - Port in use: set `PLAYWRIGHT_PORT=3124 pnpm validate:web`.
 - Browser missing: run `pnpm exec playwright install chromium`.
 - DB missing: `pnpm validate:backend` runs `pnpm setup:db`; run it manually if you need to inspect setup output.
-- Pi auth/provider missing: run `pi /login` and `pnpm doctor`.
+- Pi auth/provider missing: run `pi /login` and `pnpm run doctor`.
 
 ## Install as a cron job
 
@@ -147,7 +155,7 @@ schedule: "0 9 * * *"
 Install/update the cron entry:
 
 ```bash
-pnpm install:cron daily-review
+pnpm install:cron <automation-name>
 ```
 
 List agenthq cron entries:
@@ -159,7 +167,7 @@ pnpm list:cron
 Remove it:
 
 ```bash
-pnpm uninstall:cron daily-review
+pnpm uninstall:cron <automation-name>
 ```
 
 Cron logs go to `data/cron-<automation>.log`.
@@ -171,8 +179,8 @@ Cron entries export the current `HOME` and `PATH` so Pi can find its stored auth
 Automations are still files:
 
 - `AGENTS.md` — repo instructions for Pi/agent runs
-- `automations/*.md` — scheduled prompt definitions
-- `skills/*/SKILL.md` — Pi skills
+- `automations/*.md` — scheduled prompt definitions, local/gitignored by default
+- `skills/*/SKILL.md` — Pi skills, local/gitignored by default
 - `packages/web/` — minimal raw HTML viewer over files, crontab, and SQLite
 - `workspaces/<automation>/` — per-automation working dir, gitignored
 

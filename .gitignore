@@ -3,8 +3,17 @@ dist/
 .env
 .env.local
 .DS_Store
+
+# Runtime/local instance state. Keep the public repo as a template;
+# personal skills, automations, run history, and workspaces stay private.
 data/
 traces/
 test-results/
 playwright-report/
 workspaces/
+automations/*
+!automations/
+!automations/README.md
+skills/*
+!skills/
+!skills/README.md

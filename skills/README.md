@@ -1,6 +1,6 @@
 # skills
 
-Pi skills live here.
+Pi skills live here in a personalized checkout. Active skill directories are personal/local instance state and are gitignored by default; only this README is part of the public template.
 
 Each skill is a directory with a `SKILL.md` file:
 
@@ -11,7 +11,7 @@ skills/<name>/SKILL.md
 Automations reference skills by name:
 
 ```yaml
-skill: daily-review
+skill: your-skill
 ```
 
 ## Connector intents

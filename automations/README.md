@@ -1,15 +1,15 @@
 # automations
 
-Each automation is one markdown file with YAML frontmatter and a prompt body.
+Each automation is one markdown file with YAML frontmatter and a prompt body. Active automation files are personal/local instance state and are gitignored by default; only this README is part of the public template.
 
 ```markdown
 ---
-skill: daily-review
+skill: your-skill
 schedule: "manual"
 model: anthropic/claude-sonnet-4-5
 ---
 
-Review the workspace and write a brief.
+Prompt body sent to Pi.
 ```
 
 Run with:

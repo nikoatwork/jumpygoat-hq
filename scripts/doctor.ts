@@ -6,7 +6,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { dbPath, openDb } from "../packages/runner/src/db.js";
+import Database from "better-sqlite3";
+import { dbPath, setupDb } from "../packages/runner/src/db.js";
 import { repoRoot } from "../packages/runner/src/paths.js";
 
 let failed = false;
@@ -55,10 +56,11 @@ if (existsSync(authPath)) ok(`Pi auth file exists: ${authPath}`);
 else warn(`Pi auth file not found at ${authPath}. Run 'pi /login' as this same user, or provide provider env vars.`);
 
 try {
-  const db = openDb();
+  const db = new Database(":memory:");
+  setupDb(db);
   db.prepare("select count(*) as count from runs").get();
   db.close();
-  ok(`SQLite ready: ${dbPath()}`);
+  ok(`SQLite driver ready; local DB path on first run: ${dbPath()}`);
 } catch (error) {
   fail(`SQLite setup failed: ${error instanceof Error ? error.message : String(error)}`);
 }

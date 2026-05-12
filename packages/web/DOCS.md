@@ -41,7 +41,7 @@ Run `pnpm validate:web` from the repo root for Playwright smoke coverage. It sta
 
 ## Safety constraints
 
-- Files remain the source of truth; the web UI is only a convenience layer over `automations/` and `skills/`.
+- Files remain the source of truth; the web UI is only a convenience layer over local/gitignored `automations/` and `skills/` instance files.
 - Names are restricted to lowercase letters, numbers, and hyphens to prevent path traversal and stay compatible with runner/cron scripts.
 - Automations validate required skill, schedule, prompt, and optional model before writing.
 - Skills are edited as raw markdown and delete is blocked while any automation references the skill.

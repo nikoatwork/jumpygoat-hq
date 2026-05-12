@@ -24,7 +24,7 @@ cd /root/jumpygoat-hq
 pnpm install
 pnpm setup:db
 pnpm build
-pnpm doctor
+pnpm run doctor
 ```
 
 Pi must be installed and authenticated for the same Unix user that will run systemd/cron:
@@ -135,21 +135,21 @@ systemctl start agenthq-web
 
 ## 6. Install scheduled automations
 
-The web service only keeps the UI running. Scheduled automation runs are installed separately into cron:
+The public repo ships with no active automations. Create your local `skills/<name>/SKILL.md` and `automations/<name>.md` first, then install scheduled automation runs separately into cron:
 
 ```bash
 cd /root/jumpygoat-hq
-pnpm install:cron daily-review
+pnpm install:cron <automation-name>
 pnpm list:cron
 ```
 
 Remove a scheduled automation:
 
 ```bash
-pnpm uninstall:cron daily-review
+pnpm uninstall:cron <automation-name>
 ```
 
-Cron logs are written under `data/`, for example `data/cron-daily-review.log`.
+Cron logs are written under `data/`, for example `data/cron-<automation-name>.log`.
 
 Install cron as the same Unix user that ran `pi /login`, so Pi can reuse its stored auth.
 
@@ -161,7 +161,7 @@ git pull
 pnpm install
 pnpm setup:db
 pnpm build
-pnpm doctor
+pnpm run doctor
 systemctl restart agenthq-web
 ```
 
@@ -174,6 +174,6 @@ pnpm list:cron
 
 ## Notes
 
-- Runtime state is intentionally local and gitignored: `.env.local`, `data/`, and `workspaces/`.
+- Runtime and personal instance state is intentionally local and gitignored: `.env.local`, `data/`, `workspaces/`, active `skills/*`, and active `automations/*.md`.
 - Keep `HOST=127.0.0.1` unless the service is behind trusted auth/proxy/firewall.
 - For a non-root deployment, replace `User=`, `WorkingDirectory=`, `EnvironmentFile=`, `HOME=`, and the executable paths with that user’s values.

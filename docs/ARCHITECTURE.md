@@ -16,7 +16,7 @@ A reusable Pi skill.
 skills/<name>/SKILL.md
 ```
 
-Skills describe how Pi should perform a class of work. They follow the Agent Skills/Pi skill format: frontmatter plus instructions.
+Skills describe how Pi should perform a class of work. They follow the Agent Skills/Pi skill format: frontmatter plus instructions. Active skills are local/personal by default and gitignored in the public template.
 
 ### Automation
 
@@ -30,7 +30,7 @@ Format:
 
 ```md
 ---
-skill: daily-review
+skill: your-skill
 schedule: "0 9 * * *"
 model: optional-pi-model-selector
 ---
@@ -38,7 +38,7 @@ model: optional-pi-model-selector
 Prompt body sent to Pi.
 ```
 
-Automations are edited as files. The filename is the automation id.
+Automations are edited as files. The filename is the automation id. Active automation files are local/personal by default and gitignored in the public template.
 
 Optional connector config may enable runner-owned external tools. Connector exposure requires both gates:
 
@@ -109,9 +109,9 @@ A 5-field cron expression in automation frontmatter.
 Installed into the current user's crontab with marked blocks:
 
 ```cron
-# agenthq:start daily-review
-0 9 * * * cd /repo && /bin/bash -lc '... pnpm runner daily-review ...'
-# agenthq:end daily-review
+# agenthq:start your-automation
+0 9 * * * cd /repo && /bin/bash -lc '... pnpm runner your-automation ...'
+# agenthq:end your-automation
 ```
 
 Commands:
@@ -154,11 +154,11 @@ Coding agents can validate work from the repo root:
 
 ```bash
 pnpm validate:web       # Playwright smoke checks for the raw HTML viewer
-pnpm validate:backend   # one Pi-backed automation smoke run, default daily-review
+pnpm validate:backend   # one temporary Pi-backed smoke automation run
 pnpm validate           # web smoke, then backend smoke
 ```
 
-The backend smoke writes and verifies one SQLite `runs` row, then prints output/error/trace tails in-session for agent inspection. It does not run all automations or mutate cron.
+The backend smoke creates a temporary gitignored smoke skill/automation if needed, writes and verifies one SQLite `runs` row, then prints output/error/trace tails in-session for agent inspection. It does not run all automations or mutate cron.
 
 ## Runtime flow
 
