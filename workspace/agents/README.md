@@ -33,6 +33,8 @@ schedule: manual
 Prompt for this run.
 ```
 
+Tasks also reference agents by name in their `assignee` frontmatter. The task heartbeat cron only runs `pnpm dispatch:tasks`; it does not use or replace a single dispatcher/operator agent.
+
 ## AGENT.md format
 
 `AGENT.md` is the bundle entrypoint: a Pi instruction file with YAML frontmatter plus markdown instructions. Use it for identity, operating policy, output expectations, model defaults, and connector capability policy:

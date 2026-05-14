@@ -120,7 +120,9 @@ $JUMPYGOATHQ_HOME/boards/<board>/BOARD.md
 $JUMPYGOATHQ_HOME/boards/<board>/tasks/<task-id>.md
 ```
 
-Task statuses are `not-yet`, `ready`, `working-on-it`, and `done`. `pnpm dispatch:tasks` is the heartbeat dispatcher: an instance cron can run it periodically (for example hourly), it scans source-of-truth task markdown for `ready` tasks with a valid `assignee`, claims one task by moving it to `working-on-it`, creates a task invocation, runs Pi with board/task context and the assignee agent, writes a normal run row with `source_type = task` plus legacy-compatible `project`/`task_id` run metadata, then moves success to `done` or failure to `not-yet` with a dispatch note. The run DB is audit/history, not the open-task queue.
+Task statuses are `not-yet`, `ready`, `working-on-it`, and `done`. `pnpm dispatch:tasks` is the heartbeat dispatcher: an explicit instance cron can run it periodically (default setup is hourly with `--limit=1`), it scans source-of-truth task markdown for `ready` tasks with a valid `assignee`, claims one task by moving it to `working-on-it`, creates a task invocation, runs Pi with board/task context and the assignee agent, writes a normal run row with `source_type = task` plus legacy-compatible `project`/`task_id` run metadata, then moves success to `done` or failure to `not-yet` with a dispatch note. The heartbeat job is not tied to an operator agent; each task's `assignee` selects the runtime agent. The run DB is audit/history, not the open-task queue.
+
+Task heartbeat cron is separate from per-automation cron. `pnpm install:task-cron` writes an idempotent `jumpygoathq:task-heartbeat` crontab block whose command runs from the repo root, exports the same `HOME`/`PATH`/`JUMPYGOATHQ_*` environment as automation cron, and logs to `jumpyGoatHqHome()/data/cron-task-heartbeat.log`. `pnpm list:task-cron`, `pnpm uninstall:task-cron`, and the general `pnpm list:cron` surface installed/missing/malformed status. Cadence and limit are setup-time CLI/env choices (`--schedule`, `--limit`, `JUMPYGOATHQ_TASK_HEARTBEAT_CRON`, `JUMPYGOATHQ_TASK_DISPATCH_LIMIT`), not persisted in `settings.yml`.
 
 ### Workspace
 
@@ -186,20 +188,20 @@ The `runs` table stores legacy-compatible `automation`, explicit `source_type`/`
 
 ## Web viewer
 
-Reads automations, agents, boards/tasks, crontab, and SQLite. Default bind is `127.0.0.1:3000`.
+Reads automations, agents, boards/tasks, task heartbeat status, crontab, and SQLite. Default bind is `127.0.0.1:3000`.
 
 Routes:
 
-- `/` — overview/dashboard summary
+- `/` — overview/dashboard summary, including task heartbeat cron status
 - `/automations`, `/automations/new`, `/automations/:name`, `/automations/:name/edit`
 - `/schedule` — read-only 7-day agenda/calendar view of scheduled automations, cron install status, and orphan/malformed jumpyGoatHq cron block warnings
 - `/agents`, `/agents/new`, `/agents/:name`, `/agents/:name/edit`
 - `/boards`, `/boards/new`, `/boards/:board`, `/boards/:board/edit`
-- `/tasks`, `/tasks/new`, `/boards/:board/tasks/:task`, `/boards/:board/tasks/:task/edit`
+- `/tasks`, `/tasks/new`, `/boards/:board/tasks/:task`, `/boards/:board/tasks/:task/edit` — includes task heartbeat install/status notice
 - `/runs`, `/runs/:id`
 - `/settings` — edit instance-local `settings.yml`, view model profiles, and review usage grouped by model/profile
 
-Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw agent create/update/delete, and “Run now,” which shells out to `pnpm runner <automation>`. The schedule page does not mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only.
+Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw agent create/update/delete, task/board file edits, and “Run now,” which shells out to `pnpm runner <automation>`. The schedule page does not mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only. Task heartbeat cron install/uninstall stays in CLI setup commands rather than the web UI.
 
 ## Validation
 

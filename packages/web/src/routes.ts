@@ -40,7 +40,7 @@ import {
 import { TASK_STATUSES, taskStatusLabel, type TaskStatus } from "../../shared/tasks.js";
 import { badge, date, duration, emptyState, errorPage, escapeHtml, icon, inlineActions, layout, metaTable, notFound, notice, pageHeader, raw, runLink, section, status, table, toolbar } from "./html.js";
 import { jumpyGoatHqHome, dbPath } from "./paths.js";
-import { getRun, listAutomations, listBoards, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listTasks, readBoard, readSchedulePageView, readSettingsView, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
+import { getRun, listAutomations, listBoards, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listTasks, readBoard, readSchedulePageView, readSettingsView, readTaskHeartbeatCronStatus, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
 import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
 
 export type ResponseData = { status: number; headers?: Record<string, string>; body: string };
@@ -256,6 +256,7 @@ async function updateSettingsRoute(form: URLSearchParams): Promise<ResponseData>
 async function dashboard(): Promise<string> {
   const [automations, agents, boards, tasks] = await Promise.all([listAutomations(), listAgents(), listBoards(), listTasks()]);
   const cron = listInstalledCronBlocks();
+  const taskHeartbeat = readTaskHeartbeatCronStatus();
   const runs = listRuns(10);
   const failures = runs.filter((r) => r.status !== "ok").slice(0, 5);
   return layout("Dashboard", `
@@ -265,7 +266,8 @@ async function dashboard(): Promise<string> {
       <li>Agents: ${agents.length}</li>
       <li>Boards: ${boards.length}</li>
       <li>Tasks: ${tasks.length}</li>
-      <li>Installed cron jobs: ${cron.length}</li>
+      <li>Installed automation cron jobs: ${cron.length}</li>
+      <li>Task heartbeat cron: ${taskHeartbeat.installed ? `installed${taskHeartbeat.warning ? ` (${escapeHtml(taskHeartbeat.warning)})` : ""}` : "not installed"}</li>
       <li>Recent runs shown: ${runs.length}</li>
       <li>Recent failures/running: ${failures.length}</li>
     </ul>`)}
@@ -469,6 +471,7 @@ async function kanbanPage(url: URL): Promise<string> {
   const board = url.searchParams.get("board") || url.searchParams.get("project") || undefined;
   const focusedStatus = parseFocusedStatus(url.searchParams.get("status"));
   const tasks = await listTasks(board);
+  const taskHeartbeat = readTaskHeartbeatCronStatus();
   const columns = TASK_STATUSES.map((statusName) => {
     const columnTasks = tasks.filter((task) => task.status === statusName);
     const cards = columnTasks.map(taskCard).join("");
@@ -485,6 +488,7 @@ async function kanbanPage(url: URL): Promise<string> {
     ${pageHeader(`Tasks${board ? ` for ${board}` : ""}`, { description: "One-off prompts assigned to agents. Move cards to ready when they should dispatch.", actions: `<a href="${escapeHtml(taskNewHref(undefined, board))}" class="button-link">${icon("plus")}Create task</a><a href="/boards" class="button-link">Boards</a>${focusActions}` })}
     ${pageMessage(url, ["created", "updated"])}
     ${focusedStatus ? `<p class="notice">Focused on <strong>${escapeHtml(taskStatusLabel(focusedStatus))}</strong>.</p>` : ""}
+    ${notice(taskHeartbeat.installed ? `Task heartbeat cron installed: ${taskHeartbeat.line || "command missing"}${taskHeartbeat.warning ? ` (${taskHeartbeat.warning})` : ""}` : "Task heartbeat cron is not installed. Run `pnpm install:task-cron` to periodically dispatch ready assigned tasks.", taskHeartbeat.installed && !taskHeartbeat.warning ? "success" : "warning")}
     <div class="kanban-board${focusedStatus ? " focused" : ""}" data-kanban>${columns}</div>
     <script src="/kanban.js" defer></script>
   `);

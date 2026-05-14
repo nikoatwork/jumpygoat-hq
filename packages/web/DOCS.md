@@ -8,7 +8,7 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 
 ## Routes
 
-- `GET /` — dashboard summary
+- `GET /` — dashboard summary, including task heartbeat cron status
 - `GET /automations` — automation files + cron-installed status + Run now/edit/delete forms
 - `GET /automations/new` — create automation form
 - `POST /automations` — validate and create `jumpyGoatHqHome()/automations/<name>.md`
@@ -28,7 +28,7 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 - `GET /boards` — board list from `jumpyGoatHqHome()/boards/*/BOARD.md`
 - `GET /boards/new` / `POST /boards` — create board markdown
 - `GET /boards/:board` / `GET /boards/:board/edit` / `POST /boards/:board` — view/edit board markdown
-- `GET /tasks` — kanban grouped by task status, optionally `?board=<board>` and focused with `?status=<status>`
+- `GET /tasks` — kanban grouped by task status, optionally `?board=<board>` and focused with `?status=<status>`, plus task heartbeat cron status
 - `GET /tasks/new` / `POST /tasks` — create task markdown
 - `GET /boards/:board/tasks/:task` — task detail and status buttons
 - `GET /boards/:board/tasks/:task/edit` / `POST /boards/:board/tasks/:task` — edit task markdown
@@ -42,7 +42,7 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 
 - `src/index.ts` — HTTP server and startup/shutdown
 - `src/routes.ts` — route handlers
-- `src/readers.ts` — SQLite, automation, agent, settings, usage summary, board/task, and crontab readers
+- `src/readers.ts` — SQLite, automation, agent, settings, usage summary, board/task, crontab, and task heartbeat status readers
 - `src/actions.ts` — mutating actions, validation, canonical markdown/settings serialization, atomic file writes, task status updates, and Run now
 - `src/html.ts` — layout and escaping helpers
 
@@ -80,7 +80,7 @@ Run `pnpm check:design` for the lightweight design-system guardrails. Run `pnpm 
 - Files remain the source of truth; the web UI is only a convenience layer over gitignored instance files under `jumpyGoatHqHome()` (`workspace/` locally by default, or `JUMPYGOATHQ_HOME` when set).
 - Names are restricted to lowercase letters, numbers, and hyphens to prevent path traversal and stay compatible with runner/cron scripts.
 - Automations validate required agent, schedule, prompt, and optional model before writing. Optional model values can be semantic profile keys from `/settings` or direct Pi selectors.
-- `/schedule` is read-only: automation markdown schedules are the source of truth; installed jumpyGoatHq crontab blocks are displayed only as status/evidence, including orphan or malformed blocks.
+- `/schedule` is read-only: automation markdown schedules are the source of truth; installed automation crontab blocks are displayed only as status/evidence, including orphan or malformed blocks. The separate task heartbeat cron status appears on Overview and Tasks.
 - Agents are edited as raw markdown and delete is blocked while any automation references the agent. The UI intentionally exposes only `AGENT.md`; optional `context/*.md` files and reserved resource directories remain file-authored until richer contracts exist.
 - Boards and tasks are markdown source of truth under `jumpyGoatHqHome()/boards`; kanban drag/drop posts to the same status route as non-JS buttons.
 - `/settings` writes only `jumpyGoatHqHome()/settings.yml`, validates before replacing the previous file, and must not collect secrets/API keys; Pi/provider auth remains outside the web UI.

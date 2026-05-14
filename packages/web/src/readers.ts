@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -28,6 +28,13 @@ export type AgentView = {
 
 export type CronBlock = {
   name: string;
+  block: string;
+  line: string;
+  warning?: string;
+};
+
+export type TaskHeartbeatCronStatus = {
+  installed: boolean;
   block: string;
   line: string;
   warning?: string;
@@ -186,12 +193,8 @@ async function countContextFiles(agent: string): Promise<number> {
 }
 
 export function listInstalledCronBlocks(): CronBlock[] {
-  let text = "";
-  try {
-    text = execFileSync("crontab", ["-l"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  } catch {
-    return [];
-  }
+  const text = readUserCrontab();
+  if (!text) return [];
 
   const lines = text.split("\n");
   const blocks: CronBlock[] = [];
@@ -236,6 +239,67 @@ export function listInstalledCronBlocks(): CronBlock[] {
 
   if (current) pushBlock(current, "Missing end marker for jumpyGoatHq cron block.");
   return blocks;
+}
+
+export function readTaskHeartbeatCronStatus(): TaskHeartbeatCronStatus {
+  const text = readUserCrontab();
+  if (!text) return { installed: false, block: "", line: "" };
+
+  const start = "# jumpygoathq:task-heartbeat:start";
+  const end = "# jumpygoathq:task-heartbeat:end";
+  const blocks: Array<{ lines: string[]; warning?: string }> = [];
+  let current: string[] | undefined;
+
+  for (const line of text.split("\n")) {
+    if (line.trim() === start) {
+      if (current) blocks.push({ lines: current, warning: "Missing end marker before another task heartbeat block." });
+      current = [line];
+      continue;
+    }
+    if (line.trim() === end) {
+      if (!current) {
+        blocks.push({ lines: [line], warning: "End marker without matching task heartbeat start marker." });
+        continue;
+      }
+      current.push(line);
+      blocks.push({ lines: current });
+      current = undefined;
+      continue;
+    }
+    if (current) current.push(line);
+  }
+
+  if (current) blocks.push({ lines: current, warning: "Missing end marker for task heartbeat block." });
+  if (blocks.length === 0) return { installed: false, block: "", line: "" };
+
+  const block = blocks[0]!;
+  const warnings = [block.warning];
+  if (blocks.length > 1) warnings.push(`Multiple task heartbeat blocks found (${blocks.length}).`);
+  const line = block.lines.find((entry) => entry.trim() && !entry.trim().startsWith("#")) || "";
+  if (!line) warnings.push("No cron command line found in task heartbeat block.");
+
+  return {
+    installed: true,
+    block: block.lines.join("\n"),
+    line,
+    warning: warnings.filter(Boolean).join(" ") || undefined,
+  };
+}
+
+function readUserCrontab(): string {
+  const testFile = process.env.JUMPYGOATHQ_CRONTAB_FILE?.trim();
+  if (testFile) {
+    try {
+      return existsSync(testFile) ? readFileSync(testFile, "utf8") : "";
+    } catch {
+      return "";
+    }
+  }
+  try {
+    return execFileSync("crontab", ["-l"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch {
+    return "";
+  }
 }
 
 export async function readSchedulePageView(windowDays = 7, now = new Date()): Promise<SchedulePageView> {

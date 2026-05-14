@@ -170,11 +170,22 @@ Common failures:
 Create boards and tasks under `workspace/boards/` or through the web UI. Tasks with `status: ready` and a valid `assignee` are claimed by the heartbeat dispatcher:
 
 ```bash
-pnpm dispatch:tasks          # claims one ready task
+pnpm dispatch:tasks           # claims one ready task
 pnpm dispatch:tasks --limit=3 # optional small local batch
 ```
 
-The dispatcher records a normal SQLite run row with legacy-compatible `project` and `task_id` metadata, transitions successful runs to `done`, and moves failed runs back to `not-yet` with dispatch notes.
+The dispatcher records a normal SQLite run row with legacy-compatible `project` and `task_id` metadata, transitions successful runs to `done`, and moves failed runs back to `not-yet` with dispatch notes. It uses each task's `assignee` agent; there is no single heartbeat agent.
+
+Install/update the instance-level task heartbeat cron explicitly when you want periodic dispatch (default hourly, one task per tick):
+
+```bash
+pnpm install:task-cron
+pnpm install:task-cron -- --schedule="*/30 * * * *" --limit=2
+pnpm list:task-cron
+pnpm uninstall:task-cron
+```
+
+The task heartbeat cron is separate from per-automation cron entries and uses a distinct `jumpygoathq:task-heartbeat` crontab block.
 
 ## Install as a cron job
 
@@ -202,7 +213,7 @@ Remove it:
 pnpm uninstall:cron <automation-name>
 ```
 
-Cron logs go to `workspace/data/cron-<automation>.log` by default, or `$JUMPYGOATHQ_HOME/data/cron-<automation>.log` when `JUMPYGOATHQ_HOME` is set.
+Automation cron logs go to `workspace/data/cron-<automation>.log`; task heartbeat cron logs go to `workspace/data/cron-task-heartbeat.log`. Both paths move under `$JUMPYGOATHQ_HOME/data/` when `JUMPYGOATHQ_HOME` is set.
 
 Cron entries export the current `HOME` and `PATH` so Pi can find its stored auth and the `pi` binary. Install cron as the same Unix user that ran `pi /login`.
 
