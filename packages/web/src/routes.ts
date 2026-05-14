@@ -33,7 +33,7 @@ import {
   type TaskFormValues,
 } from "./actions.js";
 import { TASK_STATUSES, type TaskStatus } from "../../shared/tasks.js";
-import { date, duration, errorPage, escapeHtml, icon, layout, notFound, runLink, status } from "./html.js";
+import { badge, date, duration, emptyState, errorPage, escapeHtml, icon, inlineActions, layout, metaTable, notFound, notice, pageHeader, raw, runLink, section, status, table, toolbar } from "./html.js";
 import { agenthqHome, dbPath } from "./paths.js";
 import { getRun, listAutomations, listInstalledCronBlocks, listRuns, listAgents, listProjects, listTasks, readProject, readSchedulePageView, runAgentName, type TaskView } from "./readers.js";
 import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
@@ -236,9 +236,8 @@ async function dashboard(): Promise<string> {
   const runs = listRuns(10);
   const failures = runs.filter((r) => r.status !== "ok").slice(0, 5);
   return layout("Dashboard", `
-    <h2>Dashboard</h2>
-    <p class="muted">Workspace: <code>${escapeHtml(agenthqHome())}</code>${process.env.AGENTHQ_HOME ? ` (AGENTHQ_HOME=${escapeHtml(process.env.AGENTHQ_HOME)})` : " (default local workspace)"}<br>DB: <code>${escapeHtml(dbPath())}</code></p>
-    <ul>
+    ${pageHeader("Dashboard", { meta: `Workspace: <code>${escapeHtml(agenthqHome())}</code>${process.env.AGENTHQ_HOME ? ` (AGENTHQ_HOME=${escapeHtml(process.env.AGENTHQ_HOME)})` : " (default local workspace)"}<br>DB: <code>${escapeHtml(dbPath())}</code>` })}
+    ${section("Workspace summary", `<ul>
       <li>Automations: ${automations.length}</li>
       <li>Agents: ${agents.length}</li>
       <li>Projects: ${projects.length}</li>
@@ -246,11 +245,9 @@ async function dashboard(): Promise<string> {
       <li>Installed cron jobs: ${cron.length}</li>
       <li>Recent runs shown: ${runs.length}</li>
       <li>Recent failures/running: ${failures.length}</li>
-    </ul>
-    <h3>Recent failures / running</h3>
-    ${runsTable(failures)}
-    <h3>Recent runs</h3>
-    ${runsTable(runs)}
+    </ul>`)}
+    ${section("Recent failures / running", runsTable(failures, "No recent failures or running jobs."))}
+    ${section("Recent runs", runsTable(runs))}
   `);
 }
 
@@ -258,24 +255,19 @@ async function automationsPage(url: URL): Promise<string> {
   const automations = await listAutomations();
   const cronNames = new Set(listInstalledCronBlocks().map((b) => b.name));
   const message = pageMessage(url, ["ran", "created", "updated", "deleted"]);
-  const rows = automations.map((a) => `<tr>
-    <td><a href="/automations/${encodeURIComponent(a.name)}"><code>${escapeHtml(a.name)}</code></a>${a.warning ? `<br><b>${escapeHtml(a.warning)}</b>` : ""}</td>
-    <td>${escapeHtml(a.agent)}</td>
-    <td>${scheduleLabel(a.schedule)}</td>
-    <td>${escapeHtml(a.model || "default")}</td>
-    <td>${cronNames.has(a.name) ? "yes" : "no"}</td>
-    <td>${clamp(a.promptPreview)}</td>
-    <td class="actions">
-      <form method="post" action="/automations/${encodeURIComponent(a.name)}/run"><button type="submit">${icon("play")}Run now</button></form>
-      <a href="/automations/${encodeURIComponent(a.name)}/edit">${icon("pen")}Edit</a>
-      <details><summary>${icon("trash")}Delete</summary>${deleteAutomationForm(a.name)}</details>
-    </td>
-  </tr>`).join("");
+  const rows = automations.map((a) => [
+    raw(`<a href="/automations/${encodeURIComponent(a.name)}"><code>${escapeHtml(a.name)}</code></a>${a.warning ? `<br><b>${escapeHtml(a.warning)}</b>` : ""}`),
+    a.agent,
+    raw(scheduleLabel(a.schedule)),
+    a.model || "default",
+    cronNames.has(a.name) ? "yes" : "no",
+    raw(clamp(a.promptPreview)),
+    raw(inlineActions(`<form method="post" action="/automations/${encodeURIComponent(a.name)}/run"><button type="submit">${icon("play")}Run now</button></form><a href="/automations/${encodeURIComponent(a.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAutomationForm(a.name)}</details>`)),
+  ]);
   return layout("Automations", `
-    <h2>Automations</h2>
-    <p><a href="/automations/new" class="button-link">${icon("plus")}Create automation</a></p>
+    ${pageHeader("Automations", { actions: `<a href="/automations/new" class="button-link">${icon("plus")}Create automation</a>` })}
     ${message}
-    ${automations.length === 0 ? "<p>No automations found.</p>" : `<table><tr><th>Name</th><th>Agent</th><th>Schedule</th><th>Model</th><th>Cron installed</th><th>Prompt</th><th>Action</th></tr>${rows}</table>`}
+    ${section("Automation files", table(["Name", "Agent", "Schedule", "Model", "Cron installed", "Prompt", "Action"], rows, { empty: "No automations found." }))}
   `);
 }
 
@@ -283,61 +275,59 @@ async function schedulePage(): Promise<string> {
   const view = await readSchedulePageView(7);
   const scheduled = view.runs.filter((run) => !run.manual);
   const manual = view.runs.filter((run) => run.manual);
-  const rows = view.runs.map((run) => `<tr>
-    <td><a href="/automations/${encodeURIComponent(run.name)}"><code>${escapeHtml(run.name)}</code></a></td>
-    <td>${escapeHtml(run.agent || "missing")}${run.agentDescription ? `<br><span class="muted">${escapeHtml(run.agentDescription)}</span>` : ""}</td>
-    <td>${scheduleLabel(run.schedule)}</td>
-    <td>${escapeHtml(run.model)}</td>
-    <td>${scheduleStatus(run)}</td>
-    <td>${run.upcoming[0] ? escapeHtml(formatDateTime(run.upcoming[0]!)) : ""}</td>
-    <td>${run.upcoming.length}</td>
-    <td>${warningsList(run.warnings)}</td>
-  </tr>`).join("");
+  const rows = view.runs.map((run) => [
+    raw(`<a href="/automations/${encodeURIComponent(run.name)}"><code>${escapeHtml(run.name)}</code></a>`),
+    raw(`${escapeHtml(run.agent || "missing")}${run.agentDescription ? `<br><span class="muted">${escapeHtml(run.agentDescription)}</span>` : ""}`),
+    raw(scheduleLabel(run.schedule)),
+    run.model,
+    raw(scheduleStatus(run)),
+    run.upcoming[0] ? formatDateTime(run.upcoming[0]!) : "",
+    run.upcoming.length,
+    raw(warningsList(run.warnings)),
+  ]);
 
   const groups = groupOccurrencesByDate(view.occurrences);
-  const agenda = groups.length === 0 ? "<p>No upcoming scheduled agent runs in this window.</p>" : groups.map(([label, occurrences]) => `
+  const agenda = groups.length === 0 ? emptyState("No upcoming scheduled agent runs in this window.") : groups.map(([label, occurrences]) => `
     <section class="agenda-day panel">
       <h3>${escapeHtml(label)}</h3>
       <ol class="agenda-list">
         ${occurrences.map((occurrence) => `<li>
           <time>${escapeHtml(formatTimeOnly(occurrence.time))}</time>
           <span><a href="/automations/${encodeURIComponent(occurrence.automation)}"><code>${escapeHtml(occurrence.automation)}</code></a> runs agent <code>${escapeHtml(occurrence.agent || "missing")}</code></span>
-          <span class="muted"><code>${escapeHtml(occurrence.schedule)}</code> · ${occurrence.installed ? "installed" : "not installed"}</span>
+          <span class="muted"><code>${escapeHtml(occurrence.schedule)}</code> · ${occurrence.installed ? badge("installed", "installed") : badge("not installed", "missing")}</span>
         </li>`).join("")}
       </ol>
     </section>`).join("");
 
-  const manualRows = manual.map((run) => `<tr><td><a href="/automations/${encodeURIComponent(run.name)}"><code>${escapeHtml(run.name)}</code></a></td><td>${escapeHtml(run.agent)}</td><td>${run.installed ? "installed cron present" : "manual only"}</td><td>${warningsList(run.warnings)}</td></tr>`).join("");
-  const orphanRows = view.orphanCronBlocks.map((block) => `<tr><td><code>${escapeHtml(block.name)}</code></td><td>${escapeHtml(block.line || "no command line found")}</td><td>${block.warning ? escapeHtml(block.warning) : "No matching automation file."}</td></tr>`).join("");
+  const manualRows = manual.map((run) => [
+    raw(`<a href="/automations/${encodeURIComponent(run.name)}"><code>${escapeHtml(run.name)}</code></a>`),
+    run.agent,
+    run.installed ? "installed cron present" : "manual only",
+    raw(warningsList(run.warnings)),
+  ]);
+  const orphanRows = view.orphanCronBlocks.map((block) => [raw(`<code>${escapeHtml(block.name)}</code>`), block.line || "no command line found", block.warning || "No matching automation file."]);
 
   return layout("Schedule", `
-    <h2>Schedule</h2>
-    <p class="muted">Read-only agenda for scheduled agent runs from ${escapeHtml(formatDateTime(view.from))} through ${escapeHtml(formatDateTime(view.until))}. Source of truth: automation markdown schedules. Crontab blocks are install status/evidence only.</p>
+    ${pageHeader("Schedule", { description: `Read-only agenda for scheduled agent runs from ${escapeHtml(formatDateTime(view.from))} through ${escapeHtml(formatDateTime(view.until))}. Source of truth: automation markdown schedules. Crontab blocks are install status/evidence only.` })}
     ${warningsList(view.warnings)}
-    <h3>Upcoming agenda</h3>
-    ${agenda}
-    <h3>Scheduled run summary</h3>
-    ${view.runs.length === 0 ? "<p>No automations found.</p>" : `<table><tr><th>Automation</th><th>Agent</th><th>Schedule</th><th>Model</th><th>Cron</th><th>Next run</th><th>Count</th><th>Warnings</th></tr>${rows}</table>`}
-    <h3>Manual automations</h3>
-    ${manual.length === 0 ? "<p>No manual automations found.</p>" : `<table><tr><th>Automation</th><th>Agent</th><th>Status</th><th>Warnings</th></tr>${manualRows}</table>`}
-    <h3>Installed cron orphans</h3>
-    ${view.orphanCronBlocks.length === 0 ? "<p>No orphan AgentHQ cron blocks found.</p>" : `<table><tr><th>Name</th><th>Command</th><th>Warning</th></tr>${orphanRows}</table>`}
-    <p class="muted">Scheduled automations in window: ${scheduled.length}. Manual automations are excluded from the occurrence list.</p>
+    ${section("Upcoming agenda", agenda)}
+    ${section("Scheduled run summary", table(["Automation", "Agent", "Schedule", "Model", "Cron", "Next run", "Count", "Warnings"], rows, { empty: "No automations found." }))}
+    ${section("Manual automations", table(["Automation", "Agent", "Status", "Warnings"], manualRows, { empty: "No manual automations found." }))}
+    ${section("Installed cron orphans", table(["Name", "Command", "Warning"], orphanRows, { empty: "No orphan AgentHQ cron blocks found." }))}
+    ${toolbar(`<span class="muted">Scheduled automations in window: ${scheduled.length}. Manual automations are excluded from the occurrence list.</span>`)}
   `);
 }
 
 async function automationDetailPage(name: string): Promise<string> {
   const automation = await readAutomationRaw(name);
   return layout(`Automation ${name}`, `
-    <h2>Automation <code>${escapeHtml(name)}</code></h2>
-    <p><a href="/automations/${encodeURIComponent(name)}/edit">Edit</a> <a href="/automations">Back to automations</a></p>
-    <table>
-      <tr><th>Agent</th><td>${escapeHtml(automation.agent)}</td></tr>
-      <tr><th>Schedule</th><td>${scheduleLabel(automation.schedule)}</td></tr>
-      <tr><th>Model</th><td>${escapeHtml(automation.model || "default")}</td></tr>
-    </table>
-    <h3>Prompt</h3>
-    <pre>${escapeHtml(automation.prompt)}</pre>
+    ${pageHeader(`Automation ${name}`, { actions: `<a href="/automations/${encodeURIComponent(name)}/edit" class="button-link">${icon("pen")}Edit</a><a href="/automations" class="button-link">Back to automations</a>` })}
+    ${section("Details", metaTable([
+      ["Agent", automation.agent],
+      ["Schedule", raw(scheduleLabel(automation.schedule))],
+      ["Model", automation.model || "default"],
+    ]))}
+    ${section("Prompt", `<pre>${escapeHtml(automation.prompt)}</pre>`)}
   `);
 }
 
@@ -346,9 +336,9 @@ async function automationFormPage(title: string, values: AutomationFormValues, e
   const action = editingName ? `/automations/${encodeURIComponent(editingName)}` : "/automations";
   const nameAttrs = editingName ? "readonly" : "required";
   return layout(title, `
-    <h2>${escapeHtml(title)}</h2>
+    ${pageHeader(title)}
     ${errorsList(errors)}
-    <form method="post" action="${action}" class="stack">
+    <form method="post" action="${action}" class="form-stack">
       <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
       <label>Agent <select name="agent" required>${agents.map((s) => `<option value="${escapeHtml(s.name)}" ${s.name === values.agent ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select></label>
       ${scheduleFields(values.schedule || "manual")}
@@ -478,8 +468,15 @@ async function taskDetailPage(project: string, id: string): Promise<string> {
 }
 
 function tasksTable(tasks: TaskView[]): string {
-  if (tasks.length === 0) return "<p>No tasks found.</p>";
-  return `<table><tr><th>Task</th><th>Status</th><th>Assignee</th><th>Priority</th><th>Latest run</th><th>Action</th></tr>${tasks.map((task) => `<tr><td><a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}"><code>${escapeHtml(task.id)}</code></a><br>${escapeHtml(task.title)}${task.warning ? `<br><b class="error">${escapeHtml(task.warning)}</b>` : ""}</td><td>${escapeHtml(task.status)}</td><td>${escapeHtml(task.assignee)}</td><td>${escapeHtml(task.priority)}</td><td>${task.latestRun ? runLink(task.latestRun) : ""}</td><td class="actions"><a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}/edit">${icon("pen")}Edit</a>${statusActionForms(task, `/projects/${encodeURIComponent(task.project)}`)}</td></tr>`).join("")}</table>`;
+  const rows = tasks.map((task) => [
+    raw(`<a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}"><code>${escapeHtml(task.id)}</code></a><br>${escapeHtml(task.title)}${task.warning ? `<br><b class="error">${escapeHtml(task.warning)}</b>` : ""}`),
+    task.status,
+    task.assignee,
+    task.priority,
+    raw(task.latestRun ? runLink(task.latestRun) : ""),
+    raw(inlineActions(`<a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}/edit">${icon("pen")}Edit</a>${statusActionForms(task, `/projects/${encodeURIComponent(task.project)}`)}`)),
+  ]);
+  return table(["Task", "Status", "Assignee", "Priority", "Latest run", "Action"], rows, { empty: "No tasks found." });
 }
 
 function taskCard(task: TaskView): string {
@@ -578,16 +575,24 @@ function weekdayName(value: string): string {
 async function agentsPage(url: URL): Promise<string> {
   const agents = await listAgents();
   const message = pageMessage(url, ["created", "updated", "deleted"]);
-  const rows = agents.map((s) => `<tr><td><a href="/agents/${encodeURIComponent(s.name)}"><code>${escapeHtml(s.name)}</code></a>${s.warning ? `<br><b>${escapeHtml(s.warning)}</b>` : ""}</td><td>${clamp(s.description)}</td><td>${clampCode(s.path)}</td><td class="actions"><a href="/agents/${encodeURIComponent(s.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(s.name)}</details></td></tr>`).join("");
-  return layout("Agents", `<h2>Agents</h2><p><a href="/agents/new" class="button-link">${icon("plus")}Create agent</a></p>${message}${agents.length === 0 ? "<p>No agents found.</p>" : `<table><tr><th>Name</th><th>Description</th><th>Path</th><th>Action</th></tr>${rows}</table>`}`);
+  const rows = agents.map((s) => [
+    raw(`<a href="/agents/${encodeURIComponent(s.name)}"><code>${escapeHtml(s.name)}</code></a>${s.warning ? `<br><b>${escapeHtml(s.warning)}</b>` : ""}`),
+    raw(clamp(s.description)),
+    raw(clampCode(s.path)),
+    raw(inlineActions(`<a href="/agents/${encodeURIComponent(s.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(s.name)}</details>`)),
+  ]);
+  return layout("Agents", `
+    ${pageHeader("Agents", { actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
+    ${message}
+    ${section("Agent files", table(["Name", "Description", "Path", "Action"], rows, { empty: "No agents found." }))}
+  `);
 }
 
 async function agentDetailPage(name: string): Promise<string> {
   const agent = await readAgentRaw(name);
   return layout(`Agent ${name}`, `
-    <h2>Agent <code>${escapeHtml(name)}</code></h2>
-    <p><a href="/agents/${encodeURIComponent(name)}/edit">Edit</a> <a href="/agents">Back to agents</a></p>
-    <pre>${escapeHtml(agent.content)}</pre>
+    ${pageHeader(`Agent ${name}`, { actions: `<a href="/agents/${encodeURIComponent(name)}/edit" class="button-link">${icon("pen")}Edit</a><a href="/agents" class="button-link">Back to agents</a>` })}
+    ${section("AGENT.md", `<pre>${escapeHtml(agent.content)}</pre>`)}
   `);
 }
 
@@ -595,10 +600,9 @@ function agentFormPage(title: string, values: AgentFormValues, errors: string[],
   const action = editingName ? `/agents/${encodeURIComponent(editingName)}` : "/agents";
   const nameAttrs = editingName ? "readonly" : "required";
   return layout(title, `
-    <h2>${escapeHtml(title)}</h2>
-    <p class="muted">Advanced: agents are Pi instructions/system-prompt-like files. Edit raw <code>AGENT.md</code> carefully.</p>
+    ${pageHeader(title, { description: "Advanced: agents are Pi instructions/system-prompt-like files. Edit raw AGENT.md carefully." })}
     ${errorsList(errors)}
-    <form method="post" action="${action}" class="stack">
+    <form method="post" action="${action}" class="form-stack">
       <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
       <label>AGENT.md <textarea name="content" rows="24" required>${escapeHtml(values.content)}</textarea></label>
       <p><button type="submit">${icon("checkmark")}Save</button> <a href="/agents">Cancel</a></p>
@@ -608,43 +612,51 @@ function agentFormPage(title: string, values: AgentFormValues, errors: string[],
 
 function runsPage(url: URL): string {
   const runs = listRuns(100);
-  const message = url.searchParams.get("ran") ? `<p>Finished run request for: <code>${escapeHtml(url.searchParams.get("ran"))}</code></p>` : "";
-  return layout("Runs", `<h2>Runs</h2>${message}${runsTable(runs)}`);
+  const message = url.searchParams.get("ran") ? notice(`Finished run request for: ${url.searchParams.get("ran")}`, "success") : "";
+  return layout("Runs", `${pageHeader("Runs")}${message}${section("History", runsTable(runs))}`);
 }
 
 function runDetailPage(id: string): string {
   const run = getRun(id);
-  if (!run) return layout("Run not found", `<h2>Run not found</h2><p>No run found for <code>${escapeHtml(id)}</code>.</p>`);
+  if (!run) return layout("Run not found", `${pageHeader("Run not found")}<p>No run found for <code>${escapeHtml(id)}</code>.</p>`);
   return layout(`Run ${id}`, `
-    <h2>Run <code>${escapeHtml(run.id)}</code></h2>
-    <table>
-      <tr><th>Automation</th><td>${escapeHtml(run.automation)}</td></tr>
-      <tr><th>Agent</th><td>${escapeHtml(runAgentName(run))}</td></tr>
-      <tr><th>Project/task</th><td>${run.project && run.task_id ? `<a href="/projects/${encodeURIComponent(run.project)}/tasks/${encodeURIComponent(run.task_id)}"><code>${escapeHtml(run.project)}/${escapeHtml(run.task_id)}</code></a>` : ""}</td></tr>
-      <tr><th>Status</th><td>${status(run.status)}</td></tr>
-      <tr><th>Started</th><td>${date(run.started_at)}</td></tr>
-      <tr><th>Finished</th><td>${date(run.finished_at)}</td></tr>
-      <tr><th>Duration</th><td>${duration(run.duration_ms)}</td></tr>
-      <tr><th>Exit</th><td>${escapeHtml(run.exit_code ?? "")}</td></tr>
-      <tr><th>Connector actions</th><td><pre>${escapeHtml(formatConnectorActions(run.connector_actions_json))}</pre></td></tr>
-    </table>
-    <h3>Timeline</h3>
-    ${traceLog(formatTraceLog(run.trace_text))}
-    <h3>Output</h3>
-    ${run.output_text ? `<pre>${escapeHtml(run.output_text)}</pre>` : "<p class=\"muted\">No output text captured.</p>"}
-    ${run.error_text ? `<h3>Error</h3><pre>${escapeHtml(run.error_text)}</pre>` : ""}
+    ${pageHeader(`Run ${run.id}`)}
+    ${section("Details", metaTable([
+      ["Automation", run.automation],
+      ["Agent", runAgentName(run)],
+      ["Project/task", raw(run.project && run.task_id ? `<a href="/projects/${encodeURIComponent(run.project)}/tasks/${encodeURIComponent(run.task_id)}"><code>${escapeHtml(run.project)}/${escapeHtml(run.task_id)}</code></a>` : "")],
+      ["Status", raw(status(run.status))],
+      ["Started", raw(date(run.started_at))],
+      ["Finished", raw(date(run.finished_at))],
+      ["Duration", duration(run.duration_ms)],
+      ["Exit", run.exit_code ?? ""],
+      ["Connector actions", raw(`<pre>${escapeHtml(formatConnectorActions(run.connector_actions_json))}</pre>`)],
+    ]))}
+    ${section("Timeline", traceLog(formatTraceLog(run.trace_text)))}
+    ${section("Output", run.output_text ? `<pre>${escapeHtml(run.output_text)}</pre>` : emptyState("No output text captured."))}
+    ${run.error_text ? section("Error", `<pre>${escapeHtml(run.error_text)}</pre>`) : ""}
     <details><summary>Raw trace JSONL</summary><pre>${escapeHtml(run.trace_text)}</pre></details>
   `);
 }
 
 function traceLog(entries: TraceLogEntry[]): string {
-  if (entries.length === 0) return "<p class=\"muted\">No trace events captured.</p>";
-  return `<table class="trace-log"><tr><th>Kind</th><th>Event</th><th>Detail</th></tr>${entries.map((entry) => `<tr><td><span class="trace-kind trace-${escapeHtml(entry.category)}">${escapeHtml(entry.category)}</span></td><td>${escapeHtml(entry.label)}</td><td>${escapeHtml(entry.detail || "")}</td></tr>`).join("")}</table>`;
+  const rows = entries.map((entry) => [raw(`<span class="trace-kind trace-${escapeHtml(entry.category)}">${escapeHtml(entry.category)}</span>`), entry.label, entry.detail || ""]);
+  return table(["Kind", "Event", "Detail"], rows, { className: "trace-log", empty: "No trace events captured." });
 }
 
-function runsTable(runs: ReturnType<typeof listRuns>): string {
-  if (runs.length === 0) return "<p>No runs found.</p>";
-  return `<table><tr><th>Run</th><th>Automation</th><th>Agent</th><th>Task</th><th>Status</th><th>Connector</th><th>Started</th><th>Duration</th><th>Exit</th></tr>${runs.map((r) => `<tr><td>${runLink(r)}</td><td>${escapeHtml(r.automation)}</td><td>${escapeHtml(runAgentName(r))}</td><td>${r.project && r.task_id ? `<a href="/projects/${encodeURIComponent(r.project)}/tasks/${encodeURIComponent(r.task_id)}"><code>${escapeHtml(r.project)}/${escapeHtml(r.task_id)}</code></a>` : ""}</td><td>${status(r.status)}</td><td>${clamp(connectorSummary(r.connector_actions_json))}</td><td>${date(r.started_at)}</td><td>${duration(r.duration_ms)}</td><td>${escapeHtml(r.exit_code ?? "")}</td></tr>`).join("")}</table>`;
+function runsTable(runs: ReturnType<typeof listRuns>, empty = "No runs found."): string {
+  const rows = runs.map((r) => [
+    raw(runLink(r)),
+    r.automation,
+    runAgentName(r),
+    raw(r.project && r.task_id ? `<a href="/projects/${encodeURIComponent(r.project)}/tasks/${encodeURIComponent(r.task_id)}"><code>${escapeHtml(r.project)}/${escapeHtml(r.task_id)}</code></a>` : ""),
+    raw(status(r.status)),
+    raw(clamp(connectorSummary(r.connector_actions_json))),
+    raw(date(r.started_at)),
+    duration(r.duration_ms),
+    r.exit_code ?? "",
+  ]);
+  return table(["Run", "Automation", "Agent", "Task", "Status", "Connector", "Started", "Duration", "Exit"], rows, { empty });
 }
 
 function clamp(value: string): string {
@@ -677,8 +689,8 @@ function formatConnectorActions(json?: string): string {
 
 function scheduleStatus(run: { manual: boolean; installed: boolean; warnings: string[] }): string {
   const problem = run.warnings.length > 0;
-  if (run.manual) return `<span class="badge ${problem ? "warning" : "manual"}">${run.installed ? "manual + installed" : "manual"}</span>`;
-  return `<span class="badge ${problem ? "warning" : run.installed ? "installed" : "missing"}">${run.installed ? "installed" : "not installed"}</span>`;
+  if (run.manual) return badge(run.installed ? "manual + installed" : "manual", problem ? "warning" : "manual");
+  return badge(run.installed ? "installed" : "not installed", problem ? "warning" : run.installed ? "installed" : "missing");
 }
 
 function warningsList(warnings: string[]): string {
@@ -712,7 +724,7 @@ function formatDateTime(value: Date): string {
 
 function errorsList(errors: string[]): string {
   if (!errors.length) return "";
-  return `<ul class="error">${errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`;
+  return `<ul class="notice error">${errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`;
 }
 
 function deleteAutomationForm(name: string): string {
@@ -726,7 +738,7 @@ function deleteAgentForm(name: string): string {
 function pageMessage(url: URL, keys: string[]): string {
   for (const key of keys) {
     const value = url.searchParams.get(key);
-    if (value) return `<p>${escapeHtml(key)}: <code>${escapeHtml(value)}</code></p>`;
+    if (value) return notice(`${key}: ${value}`, "success");
   }
   return "";
 }

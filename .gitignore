@@ -21,6 +21,11 @@ skills/*
 !skills/
 !skills/README.md
 
+# Local task queues/history. Keep canonical changelog in git.
+tasks/todo/
+tasks/done/
+!tasks/CHANGELOG.md
+
 # Canonical mutable local workspace. Keep docs, ignore active state.
 workspace/data/
 workspace/traces/

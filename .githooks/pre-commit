@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+set -eu
+
+# Validate TypeScript builds before commits that can affect TS output.
+if git diff --cached --name-only --diff-filter=ACMR | grep -Eq '(^|/)(package.json|pnpm-lock.yaml|tsconfig[^/]*\.json)$|\.(ts|tsx)$'; then
+  echo "pre-commit: TypeScript-impacting changes detected; running pnpm build..."
+  pnpm build
+else
+  echo "pre-commit: no TypeScript-impacting staged changes; skipping pnpm build."
+fi

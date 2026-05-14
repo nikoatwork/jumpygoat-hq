@@ -44,6 +44,29 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 - `src/actions.ts` — mutating actions, validation, canonical markdown serialization, atomic file writes, task status updates, and Run now
 - `src/html.ts` — layout and escaping helpers
 
+## UI conventions
+
+The web UI has a deliberately small, server-rendered design system:
+
+- Do not add frontend dependencies, React, Tailwind, CSS-in-JS, component libraries, bundlers, client-side routing, or a build step for styling.
+- Keep common CSS in `public/styles.css` using semantic classes over broad utility sprawl.
+- Use shared helpers from `src/html.ts` for repeated patterns: `pageHeader`, `section`, `toolbar`, `inlineActions`, `notice`, `badge`, `emptyState`, `table`, and `metaTable`.
+- Prefer canonical classes for route markup: `.page-header`, `.page-actions`, `.section`, `.toolbar`, `.inline-actions`, `.empty-state`, `.notice`, `.badge`, `.form-stack`, `.form-grid`, `.table-wrap`, and `.meta-table`.
+- Keep true page-specific layout CSS page-specific. Current examples include `.kanban-*`, `.agenda-*`, `.trace-*`, and `.schedule-*` rules.
+
+Common route patterns:
+
+```ts
+pageHeader("Automations", { actions: `<a class="button-link" href="/automations/new">Create automation</a>` });
+table(["Name", "Action"], rows, { empty: "No automations found." });
+notice("created: daily-report", "success");
+badge("installed", "installed");
+```
+
+Use `form-stack` for simple vertical forms and `form-grid` for compact field groups. Use `raw(...)` only for intentional trusted HTML fragments from route code; helper text values escape by default.
+
+Reconsider a React/client-heavy migration only if the product needs a genuinely interactive operator console that cannot stay clear with server-rendered HTML plus small progressive-enhancement scripts.
+
 ## Local validation
 
 Run `pnpm validate:web` from the repo root for web build + Playwright smoke coverage. It starts the web server locally, checks the dashboard, automations page, schedule page, and runs page, and retains screenshots/traces only on failure.

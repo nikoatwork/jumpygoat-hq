@@ -4,6 +4,8 @@
   "packageManager": "pnpm@10.10.0",
   "scripts": {
     "build": "pnpm --filter @agenthq/runner build && pnpm --filter @agenthq/web build",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks || true",
     "setup:db": "pnpm --filter @agenthq/runner exec tsx ../../scripts/setup-db.ts",
     "doctor": "pnpm --filter @agenthq/runner exec tsx ../../scripts/doctor.ts",
     "install:cron": "pnpm --filter @agenthq/runner exec tsx ../../scripts/install-cron.ts",
