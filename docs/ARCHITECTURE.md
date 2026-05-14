@@ -5,8 +5,12 @@ jumpyGoatHq is a personal runner for scheduled/manual Pi agents.
 Strategic frame: jumpyGoatHq should stay the smallest useful open-source Hermes/OpenClaw-like agent operations layer. Keep strong primitives, limited features, and clear extension seams; do not broaden into a workflow builder or feature clone.
 
 ```txt
-automation.md or ready task.md -> invocation -> agent AGENT.md (+ context/*.md) -> runner/dispatcher -> gated Pi connector extension -> pi --mode json -> SQLite run row -> raw HTML viewer
+web UI / jumpyGoatHQ CLI -> domain API/service -> markdown source files + SQLite + cron evidence/setup
+                                                |
+automation.md or ready task.md -----------------+-> invocation -> agent AGENT.md (+ context/*.md) -> runner/dispatcher -> gated Pi connector extension -> pi --mode json -> SQLite run row
 ```
+
+The web UI, future CLI, and any JSON API must be adapters over the same domain service layer. They should not each reimplement file paths, markdown serialization, validation, run launch behavior, or cron parsing.
 
 ## Concepts
 
@@ -168,6 +172,65 @@ $JUMPYGOATHQ_HOME/data/jumpygoat-hq.sqlite
 
 The `runs` table stores legacy-compatible `automation`, explicit `source_type`/`source_id`, agent, optional `project`/`task_id`, requested/resolved model/profile audit fields, status/timing, output text, trace text, error text, connector action JSON, and nullable best-effort Pi-emitted usage/cost aggregates.
 
+## Unified domain API and clients
+
+To let the raw HTML web UI and `jumpygoathq` CLI perform the same CRUD operations, jumpyGoatHq uses one local domain API/service boundary instead of treating web route handlers as the mutation layer.
+
+Implemented package split:
+
+- `packages/core` — source-of-truth readers/writers and validators for agents, automations, boards, tasks, settings, runs, and cron status/setup. This package owns safe names, canonical markdown/YAML serialization, atomic file writes, delete guards, run-now dispatch, and crontab block parsing/install/uninstall wrappers.
+- `packages/web/src/api.ts` — HTTP JSON adapter over `packages/core`. It exposes stable DTOs and structured errors, but must not contain product rules that are not also enforced by `packages/core`. Split to a standalone `packages/api` only if deployment needs it later.
+- `packages/web` — HTML adapter. Route handlers parse form input, call `packages/core`, then render/redirect. HTML routes stay POST + redirect-after-post.
+- `packages/cli` — command adapter with a `jumpygoathq` bin. Default local mode calls `packages/core` in-process for speed and offline use; `--api-url`, `JUMPYGOATHQ_API_URL`, or named instance profiles call the same JSON API for remote/self-hosted deployments.
+- `packages/shared` — pure DTO/schema/path helpers used by core/web/runner. Avoid adding new filesystem side effects here unless intentionally reorganized.
+
+The API shape should stay resource-oriented and mirror the product primitives, not the current HTML route names:
+
+```txt
+GET    /api/agents
+POST   /api/agents
+GET    /api/agents/:name
+PUT    /api/agents/:name
+DELETE /api/agents/:name
+
+GET    /api/automations
+POST   /api/automations
+GET    /api/automations/:name
+PUT    /api/automations/:name
+DELETE /api/automations/:name
+POST   /api/automations/:name/runs
+
+GET    /api/boards
+POST   /api/boards
+GET    /api/boards/:board
+PUT    /api/boards/:board
+DELETE /api/boards/:board
+GET    /api/tasks?board=:board&status=:status
+POST   /api/tasks
+GET    /api/boards/:board/tasks/:task
+PUT    /api/boards/:board/tasks/:task
+PATCH  /api/boards/:board/tasks/:task/status
+DELETE /api/boards/:board/tasks/:task
+
+GET    /api/runs
+GET    /api/runs/:id
+GET    /api/settings
+PUT    /api/settings
+GET    /api/cron
+PUT    /api/cron/automations { name }
+DELETE /api/cron/automations { name }
+PUT    /api/cron/automations/:name
+DELETE /api/cron/automations/:name
+PUT    /api/cron/task-heartbeat
+DELETE /api/cron/task-heartbeat
+```
+
+Cron remains an installation/deployment concern, not a separate authoring source of truth: automation schedules live in automation markdown, task heartbeat cadence is setup/env choice, and crontab blocks are evidence plus setup targets. Exposing cron through the CLI/API is acceptable for operator setup (`install`, `uninstall`, `status`) but should not create a second schedule model.
+
+DTOs should include enough metadata for safe clients: `name`/`id`, parsed fields, raw markdown where raw editing is intentionally supported, warnings, `updatedAt`/mtime, and an `etag` or revision token. Mutations should support optimistic concurrency (`If-Match` or explicit revision) before overwriting files. Errors should be deterministic JSON (`code`, `message`, `fields`) so the CLI can print useful failures and the web UI can map the same failures back into forms.
+
+The JSON API binds with the same web server default of `127.0.0.1`. Set `JUMPYGOATHQ_API_TOKEN` before remote use; `/api/...` then requires `Authorization: Bearer <token>` or `x-api-token: <token>`. Keep the server behind HTTPS/proxy, Tailscale, or an SSH tunnel before binding broadly. Secrets/provider env vars are not returned by API DTOs. Side-effecting endpoints such as run-now and cron install/uninstall emit `[api:audit]` lines to server stdout.
+
 ## Runtime flow
 
 1. Cron or user runs `pnpm runner <automation>`.
@@ -188,7 +251,7 @@ The `runs` table stores legacy-compatible `automation`, explicit `source_type`/`
 
 ## Web viewer
 
-Reads automations, agents, boards/tasks, task heartbeat status, crontab, and SQLite. Default bind is `127.0.0.1:3000`.
+Server-rendered HTML adapter over the unified domain service/API. It reads automations, agents, boards/tasks, task heartbeat status, crontab, and SQLite through shared domain readers instead of owning product rules in route handlers. The same server exposes `/api/...` JSON routes for CLI/remote clients. Default bind is `127.0.0.1:3000`.
 
 Routes:
 
@@ -201,7 +264,7 @@ Routes:
 - `/runs`, `/runs/:id`
 - `/settings` — edit instance-local `settings.yml`, view model profiles, and review usage grouped by model/profile
 
-Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw agent create/update/delete, task/board file edits, and “Run now,” which shells out to `pnpm runner <automation>`. The schedule page does not mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only. Task heartbeat cron install/uninstall stays in CLI setup commands rather than the web UI.
+Mutations remain intentionally file-native POST actions in the HTML surface: automation create/update/delete, cautious raw agent create/update/delete, task/board file edits, and “Run now.” The route handlers should delegate to the same domain operations used by the CLI/API. The schedule page does not need to mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only. If cron setup is exposed in web later, it should call the same explicit cron install/uninstall domain operations as the CLI rather than writing crontab directly.
 
 ## Validation
 
@@ -219,11 +282,27 @@ The backend smoke creates a temporary gitignored smoke agent/automation if neede
 
 Preferred personal setup: authenticate Pi once as the same Unix user that runs jumpyGoatHq.
 
-`.env.local` is optional and gitignored. Use it for provider env vars or overrides such as `JUMPYGOATHQ_HOME` or `JUMPYGOATHQ_DB_PATH`; `.env.example` is the commitable template. When unset, `jumpyGoatHqHome()` is `repoRoot()/workspace`. When set, mutable state lives directly under `JUMPYGOATHQ_HOME`. Relative `JUMPYGOATHQ_DB_PATH` values resolve under `jumpyGoatHqHome()`.
+`.env.local` is optional and gitignored. Use it for provider env vars or overrides such as `JUMPYGOATHQ_HOME`, `JUMPYGOATHQ_DB_PATH`, or `JUMPYGOATHQ_API_TOKEN`; `.env.example` is the commitable template. When unset, `jumpyGoatHqHome()` is `repoRoot()/workspace`. When set, mutable state lives directly under `JUMPYGOATHQ_HOME`. Relative `JUMPYGOATHQ_DB_PATH` values resolve under `jumpyGoatHqHome()`.
+
+CLI development install from this repo:
+
+```bash
+pnpm --filter @jumpygoat-hq/cli build
+pnpm --filter @jumpygoat-hq/cli link --global
+```
+
+CLI local mode uses local core/files. Remote mode uses the JSON API:
+
+```bash
+jumpygoathq agents list
+jumpygoathq instances add home --api-url https://hq.example.com --token "$JUMPYGOATHQ_API_TOKEN"
+jumpygoathq --instance home runs list --limit 10
+```
 
 ## Safety constraints
 
 - Pi remains the agent harness; no custom LLM/tool loop.
 - Browser editing is intentionally limited to file-native automation CRUD and cautious raw `AGENT.md` editing.
 - Runtime/personal state is gitignored by default.
-- Web auth is deferred; bind locally or put behind trusted proxy/auth.
+- Web auth for HTML pages is deferred; bind locally or put behind trusted proxy/auth.
+- JSON API remote use should set `JUMPYGOATHQ_API_TOKEN` and run behind HTTPS/proxy, Tailscale, or an SSH tunnel.

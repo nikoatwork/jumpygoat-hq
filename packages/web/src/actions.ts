@@ -1,12 +1,38 @@
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
-import matter from "gray-matter";
-import { agentsDir, automationsDir, repoRoot, settingsPath } from "./paths.js";
-import { boardExists, generateTaskId, loadBoard, loadTask, TASK_PRIORITIES, TASK_STATUSES, transitionTaskStatus, writeBoard, writeTask, type AgentTask, type Board, type TaskStatus } from "../../shared/tasks.js";
-import { listAgents, listAutomations, listBoards } from "./readers.js";
-import { defaultSettingsText, parseSettingsText } from "../../shared/settings.js";
+import {
+  CoreError,
+  assertAgentName,
+  assertAutomationName,
+  assertBoardName,
+  assertTaskId,
+  createAgent as coreCreateAgent,
+  createAutomation as coreCreateAutomation,
+  createBoard as coreCreateBoard,
+  createTask as coreCreateTask,
+  defaultAgentContent,
+  defaultBoardBody,
+  deleteAgent as coreDeleteAgent,
+  deleteAutomation as coreDeleteAutomation,
+  getAgent,
+  getAutomation,
+  getBoard,
+  getSettings,
+  getTask,
+  runAutomationNow,
+  updateAgent as coreUpdateAgent,
+  updateAutomation as coreUpdateAutomation,
+  updateBoard as coreUpdateBoard,
+  updateSettings as coreUpdateSettings,
+  updateTask as coreUpdateTask,
+  updateTaskStatus,
+  validateAgentInput,
+  validateAutomationInput,
+  validateBoardInput,
+  validateTaskInput,
+  type TaskDto,
+  type TaskPriority,
+  type TaskStatus,
+} from "@jumpygoat-hq/core";
+import { parseSettingsText } from "../../shared/settings.js";
 
 export type AutomationFormValues = {
   name: string;
@@ -48,35 +74,9 @@ export type SettingsFormValues = {
 
 export type ValidationResult<T> = { ok: true; values: T } | { ok: false; values: T; errors: string[] };
 
-const SAFE_NAME = /^[a-z0-9][a-z0-9-]*$/;
-
-export function assertAutomationName(name: string): void {
-  if (!SAFE_NAME.test(name)) throw new Error(`Invalid automation name: ${name}`);
-}
-
-export function assertAgentName(name: string): void {
-  if (!SAFE_NAME.test(name)) throw new Error(`Invalid agent name: ${name}`);
-}
-
-export function assertBoardName(name: string): void {
-  if (!SAFE_NAME.test(name)) throw new Error(`Invalid board name: ${name}`);
-}
-
+export { assertAgentName, assertAutomationName, assertBoardName, assertTaskId, defaultAgentContent, defaultBoardBody };
 export const assertProjectName = assertBoardName;
-
-export function assertTaskId(id: string): void {
-  if (!SAFE_NAME.test(id)) throw new Error(`Invalid task id: ${id}`);
-}
-
-export function automationPath(name: string): string {
-  assertAutomationName(name);
-  return path.join(automationsDir(), `${name}.md`);
-}
-
-export function localAgentPath(name: string): string {
-  assertAgentName(name);
-  return path.join(agentsDir(), name, "AGENT.md");
-}
+export const defaultProjectBody = defaultBoardBody;
 
 export function parseAutomationForm(form: URLSearchParams, fallbackName = ""): AutomationFormValues {
   return {
@@ -127,61 +127,21 @@ export function parseSettingsForm(form: URLSearchParams): SettingsFormValues {
 }
 
 export async function validateAutomation(values: AutomationFormValues, mode: "create" | "update"): Promise<ValidationResult<AutomationFormValues>> {
-  const errors: string[] = [];
-  if (!SAFE_NAME.test(values.name)) errors.push("Name must use lowercase letters, numbers, and hyphens only.");
-  if (!values.agent) errors.push("Agent is required.");
-  if (!values.prompt) errors.push("Prompt is required.");
-  if (!isValidSchedule(values.schedule)) errors.push("Schedule must be 'manual' or a valid 5-field cron expression.");
-  if (values.model.length > 200) errors.push("Model must be 200 characters or fewer.");
-
-  const agents = await listAgents();
-  if (values.agent && !agents.some((agent) => agent.name === values.agent)) errors.push(`Agent does not exist: ${values.agent}`);
-
-  if (SAFE_NAME.test(values.name)) {
-    const exists = existsSync(automationPath(values.name));
-    if (mode === "create" && exists) errors.push(`Automation already exists: ${values.name}`);
-    if (mode === "update" && !exists) errors.push(`Automation does not exist: ${values.name}`);
+  try {
+    await validateAutomationInput(automationInput(values), mode);
+    return { ok: true, values };
+  } catch (error) {
+    return { ok: false, values, errors: validationMessages(error) };
   }
-
-  return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
-export async function validateBoard(values: BoardFormValues, mode: "create" | "update"): Promise<ValidationResult<BoardFormValues>> {
-  const errors: string[] = [];
-  if (!SAFE_NAME.test(values.id)) errors.push("Board id must use lowercase letters, numbers, and hyphens only.");
-  if (!values.name) errors.push("Board name is required.");
-  if (values.default_agent) {
-    const agents = await listAgents();
-    if (!agents.some((agent) => agent.name === values.default_agent)) errors.push(`Default agent does not exist: ${values.default_agent}`);
+export function validateAgent(values: AgentFormValues, mode: "create" | "update"): ValidationResult<AgentFormValues> {
+  try {
+    validateAgentInput({ name: values.name, content: values.content }, mode);
+    return { ok: true, values };
+  } catch (error) {
+    return { ok: false, values, errors: validationMessages(error) };
   }
-  if (SAFE_NAME.test(values.id)) {
-    const exists = boardExists(values.id);
-    if (mode === "create" && exists) errors.push(`Board already exists: ${values.id}`);
-    if (mode === "update" && !exists) errors.push(`Board does not exist: ${values.id}`);
-  }
-  return errors.length ? { ok: false, values, errors } : { ok: true, values };
-}
-
-export const validateProject = validateBoard;
-
-export async function validateTask(values: TaskFormValues, mode: "create" | "update"): Promise<ValidationResult<TaskFormValues>> {
-  const errors: string[] = [];
-  if (values.id && !SAFE_NAME.test(values.id)) errors.push("Task id must use lowercase letters, numbers, and hyphens only.");
-  if (!SAFE_NAME.test(values.board)) errors.push("Board is required.");
-  if (!values.title) errors.push("Title is required.");
-  if (!TASK_STATUSES.includes(values.status as TaskStatus)) errors.push("Status is invalid.");
-  if (!TASK_PRIORITIES.includes(values.priority as never)) errors.push("Priority is invalid.");
-  if ((values.status === "ready" || values.status === "working-on-it") && !values.assignee) errors.push("Assignee is required before a task can be ready or working on it.");
-  if (values.assignee) {
-    const agents = await listAgents();
-    if (!agents.some((agent) => agent.name === values.assignee)) errors.push(`Assignee agent does not exist: ${values.assignee}`);
-  }
-  if (SAFE_NAME.test(values.board)) {
-    const boards = await listBoards();
-    if (!boards.some((board) => board.id === values.board)) errors.push(`Board does not exist: ${values.board}`);
-  }
-  if (mode === "update" && !values.id) errors.push("Task id is required.");
-  return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
 export function validateSettings(values: SettingsFormValues): ValidationResult<SettingsFormValues> {
@@ -197,126 +157,101 @@ export function validateSettings(values: SettingsFormValues): ValidationResult<S
   return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
-export function validateAgent(values: AgentFormValues, mode: "create" | "update"): ValidationResult<AgentFormValues> {
-  const errors: string[] = [];
-  if (!SAFE_NAME.test(values.name)) errors.push("Name must use lowercase letters, numbers, and hyphens only.");
-  if (!values.content.trim()) errors.push("Agent content is required.");
-  if (values.content.trim()) {
-    try {
-      matter(values.content);
-    } catch (error) {
-      errors.push(`Agent markdown/frontmatter could not be parsed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+export async function validateBoard(values: BoardFormValues, mode: "create" | "update"): Promise<ValidationResult<BoardFormValues>> {
+  try {
+    validateBoardInput(boardInput(values), mode);
+    return { ok: true, values };
+  } catch (error) {
+    return { ok: false, values, errors: validationMessages(error) };
   }
-  if (SAFE_NAME.test(values.name)) {
-    const exists = existsSync(localAgentPath(values.name));
-    if (mode === "create" && exists) errors.push(`Agent already exists: ${values.name}`);
-    if (mode === "update" && !exists) errors.push(`Agent does not exist: ${values.name}`);
+}
+
+export const validateProject = validateBoard;
+
+export function validateTask(values: TaskFormValues, mode: "create" | "update"): ValidationResult<TaskFormValues> {
+  try {
+    validateTaskInput(taskInput(values), mode);
+    return { ok: true, values };
+  } catch (error) {
+    return { ok: false, values, errors: validationMessages(error) };
   }
-  return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
 export async function createAutomation(values: AutomationFormValues): Promise<void> {
-  await writeAtomic(automationPath(values.name), automationMarkdown(values));
+  await coreCreateAutomation(automationInput(values));
 }
 
 export async function updateAutomation(name: string, values: AutomationFormValues): Promise<void> {
-  assertAutomationName(name);
-  if (name !== values.name) throw new Error("Renaming automations is not supported. Create a new automation instead.");
-  await writeAtomic(automationPath(name), automationMarkdown(values));
+  await coreUpdateAutomation(name, automationInput(values));
 }
 
 export async function deleteAutomation(name: string): Promise<void> {
-  assertAutomationName(name);
-  await rm(automationPath(name), { force: false });
+  await coreDeleteAutomation(name);
 }
 
 export async function createAgent(values: AgentFormValues): Promise<void> {
-  await writeAtomic(localAgentPath(values.name), values.content.trimEnd() + "\n");
+  await coreCreateAgent({ name: values.name, content: values.content });
+}
+
+export async function updateAgent(name: string, values: AgentFormValues): Promise<void> {
+  await coreUpdateAgent(name, { name: values.name, content: values.content });
+}
+
+export async function deleteAgent(name: string): Promise<void> {
+  await coreDeleteAgent(name);
 }
 
 export async function createBoard(values: BoardFormValues): Promise<void> {
-  await writeBoard(boardFromValues(values));
+  await coreCreateBoard(boardInput(values));
 }
 
 export const createProject = createBoard;
 
 export async function updateBoard(id: string, values: BoardFormValues): Promise<void> {
-  assertBoardName(id);
-  if (id !== values.id) throw new Error("Renaming boards is not supported. Create a new board instead.");
-  await writeBoard(boardFromValues(values));
+  await coreUpdateBoard(id, boardInput(values));
 }
 
 export const updateProject = updateBoard;
 
-export async function createTask(values: TaskFormValues): Promise<AgentTask> {
-  const now = new Date().toISOString();
-  const id = values.id || generateTaskId(values.title);
-  const task = taskFromValues({ ...values, id }, now, now, 0);
-  await writeTask(task);
-  return task;
-}
-
-export async function updateSettings(values: SettingsFormValues): Promise<void> {
-  // Re-parse immediately before writing so invalid YAML cannot corrupt the previous settings file.
-  parseSettingsText(values.content);
-  await writeAtomic(settingsPath(), values.content.trimEnd() + "\n");
+export async function createTask(values: TaskFormValues): Promise<TaskDto> {
+  return await coreCreateTask(taskInput(values));
 }
 
 export async function updateTaskFile(board: string, id: string, values: TaskFormValues): Promise<void> {
-  assertBoardName(board);
-  assertTaskId(id);
-  if (board !== values.board || id !== values.id) throw new Error("Renaming or moving tasks is not supported. Create a new task instead.");
-  const current = await loadTask(board, id);
-  await writeTask(taskFromValues(values, current.created_at, new Date().toISOString(), current.attempts, current.claimed_at, current.run_id));
+  await coreUpdateTask(board, id, { ...taskInput(values), id });
 }
 
 export async function setTaskStatus(board: string, id: string, status: string): Promise<void> {
-  assertBoardName(board);
-  assertTaskId(id);
-  if (!TASK_STATUSES.includes(status as TaskStatus)) throw new Error(`Invalid task status: ${status}`);
-  await transitionTaskStatus(board, id, status as TaskStatus);
+  await updateTaskStatus(board, id, { status: status as TaskStatus });
 }
 
-export async function updateAgent(name: string, values: AgentFormValues): Promise<void> {
-  assertAgentName(name);
-  if (name !== values.name) throw new Error("Renaming agents is not supported. Create a new agent instead.");
-  await writeAtomic(localAgentPath(name), values.content.trimEnd() + "\n");
-}
-
-export async function deleteAgent(name: string): Promise<void> {
-  assertAgentName(name);
-  const automations = await listAutomations();
-  const users = automations.filter((automation) => automation.agent === name).map((automation) => automation.name);
-  if (users.length) throw new Error(`Cannot delete agent ${name}; used by automation(s): ${users.join(", ")}`);
-  await rm(path.join(agentsDir(), name), { recursive: true, force: false });
+export async function updateSettings(values: SettingsFormValues): Promise<void> {
+  await coreUpdateSettings({ content: values.content });
 }
 
 export async function readAutomationRaw(name: string): Promise<AutomationFormValues> {
-  assertAutomationName(name);
-  const raw = await readFile(automationPath(name), "utf8");
-  const parsed = matter(raw);
+  const automation = await getAutomation(name, { includeRaw: true });
   return {
-    name,
-    agent: String(parsed.data.agent || ""),
-    schedule: String(parsed.data.schedule || "manual"),
-    model: parsed.data.model ? String(parsed.data.model) : "",
-    prompt: parsed.content.trim(),
+    name: automation.name,
+    agent: automation.agent,
+    schedule: automation.schedule,
+    model: automation.model,
+    prompt: automation.prompt,
   };
 }
 
 export async function readAgentRaw(name: string): Promise<AgentFormValues> {
-  assertAgentName(name);
-  return { name, content: await readFile(localAgentPath(name), "utf8") };
+  const agent = await getAgent(name, { includeRaw: true });
+  return { name, content: agent.rawMarkdown || "" };
 }
 
 export async function readBoardRaw(id: string): Promise<BoardFormValues> {
-  const board = await loadBoard(id);
+  const board = await getBoard(id, { includeRaw: true });
   return {
     id: board.id,
     name: board.name,
     description: board.description,
-    default_agent: board.default_agent || "",
+    default_agent: board.defaultAgent || "",
     body: board.body,
   };
 }
@@ -324,7 +259,7 @@ export async function readBoardRaw(id: string): Promise<BoardFormValues> {
 export const readProjectRaw = readBoardRaw;
 
 export async function readTaskRaw(board: string, id: string): Promise<TaskFormValues> {
-  const task = await loadTask(board, id);
+  const task = await getTask(board, id, { includeRaw: true });
   return {
     id: task.id,
     board: task.board,
@@ -338,66 +273,37 @@ export async function readTaskRaw(board: string, id: string): Promise<TaskFormVa
 }
 
 export async function readSettingsRaw(): Promise<SettingsFormValues> {
-  if (!existsSync(settingsPath())) return { content: defaultSettingsText() };
-  return { content: await readFile(settingsPath(), "utf8") };
+  const settings = await getSettings();
+  return { content: settings.content };
 }
-
-export function defaultAgentContent(name: string): string {
-  return `---\nname: ${name || "new-agent"}\ndescription: Describe this agent's operational role.\nallowedIntents: []\n---\n\n## Identity\n\nDescribe who this agent is responsible for being and what outcomes it owns.\n\n## Operating policy\n\nDescribe how the agent should decide, what context it should trust, and what it must not do.\n\n## Connector policy\n\nExternal services and side effects must use jumpyGoatHq connectors enabled by allowedIntents plus invocation config. Do not put secrets in this file.\n\n## Output expectations\n\nDescribe the final response format for automations and assigned tasks.\n`;
-}
-
-export function defaultBoardBody(name: string): string {
-  return `# ${name || "Board"}\n\nDescribe the board context, constraints, and definition of done for assigned tasks.\n`;
-}
-
-export const defaultProjectBody = defaultBoardBody;
 
 export async function runNow(name: string): Promise<{ stdout: string; stderr: string }> {
-  assertAutomationName(name);
-  return await new Promise((resolve, reject) => {
-    execFile("pnpm", ["runner", name], { cwd: repoRoot(), env: process.env, timeout: 1000 * 60 * 30 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`Run failed: ${error.message}\n\nstdout:\n${stdout}\n\nstderr:\n${stderr}`));
-        return;
-      }
-      resolve({ stdout, stderr });
-    });
-  });
+  return await runAutomationNow(name);
 }
 
-function boardFromValues(values: BoardFormValues): Board {
-  return {
-    id: values.id,
-    name: values.name,
-    description: values.description,
-    default_agent: values.default_agent || undefined,
-    body: values.body,
-  };
+function automationInput(values: AutomationFormValues) {
+  return { name: values.name, agent: values.agent, schedule: values.schedule, model: values.model || undefined, prompt: values.prompt };
 }
 
-function taskFromValues(values: TaskFormValues, createdAt: string, updatedAt: string, attempts: number, claimedAt?: string, runId?: string): AgentTask {
+function boardInput(values: BoardFormValues) {
+  return { id: values.id, name: values.name, description: values.description, defaultAgent: values.default_agent || undefined, body: values.body };
+}
+
+function taskInput(values: TaskFormValues, fallbackId?: string) {
   return {
-    id: values.id,
-    title: values.title,
+    id: values.id || fallbackId,
     board: values.board,
-    project: values.board,
+    title: values.title,
     status: values.status as TaskStatus,
-    assignee: values.assignee,
-    priority: values.priority as AgentTask["priority"],
-    created_at: createdAt,
-    updated_at: updatedAt,
-    claimed_at: claimedAt,
-    run_id: runId,
-    attempts,
+    assignee: values.assignee || undefined,
+    priority: values.priority as TaskPriority,
     body: values.body,
   };
 }
 
-function automationMarkdown(values: AutomationFormValues): string {
-  const lines = ["---", `agent: ${JSON.stringify(values.agent)}`, `schedule: ${JSON.stringify(values.schedule || "manual")}`];
-  if (values.model) lines.push(`model: ${JSON.stringify(values.model)}`);
-  lines.push("---", "", values.prompt.trim(), "");
-  return lines.join("\n");
+function validationMessages(error: unknown): string[] {
+  if (error instanceof CoreError) return error.fields.length ? error.fields.map((field) => field.message) : [error.message];
+  return [error instanceof Error ? error.message : String(error)];
 }
 
 function parseScheduleForm(form: URLSearchParams): string {
@@ -421,19 +327,4 @@ function parseScheduleForm(form: URLSearchParams): string {
     return `${safeMinute} ${safeHour} * * ${safeWeekday}`;
   }
   return String(form.get("schedule") || "manual").trim();
-}
-
-function isValidSchedule(value: string): boolean {
-  if (value === "manual") return true;
-  const parts = value.trim().split(/\s+/);
-  if (parts.length !== 5) return false;
-  return parts.every((part) => /^[\d*,/\-]+$/.test(part));
-}
-
-async function writeAtomic(file: string, content: string): Promise<void> {
-  const dir = path.dirname(file);
-  await mkdir(dir, { recursive: true });
-  const temp = path.join(dir, `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`);
-  await writeFile(temp, content, "utf8");
-  await rename(temp, file);
 }

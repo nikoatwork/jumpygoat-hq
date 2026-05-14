@@ -86,6 +86,30 @@ Run `pnpm check:design` for the lightweight design-system guardrails. Run `pnpm 
 - `/settings` writes only `jumpyGoatHqHome()/settings.yml`, validates before replacing the previous file, and must not collect secrets/API keys; Pi/provider auth remains outside the web UI.
 - Mutations use POST with redirect-after-post on success.
 
+## JSON API
+
+The same server exposes a thin JSON adapter under `/api/...` for CLI/remote clients. It delegates product rules to `@jumpygoat-hq/core` and returns deterministic errors:
+
+```json
+{ "code": "VALIDATION_FAILED", "message": "...", "fields": [{ "field": "name", "message": "..." }] }
+```
+
+Set `JUMPYGOATHQ_API_TOKEN` to require `Authorization: Bearer <token>` or `x-api-token: <token>` on all `/api/...` requests. Leave it unset only for localhost-only development.
+
+Remote CLI examples:
+
+```bash
+# HTTPS/proxy/Tailscale endpoint
+jumpygoathq instances add home --api-url https://hq.example.com --token "$JUMPYGOATHQ_API_TOKEN"
+jumpygoathq --instance home agents list
+
+# SSH tunnel to a server still bound to localhost
+ssh -L 3000:127.0.0.1:3000 user@vps
+jumpygoathq instances add tunnel --api-url http://127.0.0.1:3000 --token "$JUMPYGOATHQ_API_TOKEN"
+```
+
+Side-effecting API calls such as run-now and cron install/uninstall emit an `[api:audit]` line to server stdout.
+
 ## Binding
 
 Defaults:
@@ -95,4 +119,4 @@ HOST=127.0.0.1
 PORT=3000
 ```
 
-Use `HOST=0.0.0.0` only behind a trusted proxy/auth layer such as Coolify, Caddy, Tailscale, or SSH tunnel.
+Use `HOST=0.0.0.0` only behind a trusted proxy/auth layer such as Coolify, Caddy, Tailscale, or SSH tunnel. Set `JUMPYGOATHQ_API_TOKEN` before using the JSON API remotely.

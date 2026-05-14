@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { apiRoute, type RequestBody } from "./api.js";
 
 import {
   createAutomation,
@@ -45,8 +46,12 @@ import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
 
 export type ResponseData = { status: number; headers?: Record<string, string>; body: string };
 
-export async function route(method: string, url: URL, form?: URLSearchParams): Promise<ResponseData> {
+export async function route(method: string, url: URL, requestBody?: URLSearchParams | RequestBody): Promise<ResponseData> {
+  const body = normalizeRequestBody(requestBody);
+  const form = body.form;
   try {
+    const apiResponse = await apiRoute(method, url, body);
+    if (apiResponse) return apiResponse;
     if (method === "GET" && url.pathname === "/styles.css") return staticFile("../public/styles.css", "text/css; charset=utf-8");
     if (method === "GET" && url.pathname === "/kanban.js") return staticFile("../public/kanban.js", "application/javascript; charset=utf-8");
     if (method === "GET" && url.pathname === "/") return html(await dashboard());
@@ -138,6 +143,12 @@ export async function route(method: string, url: URL, form?: URLSearchParams): P
   } catch (error) {
     return { status: 500, body: errorPage("Error", error) };
   }
+}
+
+function normalizeRequestBody(body?: URLSearchParams | RequestBody): RequestBody {
+  if (!body) return {};
+  if (body instanceof URLSearchParams) return { form: body };
+  return body;
 }
 
 function html(body: string, status = 200): ResponseData {

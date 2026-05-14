@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.10.0",
   "scripts": {
-    "build": "pnpm --filter @jumpygoat-hq/runner build && pnpm --filter @jumpygoat-hq/web build",
+    "build": "pnpm --filter @jumpygoat-hq/core build && pnpm --filter @jumpygoat-hq/runner build && pnpm --filter @jumpygoat-hq/web build && pnpm --filter @jumpygoat-hq/cli build",
     "check:design": "node scripts/check-design-system.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "prepare": "git config core.hooksPath .githooks || true",
@@ -20,7 +20,7 @@
     "web": "pnpm --filter @jumpygoat-hq/web start",
     "dev": "pnpm --filter @jumpygoat-hq/runner dev",
     "dev:web": "pnpm --filter @jumpygoat-hq/web dev",
-    "validate:web": "pnpm --filter @jumpygoat-hq/web build && playwright test",
+    "validate:web": "pnpm --filter @jumpygoat-hq/core build && pnpm --filter @jumpygoat-hq/web build && playwright test",
     "validate:backend": "pnpm --filter @jumpygoat-hq/runner exec tsx ../../scripts/smoke-runner.ts",
     "validate": "pnpm validate:web && pnpm validate:backend"
   },

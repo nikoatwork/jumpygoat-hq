@@ -1,11 +1,8 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
-import path from "node:path";
+import { existsSync } from "node:fs";
 import Database from "better-sqlite3";
-import matter from "gray-matter";
-import { agentsDir, automationsDir, boardsDir, dbPath, settingsPath, tasksDir } from "./paths.js";
-import { parseBoardMarkdown, parseTaskMarkdown, type AgentTask, type Board } from "../../shared/tasks.js";
+import { listAgents as coreListAgents, listAutomations as coreListAutomations, listBoards as coreListBoards, listInstalledCronBlocks as coreListInstalledCronBlocks, listTasks as coreListTasks, readTaskHeartbeatCronStatus as coreReadTaskHeartbeatCronStatus, type BoardDto, type TaskDto } from "@jumpygoat-hq/core";
+import { dbPath, settingsPath } from "./paths.js";
+import type { AgentTask, Board } from "../../shared/tasks.js";
 import { loadSettings, type InstanceSettings } from "../../shared/settings.js";
 import { nextOccurrences } from "./schedule.js";
 
@@ -141,165 +138,32 @@ export type TaskView = AgentTask & {
 };
 
 export async function listAutomations(): Promise<AutomationView[]> {
-  if (!existsSync(automationsDir())) return [];
-  const files = (await readdir(automationsDir())).filter((f) => f.endsWith(".md") && f !== "README.md").sort();
-  return Promise.all(files.map(readAutomationFile));
-}
-
-async function readAutomationFile(file: string): Promise<AutomationView> {
-  const name = file.replace(/\.md$/, "");
-  try {
-    const raw = await readFile(path.join(automationsDir(), file), "utf8");
-    const parsed = matter(raw);
-    return {
-      name,
-      agent: String(parsed.data.agent || ""),
-      schedule: String(parsed.data.schedule || "manual"),
-      model: parsed.data.model ? String(parsed.data.model) : "",
-      promptPreview: parsed.content.trim().replace(/\s+/g, " ").slice(0, 160),
-    };
-  } catch (error) {
-    return { name, agent: "", schedule: "", model: "", promptPreview: "", warning: String(error) };
-  }
+  return (await coreListAutomations()).map((automation) => ({
+    name: automation.name,
+    agent: automation.agent,
+    schedule: automation.schedule,
+    model: automation.model,
+    promptPreview: automation.promptPreview,
+    warning: automation.warning,
+  }));
 }
 
 export async function listAgents(): Promise<AgentView[]> {
-  if (!existsSync(agentsDir())) return [];
-  const entries = await readdir(agentsDir());
-  const agents: AgentView[] = [];
-  for (const entry of entries.sort()) {
-    const agentFile = path.join(agentsDir(), entry, "AGENT.md");
-    try {
-      if (!existsSync(agentFile) || !(await stat(agentFile)).isFile()) continue;
-      const raw = await readFile(agentFile, "utf8");
-      const parsed = matter(raw);
-      agents.push({
-        name: String(parsed.data.name || entry),
-        description: String(parsed.data.description || ""),
-        path: agentFile,
-        contextCount: await countContextFiles(entry),
-      });
-    } catch (error) {
-      agents.push({ name: entry, description: "", path: agentFile, contextCount: 0, warning: String(error) });
-    }
-  }
-  return agents;
-}
-
-async function countContextFiles(agent: string): Promise<number> {
-  const dir = path.join(agentsDir(), agent, "context");
-  if (!existsSync(dir)) return 0;
-  return (await readdir(dir)).filter((file) => file.endsWith(".md")).length;
+  return (await coreListAgents()).map((agent) => ({
+    name: agent.name,
+    description: agent.description,
+    path: agent.path || "",
+    contextCount: agent.contextCount,
+    warning: agent.warning,
+  }));
 }
 
 export function listInstalledCronBlocks(): CronBlock[] {
-  const text = readUserCrontab();
-  if (!text) return [];
-
-  const lines = text.split("\n");
-  const blocks: CronBlock[] = [];
-  let current: { name: string; lines: string[] } | undefined;
-
-  const pushBlock = (block: { name: string; lines: string[] }, warning?: string) => {
-    blocks.push({
-      name: block.name,
-      block: block.lines.join("\n"),
-      line: block.lines.find((l) => l && !l.startsWith("#")) || "",
-      warning,
-    });
-  };
-
-  for (const line of lines) {
-    const start = line.match(/^# jumpygoathq:start ([^\s]+)$/);
-    const end = line.match(/^# jumpygoathq:end ([^\s]+)$/);
-
-    if (start) {
-      if (current) pushBlock(current, "Missing end marker before next jumpyGoatHq cron block.");
-      current = { name: start[1]!, lines: [line] };
-      continue;
-    }
-
-    if (end) {
-      if (!current) {
-        pushBlock({ name: end[1]!, lines: [line] }, "End marker without matching start marker.");
-        continue;
-      }
-      current.lines.push(line);
-      if (end[1] === current.name) {
-        pushBlock(current);
-      } else {
-        pushBlock(current, `End marker name mismatch: expected ${current.name}, got ${end[1]}.`);
-      }
-      current = undefined;
-      continue;
-    }
-
-    if (current) current.lines.push(line);
-  }
-
-  if (current) pushBlock(current, "Missing end marker for jumpyGoatHq cron block.");
-  return blocks;
+  return coreListInstalledCronBlocks();
 }
 
 export function readTaskHeartbeatCronStatus(): TaskHeartbeatCronStatus {
-  const text = readUserCrontab();
-  if (!text) return { installed: false, block: "", line: "" };
-
-  const start = "# jumpygoathq:task-heartbeat:start";
-  const end = "# jumpygoathq:task-heartbeat:end";
-  const blocks: Array<{ lines: string[]; warning?: string }> = [];
-  let current: string[] | undefined;
-
-  for (const line of text.split("\n")) {
-    if (line.trim() === start) {
-      if (current) blocks.push({ lines: current, warning: "Missing end marker before another task heartbeat block." });
-      current = [line];
-      continue;
-    }
-    if (line.trim() === end) {
-      if (!current) {
-        blocks.push({ lines: [line], warning: "End marker without matching task heartbeat start marker." });
-        continue;
-      }
-      current.push(line);
-      blocks.push({ lines: current });
-      current = undefined;
-      continue;
-    }
-    if (current) current.push(line);
-  }
-
-  if (current) blocks.push({ lines: current, warning: "Missing end marker for task heartbeat block." });
-  if (blocks.length === 0) return { installed: false, block: "", line: "" };
-
-  const block = blocks[0]!;
-  const warnings = [block.warning];
-  if (blocks.length > 1) warnings.push(`Multiple task heartbeat blocks found (${blocks.length}).`);
-  const line = block.lines.find((entry) => entry.trim() && !entry.trim().startsWith("#")) || "";
-  if (!line) warnings.push("No cron command line found in task heartbeat block.");
-
-  return {
-    installed: true,
-    block: block.lines.join("\n"),
-    line,
-    warning: warnings.filter(Boolean).join(" ") || undefined,
-  };
-}
-
-function readUserCrontab(): string {
-  const testFile = process.env.JUMPYGOATHQ_CRONTAB_FILE?.trim();
-  if (testFile) {
-    try {
-      return existsSync(testFile) ? readFileSync(testFile, "utf8") : "";
-    } catch {
-      return "";
-    }
-  }
-  try {
-    return execFileSync("crontab", ["-l"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  } catch {
-    return "";
-  }
+  return coreReadTaskHeartbeatCronStatus();
 }
 
 export async function readSchedulePageView(windowDays = 7, now = new Date()): Promise<SchedulePageView> {
@@ -357,21 +221,7 @@ export async function readSchedulePageView(windowDays = 7, now = new Date()): Pr
 }
 
 export async function listBoards(): Promise<BoardView[]> {
-  if (!existsSync(boardsDir())) return [];
-  const entries = await readdir(boardsDir(), { withFileTypes: true });
-  const boards: BoardView[] = [];
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isDirectory()) continue;
-    const file = path.join(boardsDir(), entry.name, "BOARD.md");
-    try {
-      const raw = await readFile(file, "utf8");
-      const board = parseBoardMarkdown(entry.name, raw, file);
-      boards.push({ ...board, taskCount: await countBoardTasks(entry.name) });
-    } catch (error) {
-      boards.push({ id: entry.name, name: entry.name, description: "", body: "", path: file, taskCount: 0, warning: String(error) });
-    }
-  }
-  return boards;
+  return (await coreListBoards()).map(boardDtoToView);
 }
 
 export const listProjects = listBoards;
@@ -384,43 +234,11 @@ export async function readBoard(name: string): Promise<BoardView | null> {
 export const readProject = readBoard;
 
 export async function listTasks(boardFilter?: string): Promise<TaskView[]> {
-  const boards = boardFilter ? [boardFilter] : (await listBoards()).map((board) => board.id);
   const latestRuns = latestTaskRuns();
-  const tasks: TaskView[] = [];
-  for (const board of boards) {
-    const dir = tasksDir(board);
-    if (!existsSync(dir)) continue;
-    const files = await readdir(dir, { withFileTypes: true });
-    for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (!file.isFile() || !file.name.endsWith(".md")) continue;
-      const id = file.name.replace(/\.md$/, "");
-      const filePath = path.join(dir, file.name);
-      try {
-        const raw = await readFile(filePath, "utf8");
-        const task = parseTaskMarkdown(board, id, raw, filePath);
-        tasks.push({ ...task, latestRun: latestRuns.get(`${board}/${id}`) || null });
-      } catch (error) {
-        tasks.push({
-          id,
-          title: id,
-          board,
-          project: board,
-          status: "not-yet",
-          assignee: "",
-          priority: "normal",
-          created_at: "",
-          updated_at: "",
-          attempts: 0,
-          path: filePath,
-          body: "",
-          latestRun: latestRuns.get(`${board}/${id}`) || null,
-          warning: String(error),
-        });
-      }
-    }
-  }
-  tasks.sort((a, b) => a.status.localeCompare(b.status) || b.priority.localeCompare(a.priority) || a.id.localeCompare(b.id));
-  return tasks;
+  return (await coreListTasks({ board: boardFilter })).map((task) => ({
+    ...taskDtoToView(task),
+    latestRun: latestRuns.get(`${task.board}/${task.id}`) || null,
+  }));
 }
 
 export async function readTask(board: string, id: string): Promise<TaskView | null> {
@@ -428,10 +246,37 @@ export async function readTask(board: string, id: string): Promise<TaskView | nu
   return task || null;
 }
 
-async function countBoardTasks(board: string): Promise<number> {
-  const dir = tasksDir(board);
-  if (!existsSync(dir)) return 0;
-  return (await readdir(dir)).filter((file) => file.endsWith(".md")).length;
+function boardDtoToView(board: BoardDto): BoardView {
+  return {
+    id: board.id,
+    name: board.name,
+    description: board.description,
+    default_agent: board.defaultAgent,
+    body: board.body,
+    path: board.path,
+    taskCount: board.taskCount || 0,
+    warning: board.warning,
+  };
+}
+
+function taskDtoToView(task: TaskDto): TaskView {
+  return {
+    id: task.id,
+    title: task.title,
+    board: task.board,
+    project: task.board,
+    status: task.status,
+    assignee: task.assignee,
+    priority: task.priority,
+    created_at: task.createdAt,
+    updated_at: task.updatedAt,
+    claimed_at: task.claimedAt,
+    run_id: task.runId,
+    attempts: task.attempts,
+    path: task.path,
+    body: task.body,
+    warning: task.warning,
+  };
 }
 
 function latestTaskRuns(): Map<string, RunRow> {

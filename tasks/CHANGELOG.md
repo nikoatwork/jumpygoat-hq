@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-14
 
+- feat: added shared core CRUD services, `/api/...` JSON routes with token support, and a local/remote `jumpygoathq` CLI with named instance profiles — completed in `tasks/done/2026-05-14_tasks-cli-api-unified-crud.md`.
 - feat: finalized the web sidebar IA with grouped navigation, footer Settings, route copy/docs, invocation/run cleanup, active-state smoke coverage, and manual detail-page checks — completed in `tasks/done/2026-05-14_tasks-sidebar-ia.md`.
 - feat: added explicit task heartbeat cron setup/list/uninstall commands, safe temp-crontab support, setup workspace seeding, heartbeat web status, docs, and validation — completed in `tasks/done/2026-05-14_tasks-task-heartbeat-cron.md`.
 - feat: renamed project/task kanban to boards, switched task statuses to `not-yet`/`ready`/`working-on-it`/`done`, added focused `?status=` task view, updated docs, and validated web/backend — completed in `tasks/done/2026-05-14_tasks-boards-focused-kanban.md`.
