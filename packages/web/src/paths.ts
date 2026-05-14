@@ -12,6 +12,8 @@ export {
   projectPath,
   projectsDir,
   repoRoot,
+  settingsDir,
+  settingsPath,
   taskPath,
   tasksDir,
   tracesDir,

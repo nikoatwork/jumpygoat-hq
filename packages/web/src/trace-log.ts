@@ -28,7 +28,7 @@ export function formatTraceLog(traceText: string): TraceLogEntry[] {
     const type = stringValue(event.type);
     switch (type) {
       case "agenthq_run_meta":
-        entries.push({ category: "run", label: "Run metadata", detail: joinDetails([pair("run", event.run_id), pair("automation", event.automation), pair("agent", event.agent ?? event.skill), pair("model", event.model), pair("schedule", event.schedule)]) });
+        entries.push({ category: "run", label: "Run metadata", detail: joinDetails([pair("run", event.run_id), pair("automation", event.automation), pair("agent", event.agent ?? event.skill), pair("requested", event.requested_model ?? event.model), pair("resolved", event.resolved_model), pair("profile", event.model_profile), pair("schedule", event.schedule)]) });
         break;
       case "agenthq_pi_start":
         entries.push({ category: "pi", label: "Pi started", detail: joinDetails([pair("command", event.command), pair("cwd", event.cwd), pair("args", Array.isArray(event.args) ? event.args.join(" ") : undefined)]) });
@@ -121,7 +121,7 @@ function handleUsage(message: unknown, entries: TraceLogEntry[], emitted: Set<st
   emitted.add(key);
   const usage = message.usage;
   const cost = isObject(usage.cost) ? usage.cost : undefined;
-  entries.push({ category: "assistant", label: "Usage", detail: joinDetails([pair("model", message.model), pair("input", usage.input), pair("output", usage.output), pair("total", usage.totalTokens), pair("cost", cost?.total)]) });
+  entries.push({ category: "assistant", label: "Usage", detail: joinDetails([pair("model", message.model), pair("input", usage.input), pair("output", usage.output), pair("reasoning", usage.reasoning ?? usage.reasoningTokens), pair("cache read", usage.cacheRead ?? usage.cacheReadTokens), pair("cache write", usage.cacheWrite ?? usage.cacheWriteTokens), pair("total", usage.totalTokens), pair("cost", cost?.total)]) });
 }
 
 function roleOf(message: unknown): string {

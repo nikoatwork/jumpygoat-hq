@@ -6,6 +6,8 @@ export function agentDir(name: string): string;
 export function agentPath(name: string): string;
 export function agentContextDir(name: string): string;
 export function dataDir(): string;
+export function settingsDir(): string;
+export function settingsPath(): string;
 export function workspacesDir(): string;
 export function workspaceDir(name: string): string;
 export function tracesDir(): string;

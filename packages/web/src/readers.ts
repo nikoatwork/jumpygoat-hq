@@ -4,8 +4,9 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import Database from "better-sqlite3";
 import matter from "gray-matter";
-import { agentsDir, automationsDir, dbPath, projectsDir, tasksDir } from "./paths.js";
+import { agentsDir, automationsDir, dbPath, projectsDir, settingsPath, tasksDir } from "./paths.js";
 import { parseProjectMarkdown, parseTaskMarkdown, type AgentTask, type Project } from "../../shared/tasks.js";
+import { loadSettings, type InstanceSettings } from "../../shared/settings.js";
 import { nextOccurrences } from "./schedule.js";
 
 export type AutomationView = {
@@ -67,6 +68,10 @@ export type RunRow = {
   agent?: string | null;
   skill?: string | null;
   model: string | null;
+  requested_model?: string | null;
+  resolved_model?: string | null;
+  model_profile?: string | null;
+  model_resolution_warning?: string | null;
   schedule: string | null;
   status: string;
   started_at: string;
@@ -80,6 +85,39 @@ export type RunRow = {
   connector_actions_json?: string;
   project?: string | null;
   task_id?: string | null;
+  usage_input_tokens?: number | null;
+  usage_output_tokens?: number | null;
+  usage_reasoning_tokens?: number | null;
+  usage_cache_read_tokens?: number | null;
+  usage_cache_write_tokens?: number | null;
+  usage_total_tokens?: number | null;
+  usage_cost_total?: number | null;
+  usage_currency?: string | null;
+  usage_provider?: string | null;
+  usage_model?: string | null;
+  usage_json?: string | null;
+};
+
+export type SettingsView = {
+  path: string;
+  exists: boolean;
+  settings?: InstanceSettings;
+  error?: string;
+};
+
+export type UsageSummaryRow = {
+  key: string;
+  profile: string;
+  resolvedModel: string;
+  piModel: string;
+  provider: string;
+  runs: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  reasoningTokens: number | null;
+  totalTokens: number | null;
+  costTotal: number | null;
+  currency: string;
 };
 
 export type ProjectView = Project & {
@@ -329,6 +367,55 @@ function latestTaskRuns(): Map<string, RunRow> {
   return new Map(rows.map((run) => [`${run.project}/${run.task_id}`, run]));
 }
 
+export function readSettingsView(): SettingsView {
+  const file = settingsPath();
+  try {
+    return { path: file, exists: existsSync(file), settings: loadSettings(file) };
+  } catch (error) {
+    return { path: file, exists: existsSync(file), error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export function listModelProfileKeys(): string[] {
+  const view = readSettingsView();
+  return view.settings ? Object.keys(view.settings.modelProfiles).sort() : [];
+}
+
+export function usageSummary(limit = 1000): UsageSummaryRow[] {
+  const runs = listRuns(limit).filter((run) => hasAnyUsage(run));
+  const groups = new Map<string, UsageSummaryRow>();
+  for (const run of runs) {
+    const profile = run.model_profile || "";
+    const resolvedModel = run.resolved_model || run.model || "";
+    const piModel = run.usage_model || "";
+    const provider = run.usage_provider || "";
+    const key = [profile, resolvedModel, piModel, provider].map((value) => value || "unknown").join("|");
+    const row = groups.get(key) || {
+      key,
+      profile,
+      resolvedModel,
+      piModel,
+      provider,
+      runs: 0,
+      inputTokens: null,
+      outputTokens: null,
+      reasoningTokens: null,
+      totalTokens: null,
+      costTotal: null,
+      currency: run.usage_currency || "",
+    };
+    row.runs += 1;
+    row.inputTokens = addNullable(row.inputTokens, run.usage_input_tokens);
+    row.outputTokens = addNullable(row.outputTokens, run.usage_output_tokens);
+    row.reasoningTokens = addNullable(row.reasoningTokens, run.usage_reasoning_tokens);
+    row.totalTokens = addNullable(row.totalTokens, run.usage_total_tokens);
+    row.costTotal = addNullable(row.costTotal, run.usage_cost_total);
+    row.currency = row.currency || run.usage_currency || "";
+    groups.set(key, row);
+  }
+  return [...groups.values()].sort((a, b) => b.runs - a.runs || a.key.localeCompare(b.key));
+}
+
 export function listRuns(limit = 50): RunRow[] {
   if (!existsSync(dbPath())) return [];
   const db = new Database(dbPath(), { readonly: true });
@@ -351,4 +438,21 @@ export function getRun(id: string): RunRow | null {
 
 export function runAgentName(run: RunRow): string {
   return String(run.agent || run.skill || "");
+}
+
+function hasAnyUsage(run: RunRow): boolean {
+  return [
+    run.usage_input_tokens,
+    run.usage_output_tokens,
+    run.usage_reasoning_tokens,
+    run.usage_cache_read_tokens,
+    run.usage_cache_write_tokens,
+    run.usage_total_tokens,
+    run.usage_cost_total,
+  ].some((value) => value != null);
+}
+
+function addNullable(current: number | null, value: number | null | undefined): number | null {
+  if (value == null) return current;
+  return (current ?? 0) + value;
 }

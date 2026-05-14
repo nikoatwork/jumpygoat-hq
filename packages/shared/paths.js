@@ -45,6 +45,14 @@ export function dataDir() {
   return path.join(agenthqHome(), "data");
 }
 
+export function settingsDir() {
+  return agenthqHome();
+}
+
+export function settingsPath() {
+  return path.join(settingsDir(), "settings.yml");
+}
+
 export function workspacesDir() {
   return path.join(agenthqHome(), "workspaces");
 }

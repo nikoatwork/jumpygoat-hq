@@ -34,14 +34,16 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 - `GET /projects/:project/tasks/:task/edit` / `POST /projects/:project/tasks/:task` — edit task markdown
 - `POST /projects/:project/tasks/:task/status` — non-JS and drag/drop status updates
 - `GET /runs` — recent SQLite runs
-- `GET /runs/:id` — run detail, derived readable trace timeline, output/error, raw trace JSONL hidden in `<details>`
+- `GET /runs/:id` — run detail, requested/resolved model audit, best-effort Pi-emitted usage, derived readable trace timeline, output/error, raw trace JSONL hidden in `<details>`
+- `GET /settings` — read/edit instance-local `agenthqHome()/settings.yml`, list semantic model profiles, and show usage grouped by model/profile
+- `POST /settings` — validate settings YAML before atomically replacing the previous file
 
 ## Files
 
 - `src/index.ts` — HTTP server and startup/shutdown
 - `src/routes.ts` — route handlers
-- `src/readers.ts` — SQLite, automation, agent, project/task, and crontab readers
-- `src/actions.ts` — mutating actions, validation, canonical markdown serialization, atomic file writes, task status updates, and Run now
+- `src/readers.ts` — SQLite, automation, agent, settings, usage summary, project/task, and crontab readers
+- `src/actions.ts` — mutating actions, validation, canonical markdown/settings serialization, atomic file writes, task status updates, and Run now
 - `src/html.ts` — layout and escaping helpers
 
 ## UI conventions
@@ -75,10 +77,11 @@ Run `pnpm check:design` for the lightweight design-system guardrails. Run `pnpm 
 
 - Files remain the source of truth; the web UI is only a convenience layer over gitignored instance files under `agenthqHome()` (`workspace/` locally by default, or `AGENTHQ_HOME` when set).
 - Names are restricted to lowercase letters, numbers, and hyphens to prevent path traversal and stay compatible with runner/cron scripts.
-- Automations validate required agent, schedule, prompt, and optional model before writing.
+- Automations validate required agent, schedule, prompt, and optional model before writing. Optional model values can be semantic profile keys from `/settings` or direct Pi selectors.
 - `/schedule` is read-only: automation markdown schedules are the source of truth; installed AgentHQ crontab blocks are displayed only as status/evidence, including orphan or malformed blocks.
 - Agents are edited as raw markdown and delete is blocked while any automation references the agent.
 - Projects and tasks are markdown source of truth under `agenthqHome()/projects`; kanban drag/drop posts to the same status route as non-JS buttons.
+- `/settings` writes only `agenthqHome()/settings.yml`, validates before replacing the previous file, and must not collect secrets/API keys; Pi/provider auth remains outside the web UI.
 - Mutations use POST with redirect-after-post on success.
 
 ## Binding

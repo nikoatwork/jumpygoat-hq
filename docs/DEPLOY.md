@@ -29,7 +29,7 @@ pnpm build
 AGENTHQ_HOME=/var/lib/agenthq pnpm run doctor
 ```
 
-`AGENTHQ_HOME` is the mutable instance root. Runtime files live directly under `$AGENTHQ_HOME/{agents,automations,projects,data,workspaces,traces}` while source code stays in the repo checkout.
+`AGENTHQ_HOME` is the mutable instance root. Runtime files live directly under `$AGENTHQ_HOME/{agents,automations,projects,data,workspaces,traces}` plus optional `$AGENTHQ_HOME/settings.yml` while source code stays in the repo checkout.
 
 Pi must be installed and authenticated for the same Unix user that will run systemd/cron:
 
@@ -115,6 +115,8 @@ Then open:
 http://127.0.0.1:3000
 ```
 
+Use `/settings` to edit instance-local semantic model profiles. The file is `$AGENTHQ_HOME/settings.yml`; it should contain only non-secret model policy labels/selectors. Pi provider auth, API keys, and custom provider config stay in Pi config or environment.
+
 ## 5. Logs and service operations
 
 Watch logs:
@@ -196,6 +198,6 @@ AGENTHQ_HOME=/var/lib/agenthq pnpm list:cron
 
 ## Notes
 
-- Runtime and personal instance state is intentionally outside source when `AGENTHQ_HOME` is set: `$AGENTHQ_HOME/{agents,automations,projects,data,workspaces,traces}`. Local development uses gitignored `workspace/{agents,automations,projects,data,workspaces,traces}` by default.
+- Runtime and personal instance state is intentionally outside source when `AGENTHQ_HOME` is set: `$AGENTHQ_HOME/{agents,automations,projects,data,workspaces,traces}` and optional `$AGENTHQ_HOME/settings.yml`. Local development uses gitignored `workspace/{agents,automations,projects,data,workspaces,traces}` plus `workspace/settings.yml` by default.
 - Keep `HOST=127.0.0.1` unless the service is behind trusted auth/proxy/firewall.
 - For a non-root deployment, replace `User=`, `WorkingDirectory=`, `EnvironmentFile=`, `HOME=`, and the executable paths with that user’s values.

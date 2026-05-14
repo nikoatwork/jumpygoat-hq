@@ -3,9 +3,10 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
-import { agentsDir, automationsDir, repoRoot } from "./paths.js";
+import { agentsDir, automationsDir, repoRoot, settingsPath } from "./paths.js";
 import { generateTaskId, loadProject, loadTask, projectExists, TASK_PRIORITIES, TASK_STATUSES, transitionTaskStatus, writeProject, writeTask, type AgentTask, type Project, type TaskStatus } from "../../shared/tasks.js";
 import { listAgents, listAutomations, listProjects } from "./readers.js";
+import { defaultSettingsText, parseSettingsText } from "../../shared/settings.js";
 
 export type AutomationFormValues = {
   name: string;
@@ -36,6 +37,10 @@ export type TaskFormValues = {
   assignee: string;
   priority: string;
   body: string;
+};
+
+export type SettingsFormValues = {
+  content: string;
 };
 
 export type ValidationResult<T> = { ok: true; values: T } | { ok: false; values: T; errors: string[] };
@@ -108,6 +113,10 @@ export function parseTaskForm(form: URLSearchParams, fallbackProject = "", fallb
   };
 }
 
+export function parseSettingsForm(form: URLSearchParams): SettingsFormValues {
+  return { content: String(form.get("content") || "") };
+}
+
 export async function validateAutomation(values: AutomationFormValues, mode: "create" | "update"): Promise<ValidationResult<AutomationFormValues>> {
   const errors: string[] = [];
   if (!SAFE_NAME.test(values.name)) errors.push("Name must use lowercase letters, numbers, and hyphens only.");
@@ -161,6 +170,19 @@ export async function validateTask(values: TaskFormValues, mode: "create" | "upd
     if (!projects.some((project) => project.id === values.project)) errors.push(`Project does not exist: ${values.project}`);
   }
   if (mode === "update" && !values.id) errors.push("Task id is required.");
+  return errors.length ? { ok: false, values, errors } : { ok: true, values };
+}
+
+export function validateSettings(values: SettingsFormValues): ValidationResult<SettingsFormValues> {
+  const errors: string[] = [];
+  if (!values.content.trim()) errors.push("Settings content is required.");
+  if (values.content.trim()) {
+    try {
+      parseSettingsText(values.content);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
   return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
@@ -218,6 +240,12 @@ export async function createTask(values: TaskFormValues): Promise<AgentTask> {
   const task = taskFromValues({ ...values, id }, now, now, 0);
   await writeTask(task);
   return task;
+}
+
+export async function updateSettings(values: SettingsFormValues): Promise<void> {
+  // Re-parse immediately before writing so invalid YAML cannot corrupt the previous settings file.
+  parseSettingsText(values.content);
+  await writeAtomic(settingsPath(), values.content.trimEnd() + "\n");
 }
 
 export async function updateTaskFile(project: string, id: string, values: TaskFormValues): Promise<void> {
@@ -289,6 +317,11 @@ export async function readTaskRaw(project: string, id: string): Promise<TaskForm
     priority: task.priority,
     body: task.body,
   };
+}
+
+export async function readSettingsRaw(): Promise<SettingsFormValues> {
+  if (!existsSync(settingsPath())) return { content: defaultSettingsText() };
+  return { content: await readFile(settingsPath(), "utf8") };
 }
 
 export function defaultAgentContent(name: string): string {

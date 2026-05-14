@@ -20,7 +20,7 @@ workspace/agents/<name>/context/*.md
 $AGENTHQ_HOME/agents/<name>/AGENT.md
 ```
 
-`AGENT.md` frontmatter defines display metadata and defaults/capabilities such as `name`, `description`, optional `model`, `allowedIntents`, and connector defaults. Optional `context/*.md` files are loaded alphabetically and appended to the generated Pi instruction file for each run.
+`AGENT.md` frontmatter defines display metadata and defaults/capabilities such as `name`, `description`, optional `model`, `allowedIntents`, and connector defaults. `model` may be a direct Pi selector or an instance semantic profile key. Optional `context/*.md` files are loaded alphabetically and appended to the generated Pi instruction file for each run.
 
 ### Automation
 
@@ -80,6 +80,28 @@ $AGENTHQ_HOME/workspaces/<automation>/
 
 The runner starts Pi with this directory as `cwd`. Runtime data only; gitignored.
 
+### Instance settings
+
+Operator-specific settings live outside committed source at:
+
+```text
+workspace/settings.yml
+$AGENTHQ_HOME/settings.yml
+```
+
+The first schema covers semantic model profiles only:
+
+```yaml
+defaultModelProfile: fast
+modelProfiles:
+  fast: "provider:fast-model"
+  super-smart:
+    selector: "provider:smart-model"
+    label: "Super smart"
+```
+
+AgentHQ validates profile keys/selector strings and resolves profile keys to concrete Pi `--model` selectors. Unknown model strings pass through as direct Pi selectors with audit metadata rather than failing locally. Secrets, API keys, provider auth, and custom providers remain Pi/environment concerns and do not belong in settings.
+
 ### Run DB
 
 One execution of one automation is stored in the shared SQLite DB:
@@ -89,22 +111,23 @@ workspace/data/agenthq.sqlite
 $AGENTHQ_HOME/data/agenthq.sqlite
 ```
 
-The `runs` table stores automation, agent, optional legacy skill backfill, optional `project`/`task_id`, status/timing, output text, trace text, error text, and connector action JSON.
+The `runs` table stores automation, agent, optional legacy skill backfill, optional `project`/`task_id`, requested/resolved model/profile audit fields, status/timing, output text, trace text, error text, connector action JSON, and nullable best-effort Pi-emitted usage/cost aggregates.
 
 ## Runtime flow
 
 1. Cron or user runs `pnpm runner <automation>`.
 2. Runner parses `agenthqHome()/automations/<automation>.md`.
 3. Runner resolves `agenthqHome()/agents/<agent>/AGENT.md` plus alphabetical `context/*.md`.
-4. Runner resolves effective model and connector plan from agent defaults plus automation overrides.
-5. Runner writes a generated instruction file under the per-automation workspace and starts Pi:
+4. Runner resolves effective requested model in order: automation/task override, agent default, instance `defaultModelProfile`, then Pi default.
+5. Runner converts a matching semantic profile key from `settings.yml` to a concrete Pi selector; unknown strings pass through as direct selectors with a warning in run metadata. Runner also resolves the connector plan from agent defaults plus automation overrides.
+6. Runner writes a generated instruction file under the per-automation workspace and starts Pi:
 
    ```bash
    pi --mode json --no-session --skill <generated-agent-file> [--extension <connector-extension>] [--model <model>] <prompt>
    ```
 
-6. Pi runs in `agenthqHome()/workspaces/<automation>/`.
-7. Runner captures Pi JSON events into readable output/trace fields and updates the run row.
+7. Pi runs in `agenthqHome()/workspaces/<automation>/`.
+8. Runner captures Pi JSON events into readable output/trace fields, normalizes any Pi-emitted `message.usage` details without estimating missing values, and updates the run row.
 
 ## Web viewer
 
@@ -119,6 +142,7 @@ Routes:
 - `/projects`, `/projects/new`, `/projects/:project`, `/projects/:project/edit`
 - `/tasks`, `/tasks/new`, `/projects/:project/tasks/:task`, `/projects/:project/tasks/:task/edit`
 - `/runs`, `/runs/:id`
+- `/settings` — edit instance-local `settings.yml`, view model profiles, and review usage grouped by model/profile
 
 Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw agent create/update/delete, and “Run now,” which shells out to `pnpm runner <automation>`. The schedule page does not mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only.
 

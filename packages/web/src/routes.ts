@@ -12,13 +12,16 @@ import {
   parseAutomationForm,
   parseAgentForm,
   parseProjectForm,
+  parseSettingsForm,
   parseTaskForm,
   readAutomationRaw,
   readAgentRaw,
   readProjectRaw,
+  readSettingsRaw,
   readTaskRaw,
   runNow,
   setTaskStatus,
+  updateSettings,
   updateAutomation,
   updateAgent,
   updateProject,
@@ -26,16 +29,18 @@ import {
   validateAutomation,
   validateAgent,
   validateProject,
+  validateSettings,
   validateTask,
   type AutomationFormValues,
   type AgentFormValues,
   type ProjectFormValues,
+  type SettingsFormValues,
   type TaskFormValues,
 } from "./actions.js";
 import { TASK_STATUSES, type TaskStatus } from "../../shared/tasks.js";
 import { badge, date, duration, emptyState, errorPage, escapeHtml, icon, inlineActions, layout, metaTable, notFound, notice, pageHeader, raw, runLink, section, status, table, toolbar } from "./html.js";
 import { agenthqHome, dbPath } from "./paths.js";
-import { getRun, listAutomations, listInstalledCronBlocks, listRuns, listAgents, listProjects, listTasks, readProject, readSchedulePageView, runAgentName, type TaskView } from "./readers.js";
+import { getRun, listAutomations, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listProjects, listTasks, readProject, readSchedulePageView, readSettingsView, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
 import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
 
 export type ResponseData = { status: number; headers?: Record<string, string>; body: string };
@@ -47,6 +52,8 @@ export async function route(method: string, url: URL, form?: URLSearchParams): P
     if (method === "GET" && url.pathname === "/") return html(await dashboard());
     if (method === "GET" && url.pathname === "/automations") return html(await automationsPage(url));
     if (method === "GET" && url.pathname === "/schedule") return html(await schedulePage());
+    if (method === "GET" && url.pathname === "/settings") return html(await settingsPage(url));
+    if (method === "POST" && url.pathname === "/settings") return await updateSettingsRoute(form || new URLSearchParams());
     if (method === "GET" && url.pathname === "/projects") return html(await projectsPage(url));
     if (method === "GET" && url.pathname === "/projects/new") return html(await projectFormPage("Create project", parseProjectForm(new URLSearchParams()), []));
     if (method === "POST" && url.pathname === "/projects") return await createProjectRoute(form || new URLSearchParams());
@@ -230,6 +237,14 @@ async function updateTaskStatusRoute(project: string, id: string, form: URLSearc
   return redirect(form.get("return") || "/tasks");
 }
 
+async function updateSettingsRoute(form: URLSearchParams): Promise<ResponseData> {
+  const values = parseSettingsForm(form);
+  const result = validateSettings(values);
+  if (!result.ok) return html(layout("Settings", `${pageHeader("Settings", { description: "Instance-local configuration. Pi owns provider auth, API keys, and concrete model availability." })}${settingsFormPage(result.values, result.errors)}`), 400);
+  await updateSettings(result.values);
+  return redirect("/settings?updated=1");
+}
+
 async function dashboard(): Promise<string> {
   const [automations, agents, projects, tasks] = await Promise.all([listAutomations(), listAgents(), listProjects(), listTasks()]);
   const cron = listInstalledCronBlocks();
@@ -318,6 +333,57 @@ async function schedulePage(): Promise<string> {
   `);
 }
 
+async function settingsPage(url: URL): Promise<string> {
+  const view = readSettingsView();
+  const values = await readSettingsRaw();
+  const message = pageMessage(url, ["updated"]);
+  const profileRows = view.settings ? Object.entries(view.settings.modelProfiles).sort(([a], [b]) => a.localeCompare(b)).map(([key, profile]) => [
+    raw(`<code>${escapeHtml(key)}</code>`),
+    profile.label || "",
+    raw(`<code>${escapeHtml(profile.selector)}</code>`),
+    view.settings?.defaultModelProfile === key ? badge("default", "installed") : "",
+  ]) : [];
+  return layout("Settings", `
+    ${pageHeader("Settings", { description: "Instance-local configuration. Pi owns provider auth, API keys, and concrete model availability." })}
+    ${message}
+    ${view.error ? notice(view.error, "error") : ""}
+    ${section("Settings file", metaTable([
+      ["Path", raw(`<code>${escapeHtml(view.path)}</code>`)],
+      ["Exists", view.exists ? "yes" : "no (defaults shown below)"],
+      ["Default model profile", view.settings?.defaultModelProfile || "Pi default"],
+    ]))}
+    ${section("Model profiles", table(["Key", "Label", "Pi selector", "Default"], profileRows, { empty: "No model profiles configured." }))}
+    ${section("Usage by model", usageSummaryTable(usageSummary()))}
+    ${settingsFormPage(values, [])}
+  `);
+}
+
+function settingsFormPage(values: SettingsFormValues, errors: string[]): string {
+  return section("Edit settings YAML", `
+    ${errorsList(errors)}
+    <form method="post" action="/settings" class="form-stack">
+      <label>settings.yml <textarea name="content" rows="18" required>${escapeHtml(values.content)}</textarea></label>
+      <p class="muted">Allowed fields: <code>defaultModelProfile</code> and <code>modelProfiles</code>. Do not put secrets or API keys here.</p>
+      <p><button type="submit">${icon("checkmark")}Save settings</button></p>
+    </form>
+  `);
+}
+
+function usageSummaryTable(rows: UsageSummaryRow[]): string {
+  return table(["Profile", "Resolved selector", "Pi model", "Provider", "Runs", "Input", "Output", "Reasoning", "Total", "Reported cost"], rows.map((row) => [
+    row.profile || "direct/Pi default",
+    raw(row.resolvedModel ? `<code>${escapeHtml(row.resolvedModel)}</code>` : ""),
+    row.piModel,
+    row.provider,
+    row.runs,
+    formatNumber(row.inputTokens),
+    formatNumber(row.outputTokens),
+    formatNumber(row.reasoningTokens),
+    formatNumber(row.totalTokens),
+    formatCost(row.costTotal, row.currency),
+  ]), { empty: "No usage emitted by Pi has been recorded yet." });
+}
+
 async function automationDetailPage(name: string): Promise<string> {
   const automation = await readAutomationRaw(name);
   return layout(`Automation ${name}`, `
@@ -333,6 +399,7 @@ async function automationDetailPage(name: string): Promise<string> {
 
 async function automationFormPage(title: string, values: AutomationFormValues, errors: string[], editingName?: string): Promise<string> {
   const agents = await listAgents();
+  const profiles = listModelProfileKeys();
   const action = editingName ? `/automations/${encodeURIComponent(editingName)}` : "/automations";
   const nameAttrs = editingName ? "readonly" : "required";
   return layout(title, `
@@ -342,7 +409,9 @@ async function automationFormPage(title: string, values: AutomationFormValues, e
       <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
       <label>Agent <select name="agent" required>${agents.map((s) => `<option value="${escapeHtml(s.name)}" ${s.name === values.agent ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select></label>
       ${scheduleFields(values.schedule || "manual")}
-      <label>Model <input name="model" value="${escapeHtml(values.model)}" placeholder="default"></label>
+      <label>Model <input name="model" value="${escapeHtml(values.model)}" placeholder="default" list="model-profiles"></label>
+      <datalist id="model-profiles">${profiles.map((profile) => `<option value="${escapeHtml(profile)}"></option>`).join("")}</datalist>
+      ${profiles.length ? `<p class="muted">Available model profiles: ${profiles.map((profile) => `<code>${escapeHtml(profile)}</code>`).join(", ")}. Direct Pi selectors also pass through.</p>` : ""}
       <label>Prompt <textarea name="prompt" rows="16" required>${escapeHtml(values.prompt)}</textarea></label>
       <p><button type="submit">${icon("checkmark")}Save</button> <a href="/automations">Cancel</a></p>
     </form>
@@ -630,6 +699,11 @@ function runDetailPage(id: string): string {
       ["Finished", raw(date(run.finished_at))],
       ["Duration", duration(run.duration_ms)],
       ["Exit", run.exit_code ?? ""],
+      ["Requested model", run.requested_model || run.model || ""],
+      ["Resolved model", run.resolved_model || ""],
+      ["Model profile", run.model_profile || ""],
+      ["Pi-reported model", run.usage_model || ""],
+      ["Usage", usageDetail(run)],
       ["Connector actions", raw(`<pre>${escapeHtml(formatConnectorActions(run.connector_actions_json))}</pre>`)],
     ]))}
     ${section("Timeline", traceLog(formatTraceLog(run.trace_text)))}
@@ -651,12 +725,13 @@ function runsTable(runs: ReturnType<typeof listRuns>, empty = "No runs found."):
     runAgentName(r),
     raw(r.project && r.task_id ? `<a href="/projects/${encodeURIComponent(r.project)}/tasks/${encodeURIComponent(r.task_id)}"><code>${escapeHtml(r.project)}/${escapeHtml(r.task_id)}</code></a>` : ""),
     raw(status(r.status)),
+    r.model_profile || r.resolved_model || r.model || "",
     raw(clamp(connectorSummary(r.connector_actions_json))),
     raw(date(r.started_at)),
     duration(r.duration_ms),
     r.exit_code ?? "",
   ]);
-  return table(["Run", "Automation", "Agent", "Task", "Status", "Connector", "Started", "Duration", "Exit"], rows, { empty });
+  return table(["Run", "Automation", "Agent", "Task", "Status", "Model", "Connector", "Started", "Duration", "Exit"], rows, { empty });
 }
 
 function clamp(value: string): string {
@@ -665,6 +740,20 @@ function clamp(value: string): string {
 
 function clampCode(value: string): string {
   return `<div tabindex="0" data-tooltip="${escapeHtml(value)}"><div class="cell-clamp"><code>${escapeHtml(value)}</code></div></div>`;
+}
+
+function usageDetail(run: ReturnType<typeof getRun>): string {
+  if (!run) return "";
+  const parts = [
+    run.usage_input_tokens != null ? `input ${formatNumber(run.usage_input_tokens)}` : undefined,
+    run.usage_output_tokens != null ? `output ${formatNumber(run.usage_output_tokens)}` : undefined,
+    run.usage_reasoning_tokens != null ? `reasoning ${formatNumber(run.usage_reasoning_tokens)}` : undefined,
+    run.usage_cache_read_tokens != null ? `cache read ${formatNumber(run.usage_cache_read_tokens)}` : undefined,
+    run.usage_cache_write_tokens != null ? `cache write ${formatNumber(run.usage_cache_write_tokens)}` : undefined,
+    run.usage_total_tokens != null ? `total ${formatNumber(run.usage_total_tokens)}` : undefined,
+    run.usage_cost_total != null ? `reported cost ${formatCost(run.usage_cost_total, run.usage_currency || "")}` : undefined,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "unknown/not emitted";
 }
 
 function connectorSummary(json?: string): string {
@@ -720,6 +809,15 @@ function formatTimeOnly(value: Date): string {
 
 function formatDateTime(value: Date): string {
   return `${formatDateOnly(value)} ${formatTimeOnly(value)}`;
+}
+
+function formatNumber(value: number | null): string {
+  return value == null ? "unknown" : new Intl.NumberFormat().format(value);
+}
+
+function formatCost(value: number | null, currency: string): string {
+  if (value == null) return "unknown";
+  return `${currency ? `${escapeHtml(currency)} ` : ""}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 }).format(value)}`;
 }
 
 function errorsList(errors: string[]): string {

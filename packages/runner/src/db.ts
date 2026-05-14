@@ -5,6 +5,8 @@ import { dbPath } from "./paths.js";
 export { dbPath } from "./paths.js";
 import type { AgentMeta } from "./agent.js";
 import type { Automation } from "./automation.js";
+import type { ModelResolution } from "../../shared/settings.js";
+import type { RunUsage } from "./usage.js";
 
 export function openDb(): Database.Database {
   const file = dbPath();
@@ -26,6 +28,10 @@ export function setupDb(db?: Database.Database): void {
       project text,
       task_id text,
       model text,
+      requested_model text,
+      resolved_model text,
+      model_profile text,
+      model_resolution_warning text,
       schedule text,
       status text not null,
       started_at text not null,
@@ -36,7 +42,18 @@ export function setupDb(db?: Database.Database): void {
       output_text text not null default '',
       trace_text text not null default '',
       error_text text not null default '',
-      connector_actions_json text not null default '[]'
+      connector_actions_json text not null default '[]',
+      usage_input_tokens integer,
+      usage_output_tokens integer,
+      usage_reasoning_tokens integer,
+      usage_cache_read_tokens integer,
+      usage_cache_write_tokens integer,
+      usage_total_tokens integer,
+      usage_cost_total real,
+      usage_currency text,
+      usage_provider text,
+      usage_model text,
+      usage_json text
     );
 
     create index if not exists runs_started_at_idx on runs(started_at desc);
@@ -46,6 +63,21 @@ export function setupDb(db?: Database.Database): void {
   ensureColumn(target, "runs", "project", "text");
   ensureColumn(target, "runs", "task_id", "text");
   ensureColumn(target, "runs", "connector_actions_json", "text not null default '[]'");
+  ensureColumn(target, "runs", "requested_model", "text");
+  ensureColumn(target, "runs", "resolved_model", "text");
+  ensureColumn(target, "runs", "model_profile", "text");
+  ensureColumn(target, "runs", "model_resolution_warning", "text");
+  ensureColumn(target, "runs", "usage_input_tokens", "integer");
+  ensureColumn(target, "runs", "usage_output_tokens", "integer");
+  ensureColumn(target, "runs", "usage_reasoning_tokens", "integer");
+  ensureColumn(target, "runs", "usage_cache_read_tokens", "integer");
+  ensureColumn(target, "runs", "usage_cache_write_tokens", "integer");
+  ensureColumn(target, "runs", "usage_total_tokens", "integer");
+  ensureColumn(target, "runs", "usage_cost_total", "real");
+  ensureColumn(target, "runs", "usage_currency", "text");
+  ensureColumn(target, "runs", "usage_provider", "text");
+  ensureColumn(target, "runs", "usage_model", "text");
+  ensureColumn(target, "runs", "usage_json", "text");
   target.exec("create index if not exists runs_task_idx on runs(project, task_id, started_at desc)");
   if (!db) target.close();
 }
@@ -68,13 +100,14 @@ export function insertRun(db: Database.Database, args: {
   automation: Automation;
   agent: AgentMeta;
   model?: string;
+  modelResolution?: ModelResolution;
   startedAt: string;
   project?: string;
   taskId?: string;
 }): void {
   db.prepare(`
-    insert into runs (id, automation, agent, skill, project, task_id, model, schedule, status, started_at)
-    values (@id, @automation, @agent, @skill, @project, @task_id, @model, @schedule, 'running', @started_at)
+    insert into runs (id, automation, agent, skill, project, task_id, model, requested_model, resolved_model, model_profile, model_resolution_warning, schedule, status, started_at)
+    values (@id, @automation, @agent, @skill, @project, @task_id, @model, @requested_model, @resolved_model, @model_profile, @model_resolution_warning, @schedule, 'running', @started_at)
   `).run({
     id: args.runId,
     automation: args.automation.name,
@@ -83,6 +116,10 @@ export function insertRun(db: Database.Database, args: {
     project: args.project ?? null,
     task_id: args.taskId ?? null,
     model: args.model ?? null,
+    requested_model: args.modelResolution?.requestedModel ?? args.model ?? null,
+    resolved_model: args.modelResolution?.resolvedModel ?? args.model ?? null,
+    model_profile: args.modelResolution?.profileKey ?? null,
+    model_resolution_warning: args.modelResolution?.warning ?? null,
     schedule: args.automation.schedule ?? null,
     started_at: args.startedAt,
   });
@@ -99,6 +136,7 @@ export function finishRun(db: Database.Database, args: {
   traceText: string;
   errorText: string;
   connectorActionsJson?: string;
+  usage?: RunUsage | null;
 }): void {
   db.prepare(`
     update runs
@@ -110,7 +148,18 @@ export function finishRun(db: Database.Database, args: {
         output_text = @output_text,
         trace_text = @trace_text,
         error_text = @error_text,
-        connector_actions_json = @connector_actions_json
+        connector_actions_json = @connector_actions_json,
+        usage_input_tokens = @usage_input_tokens,
+        usage_output_tokens = @usage_output_tokens,
+        usage_reasoning_tokens = @usage_reasoning_tokens,
+        usage_cache_read_tokens = @usage_cache_read_tokens,
+        usage_cache_write_tokens = @usage_cache_write_tokens,
+        usage_total_tokens = @usage_total_tokens,
+        usage_cost_total = @usage_cost_total,
+        usage_currency = @usage_currency,
+        usage_provider = @usage_provider,
+        usage_model = @usage_model,
+        usage_json = @usage_json
     where id = @id
   `).run({
     id: args.runId,
@@ -123,5 +172,16 @@ export function finishRun(db: Database.Database, args: {
     trace_text: args.traceText,
     error_text: args.errorText,
     connector_actions_json: args.connectorActionsJson ?? "[]",
+    usage_input_tokens: args.usage?.inputTokens ?? null,
+    usage_output_tokens: args.usage?.outputTokens ?? null,
+    usage_reasoning_tokens: args.usage?.reasoningTokens ?? null,
+    usage_cache_read_tokens: args.usage?.cacheReadTokens ?? null,
+    usage_cache_write_tokens: args.usage?.cacheWriteTokens ?? null,
+    usage_total_tokens: args.usage?.totalTokens ?? null,
+    usage_cost_total: args.usage?.costTotal ?? null,
+    usage_currency: args.usage?.currency ?? null,
+    usage_provider: args.usage?.provider ?? null,
+    usage_model: args.usage?.model ?? null,
+    usage_json: args.usage ? JSON.stringify(args.usage) : null,
   });
 }

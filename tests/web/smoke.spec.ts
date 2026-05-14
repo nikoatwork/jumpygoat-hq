@@ -8,6 +8,7 @@ test("dashboard renders core navigation and run summary", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Agents" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Schedule" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Runs" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
   await expect(page.getByText("Automations:")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent runs" })).toBeVisible();
 });

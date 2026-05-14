@@ -11,6 +11,8 @@ import { extractConnectorActionsFromTrace, processLegacyConnectorActions, resolv
 import { runPiAutomation } from "./pi.js";
 import { agentPath } from "./paths.js";
 import { createRunLog, errorText, outputText, pushTraceLine, traceText } from "./run-log.js";
+import { loadSettings, resolveModelRequest } from "../../shared/settings.js";
+import { extractUsageFromTraceText } from "./usage.js";
 
 async function main(): Promise<number> {
   const name = process.argv[2];
@@ -24,7 +26,9 @@ async function main(): Promise<number> {
   if (!existsSync(agentFile)) throw new Error(`Agent not found: ${agentFile}`);
 
   const agent = await loadAgent(automation.agent);
-  const model = automation.model ?? agent.model;
+  const settings = loadSettings();
+  const modelResolution = resolveModelRequest(automation.model ?? agent.model, settings);
+  const model = modelResolution.resolvedModel;
   const db = openDb();
   const runId = process.env.RUN_ID || ulid();
   const startedAt = new Date().toISOString();
@@ -39,11 +43,15 @@ async function main(): Promise<number> {
     agent_file: agentFile,
     agent_context_files: agent.contextFiles.map((file) => file.path),
     model: model ?? null,
+    requested_model: modelResolution.requestedModel ?? null,
+    resolved_model: modelResolution.resolvedModel ?? null,
+    model_profile: modelResolution.profileKey ?? null,
+    model_resolution_warning: modelResolution.warning ?? null,
     schedule: automation.schedule ?? null,
     started_at: startedAt,
   });
 
-  insertRun(db, { runId, automation, agent, model, startedAt });
+  insertRun(db, { runId, automation, agent, model: modelResolution.requestedModel, modelResolution, startedAt });
 
   console.log(`agenthq run ${runId}`);
   console.log(`db: ${dbPath()}`);
@@ -73,12 +81,17 @@ async function main(): Promise<number> {
       automation: automation.name,
       agent: automation.agent,
       model: model ?? null,
+      requested_model: modelResolution.requestedModel ?? null,
+      resolved_model: modelResolution.resolvedModel ?? null,
+      model_profile: modelResolution.profileKey ?? null,
       status,
       exit_code: result.exitCode,
       signal: result.signal,
       duration_ms: durationMs,
       finished_at: finishedAt,
     });
+
+    const usage = extractUsageFromTraceText(traceText(log));
 
     finishRun(db, {
       runId,
@@ -91,6 +104,7 @@ async function main(): Promise<number> {
       traceText: traceText(log),
       errorText: errorText(log),
       connectorActionsJson: JSON.stringify(connectorActions),
+      usage,
     });
     db.close();
     return result.exitCode ?? 1;
@@ -106,6 +120,8 @@ async function main(): Promise<number> {
       pushTraceLine(log, { type: "agenthq_connector_actions", actions: connectorActions });
     }
 
+    const usage = extractUsageFromTraceText(traceText(log));
+
     finishRun(db, {
       runId,
       status: "error",
@@ -117,6 +133,7 @@ async function main(): Promise<number> {
       traceText: traceText(log),
       errorText: errorText(log),
       connectorActionsJson: JSON.stringify(connectorActions),
+      usage,
     });
     db.close();
     throw error;

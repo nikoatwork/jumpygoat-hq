@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test:connectors": "tsx test/connectors.test.ts"
+    "test:connectors": "tsx test/connectors.test.ts",
+    "test:model-settings": "tsx test/model-settings.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",

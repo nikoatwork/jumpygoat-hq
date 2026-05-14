@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-14
 
+- feat: added instance-local semantic model profiles, settings UI, runner model resolution audit fields, best-effort Pi usage logging, usage summaries, docs, and tests — completed in `tasks/done/2026-05-14_tasks-semantic-model-profiles-settings.md` with backend smoke passing via Codex subscription (`fast` → `openai-codex/gpt-5.4-mini`).
 - feat: added a lightweight raw-HTML web design system with CSS conventions, server-side helpers, stable page refactors, docs, and passing web validation — pending archive from `tasks/todo/tasks-web-design-system.md`.
 - feat: added file-backed projects/tasks, a one-task heartbeat dispatcher, raw HTML kanban/status routes, run project/task metadata, docs, and validation — completed in `tasks/done/2026-05-14_tasks-agent-task-queue.md`.
 - feat: added read-only web schedule agenda for scheduled agent runs, including 5-field cron expansion, cron install/orphan warnings, docs, and Playwright coverage — completed in `tasks/done/2026-05-14_tasks-cron-calendar-view.md`.

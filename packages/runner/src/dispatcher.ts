@@ -9,6 +9,8 @@ import { agentPath, projectsDir, taskPath, tasksDir } from "./paths.js";
 import { runPiAutomation } from "./pi.js";
 import { createRunLog, errorText, outputText, pushTraceLine, traceText } from "./run-log.js";
 import { loadProject, loadTask, updateTask, type AgentTask, type Project } from "./task.js";
+import { loadSettings, resolveModelRequest } from "../../shared/settings.js";
+import { extractUsageFromTraceText } from "./usage.js";
 
 export type DispatchResult = {
   attempted: number;
@@ -90,7 +92,9 @@ async function listDispatchableTasks(): Promise<Array<{ project: Project; task: 
 async function dispatchOne(project: Project, task: AgentTask, runId: string): Promise<number | null> {
   const agent = await loadAgent(task.assignee);
   const automation = taskAutomation(project, task);
-  const model = agent.model;
+  const settings = loadSettings();
+  const modelResolution = resolveModelRequest(agent.model, settings);
+  const model = modelResolution.resolvedModel;
   const db = openDb();
   const startedAt = new Date().toISOString();
   const log = createRunLog();
@@ -116,13 +120,17 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
       agent_file: agentPath(automation.agent),
       agent_context_files: agent.contextFiles.map((file) => file.path),
       model: model ?? null,
+      requested_model: modelResolution.requestedModel ?? null,
+      resolved_model: modelResolution.resolvedModel ?? null,
+      model_profile: modelResolution.profileKey ?? null,
+      model_resolution_warning: modelResolution.warning ?? null,
       schedule: "task-dispatch",
       project: task.project,
       task_id: task.id,
       started_at: startedAt,
     });
 
-    insertRun(db, { runId, automation, agent, model, startedAt, project: task.project, taskId: task.id });
+    insertRun(db, { runId, automation, agent, model: modelResolution.requestedModel, modelResolution, startedAt, project: task.project, taskId: task.id });
     console.log(`agenthq task run ${runId}`);
     console.log(`task: ${task.project}/${task.id}`);
     console.log(`db: ${dbPath()}`);
@@ -149,6 +157,9 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
       automation: automation.name,
       agent: automation.agent,
       model: model ?? null,
+      requested_model: modelResolution.requestedModel ?? null,
+      resolved_model: modelResolution.resolvedModel ?? null,
+      model_profile: modelResolution.profileKey ?? null,
       project: task.project,
       task_id: task.id,
       status,
@@ -157,6 +168,8 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
       duration_ms: durationMs,
       finished_at: finishedAt,
     });
+
+    const usage = extractUsageFromTraceText(traceText(log));
 
     finishRun(db, {
       runId,
@@ -169,6 +182,7 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
       traceText: traceText(log),
       errorText: errorText(log),
       connectorActionsJson: JSON.stringify(connectorActions),
+      usage,
     });
 
     await updateTask(task.project, task.id, (current) => ({
@@ -186,6 +200,8 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
     log.errorLines.push(message);
 
     try {
+      const usage = extractUsageFromTraceText(traceText(log));
+
       finishRun(db, {
         runId,
         status: "error",
@@ -197,6 +213,7 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
         traceText: traceText(log),
         errorText: errorText(log),
         connectorActionsJson: JSON.stringify(extractConnectorActionsFromTrace(traceText(log))),
+        usage,
       });
     } catch {
       // If the row was never inserted, preserving the task failure note is enough.

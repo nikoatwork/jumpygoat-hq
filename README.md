@@ -96,6 +96,21 @@ pnpm runner <automation-name>
 
 Run history is created locally under `workspace/data/agenthq.sqlite` and is gitignored. Override the mutable root with `AGENTHQ_HOME`; override only the DB path with `AGENTHQ_DB_PATH` when needed. Relative `AGENTHQ_DB_PATH` values resolve under `AGENTHQ_HOME`.
 
+## Semantic model profiles
+
+Agents and automations may use either a direct Pi model selector or an instance-local profile key such as `fast` or `super-smart` in their optional `model` field. Configure profiles in `agenthqHome()/settings.yml` (default local path: `workspace/settings.yml`) or through `/settings` in the web UI:
+
+```yaml
+defaultModelProfile: fast
+modelProfiles:
+  fast: "provider:fast-model"
+  super-smart:
+    selector: "provider:smart-model"
+    label: "Super smart"
+```
+
+Effective model order is automation override, then agent default, then `defaultModelProfile`, then Pi's own default. AgentHQ resolves profile keys before invoking Pi and stores requested/resolved model plus best-effort Pi-emitted usage on run history. Pi remains responsible for provider auth, API keys, custom providers, and whether a concrete selector exists; do not put secrets in `settings.yml`.
+
 ## Check the environment
 
 ```bash
@@ -198,6 +213,7 @@ Cron entries export the current `HOME` and `PATH` so Pi can find its stored auth
 - `workspace/agents/*/context/*.md` — optional scoped agent context
 - `workspace/automations/*.md` — scheduled/manual prompt definitions, local/gitignored by default
 - `workspace/projects/<project>/PROJECT.md` and `tasks/*.md` — project/task kanban source of truth, active state local/gitignored by default
+- `workspace/settings.yml` — optional instance-local model profile settings, gitignored by default
 - `workspace/skills/README.md` — legacy pointer; active runtime configuration is agents
 - `packages/web/` — minimal raw HTML viewer over files, crontab, and SQLite
 - `workspace/workspaces/<automation>/` — per-automation Pi working dir, gitignored
@@ -221,6 +237,10 @@ runs(
   project text,
   task_id text,
   model text,
+  requested_model text,
+  resolved_model text,
+  model_profile text,
+  model_resolution_warning text,
   schedule text,
   status text,
   started_at text,
@@ -231,6 +251,17 @@ runs(
   output_text text,
   trace_text text,
   error_text text,
-  connector_actions_json text
+  connector_actions_json text,
+  usage_input_tokens integer,
+  usage_output_tokens integer,
+  usage_reasoning_tokens integer,
+  usage_cache_read_tokens integer,
+  usage_cache_write_tokens integer,
+  usage_total_tokens integer,
+  usage_cost_total real,
+  usage_currency text,
+  usage_provider text,
+  usage_model text,
+  usage_json text
 )
 ```

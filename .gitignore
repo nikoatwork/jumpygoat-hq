@@ -30,6 +30,7 @@ tasks/done/
 workspace/data/
 workspace/traces/
 workspace/workspaces/
+workspace/settings.yml
 workspace/automations/*
 !workspace/automations/
 !workspace/automations/README.md
