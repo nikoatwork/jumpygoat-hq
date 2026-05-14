@@ -39,7 +39,7 @@ import {
 } from "./actions.js";
 import { TASK_STATUSES, taskStatusLabel, type TaskStatus } from "../../shared/tasks.js";
 import { badge, date, duration, emptyState, errorPage, escapeHtml, icon, inlineActions, layout, metaTable, notFound, notice, pageHeader, raw, runLink, section, status, table, toolbar } from "./html.js";
-import { jumpyGoatHqHome, dbPath } from "./paths.js";
+import { jumpyGoatHqHome } from "./paths.js";
 import { getRun, listAutomations, listBoards, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listTasks, readBoard, readSchedulePageView, readSettingsView, readTaskHeartbeatCronStatus, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
 import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
 
@@ -259,21 +259,59 @@ async function dashboard(): Promise<string> {
   const taskHeartbeat = readTaskHeartbeatCronStatus();
   const runs = listRuns(10);
   const failures = runs.filter((r) => r.status !== "ok").slice(0, 5);
+  const scheduledAutomations = automations.filter((automation) => automation.schedule !== "manual");
+  const readyTasks = tasks.filter((task) => task.status === "ready");
+  const workingTasks = tasks.filter((task) => task.status === "working-on-it");
   return layout("Dashboard", `
-    ${pageHeader("Overview", { meta: `Workspace: <code>${escapeHtml(jumpyGoatHqHome())}</code>${process.env.JUMPYGOATHQ_HOME ? ` (JUMPYGOATHQ_HOME=${escapeHtml(process.env.JUMPYGOATHQ_HOME)})` : " (default local workspace)"}<br>DB: <code>${escapeHtml(dbPath())}</code>` })}
-    ${section("Workspace summary", `<ul>
-      <li>Automations: ${automations.length}</li>
-      <li>Agents: ${agents.length}</li>
-      <li>Boards: ${boards.length}</li>
-      <li>Tasks: ${tasks.length}</li>
-      <li>Installed automation cron jobs: ${cron.length}</li>
-      <li>Task heartbeat cron: ${taskHeartbeat.installed ? `installed${taskHeartbeat.warning ? ` (${escapeHtml(taskHeartbeat.warning)})` : ""}` : "not installed"}</li>
-      <li>Recent runs shown: ${runs.length}</li>
-      <li>Recent failures/running: ${failures.length}</li>
-    </ul>`)}
-    ${section("Recent failures / running", runsTable(failures, "No recent failures or running jobs."))}
-    ${section("Recent runs", runsTable(runs))}
+    ${pageHeader("Overview", { description: "A plain-language map of your agent workspace: who can help, what work is waiting, and what happened recently." })}
+    ${section("How jumpyGoat thinks about work", `
+      <div class="concept-grid">
+        ${conceptCard("1", "Agents are your helpers", "Create reusable teammates with a role, instructions, knowledge, and safety boundaries.", "/agents", "Meet your agents")}
+        ${conceptCard("2", "Automations are recurring asks", "Give an agent a prompt that can run manually or on a schedule, like a morning briefing.", "/automations", "Review automations")}
+        ${conceptCard("3", "Boards hold one-off tasks", "Group requests, assign them to an agent, then move them to ready when you want work to start.", "/tasks", "Open tasks")}
+        ${conceptCard("4", "Runs are the receipt", "Every finished or in-progress job leaves an activity record you can inspect when you need details.", "/runs", "See activity")}
+      </div>
+    `)}
+    ${section("At a glance", `
+      <div class="stat-grid">
+        ${statCard("Agents", agents.length, "Reusable helpers", "/agents")}
+        ${statCard("Automations", automations.length, `${scheduledAutomations.length} scheduled`, "/automations")}
+        ${statCard("Tasks", tasks.length, `${readyTasks.length} ready · ${workingTasks.length} in progress`, "/tasks")}
+        ${statCard("Boards", boards.length, "Task groups", "/boards")}
+      </div>
+    `)}
+    ${section("Needs attention", `
+      <div class="attention-list">
+        ${taskHeartbeat.installed && !taskHeartbeat.warning ? `<p>${badge("Task dispatch on", "success")} Ready tasks can be picked up automatically.</p>` : `<p>${badge("Task dispatch off", "warning")} Ready tasks will not run periodically until the task heartbeat is installed.</p>`}
+        ${cron.length ? `<p>${badge(`${cron.length} automation cron`, "installed")} Scheduled automations have local cron evidence.</p>` : `<p>${badge("No automation cron", "manual")} Automations can still be run manually.</p>`}
+        ${failures.length ? `<p>${badge(`${failures.length} needs review`, "warning")} Some recent activity is running or did not finish cleanly.</p>` : `<p>${badge("All clear", "success")} No recent failures or running jobs in the latest activity.</p>`}
+      </div>
+    `)}
+    ${section("Recent activity", overviewActivity(runs))}
+    <details class="local-details"><summary>Local setup details</summary><p class="muted">Workspace: <code>${escapeHtml(jumpyGoatHqHome())}</code>${process.env.JUMPYGOATHQ_HOME ? ` using <code>JUMPYGOATHQ_HOME</code>` : " using the default local workspace"}.</p><p class="muted">Run details, paths, raw traces, and technical IDs live on the detail pages.</p></details>
   `);
+}
+
+function conceptCard(step: string, title: string, body: string, href: string, action: string): string {
+  return `<article class="concept-card"><span class="step-pill">${escapeHtml(step)}</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p><a href="${escapeHtml(href)}">${escapeHtml(action)} →</a></article>`;
+}
+
+function statCard(label: string, value: number, helper: string, href: string): string {
+  return `<a class="stat-card" href="${escapeHtml(href)}"><strong>${value}</strong><span>${escapeHtml(label)}</span><small>${escapeHtml(helper)}</small></a>`;
+}
+
+function overviewActivity(runs: ReturnType<typeof listRuns>): string {
+  if (!runs.length) return emptyState("No activity yet. Run an automation or move an assigned task to ready to create your first run.");
+  return `<div class="activity-list">${runs.slice(0, 6).map((run) => `
+    <article class="activity-card">
+      <div><h4>${escapeHtml(readableRunTitle(run))}</h4><p class="muted">${escapeHtml(runAgentName(run) || "No agent recorded")} · ${date(run.started_at)}${duration(run.duration_ms) ? ` · ${duration(run.duration_ms)}` : ""}</p></div>
+      <div class="activity-card-actions">${status(run.status)} <a href="/runs/${encodeURIComponent(run.id)}">View details</a></div>
+    </article>`).join("")}</div>`;
+}
+
+function readableRunTitle(run: Pick<ReturnType<typeof listRuns>[number], "automation" | "source_type" | "source_id" | "project" | "task_id">): string {
+  if ((run.source_type || "automation") === "task") return run.project && run.task_id ? `Task: ${run.project}/${run.task_id}` : `Task: ${run.source_id || "unknown"}`;
+  return `Automation: ${run.source_id || run.automation || "unknown"}`;
 }
 
 async function automationsPage(url: URL): Promise<string> {
@@ -681,18 +719,38 @@ function weekdayName(value: string): string {
 }
 
 async function agentsPage(url: URL): Promise<string> {
-  const agents = await listAgents();
+  const [agents, automations, tasks] = await Promise.all([listAgents(), listAutomations(), listTasks()]);
   const message = pageMessage(url, ["created", "updated", "deleted"]);
-  const rows = agents.map((s) => [
-    raw(`<a href="/agents/${encodeURIComponent(s.name)}"><code>${escapeHtml(s.name)}</code></a>${s.warning ? `<br><b>${escapeHtml(s.warning)}</b>` : ""}`),
-    raw(clamp(s.description)),
-    raw(clampCode(s.path)),
-    raw(inlineActions(`<a href="/agents/${encodeURIComponent(s.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(s.name)}</details>`)),
-  ]);
+  const cards = agents.map((agent) => {
+    const assignedAutomations = automations.filter((automation) => automation.agent === agent.name).length;
+    const assignedTasks = tasks.filter((task) => task.assignee === agent.name).length;
+    const description = agent.description || "No plain-language description yet. Add one so it is clear when to choose this agent.";
+    return `<article class="agent-card">
+      <header>
+        <div><h3><a href="/agents/${encodeURIComponent(agent.name)}">${escapeHtml(agent.name)}</a></h3><p>${escapeHtml(description)}</p></div>
+        ${agent.warning ? badge("Needs review", "warning") : ""}
+      </header>
+      ${agent.warning ? `<p class="error">${escapeHtml(agent.warning)}</p>` : ""}
+      <ul class="agent-facts">
+        <li><strong>${assignedAutomations}</strong> automation${assignedAutomations === 1 ? "" : "s"} choose this helper</li>
+        <li><strong>${assignedTasks}</strong> open task${assignedTasks === 1 ? "" : "s"} assigned here</li>
+        <li><strong>${agent.contextCount}</strong> extra context note${agent.contextCount === 1 ? "" : "s"}</li>
+      </ul>
+      ${inlineActions(`<a href="/agents/${encodeURIComponent(agent.name)}">View details</a><a href="/agents/${encodeURIComponent(agent.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(agent.name)}</details>`)}
+    </article>`;
+  }).join("");
   return layout("Agents", `
-    ${pageHeader("Agents", { description: "Reusable jumpyGoatHq bundles: identity, instructions, scoped context, model defaults, connector policy, and reserved future resources/memory.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
+    ${pageHeader("Agents", { description: "Your roster of reusable AI helpers. Start here when you want to decide who should do a job, not when you want to inspect logs.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
     ${message}
-    ${section("Agent files", table(["Name", "Description", "Path", "Action"], rows, { empty: "No agents found." }))}
+    ${section("How to think about agents", `
+      <div class="concept-grid">
+        ${conceptCard("Role", "What kind of helper is this?", "An agent is a reusable identity: purpose, tone, default model choice, and the instructions it should follow.", "/agents/new", "Create one")}
+        ${conceptCard("Context", "What should it know?", "Add focused background notes for the agent instead of pasting the same context into every task.", "/agents", "Review roster")}
+        ${conceptCard("Boundaries", "What is it allowed to do?", "External capabilities are governed by connector policy, so tools are explicit instead of hidden in the agent.", "/automations", "Assign work")}
+        ${conceptCard("Work", "Where does it get jobs?", "Automations and tasks point at an agent. Runs are just the receipts after work happens.", "/runs", "See receipts")}
+      </div>
+    `)}
+    ${section("Agent roster", agents.length ? `<div class="agent-grid">${cards}</div>` : emptyState("No agents yet. Create your first agent to define the helper you want.", `<a href="/agents/new">Create agent</a>`))}
   `);
 }
 
@@ -782,10 +840,6 @@ function runSource(run: Pick<ReturnType<typeof listRuns>[number], "automation" |
 
 function clamp(value: string): string {
   return `<div tabindex="0" data-tooltip="${escapeHtml(value)}"><div class="cell-clamp">${escapeHtml(value)}</div></div>`;
-}
-
-function clampCode(value: string): string {
-  return `<div tabindex="0" data-tooltip="${escapeHtml(value)}"><div class="cell-clamp"><code>${escapeHtml(value)}</code></div></div>`;
 }
 
 function usageDetail(run: ReturnType<typeof getRun>): string {

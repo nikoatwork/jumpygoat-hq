@@ -9,14 +9,14 @@ test("overview renders core sidebar navigation and run summary", async ({ page }
 
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expectActiveNav(page, "Overview");
-  await expect(page.getByRole("link", { name: "All automations" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Agents" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Boards" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Schedule" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Runs" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
-  await expect(page.getByText("Automations:")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Recent runs" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "All automations", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Agents", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Boards", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Schedule", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Runs", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "At a glance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent activity" })).toBeVisible();
 });
 
 test("automations page renders template empty state or local automations", async ({ page }) => {
@@ -50,10 +50,10 @@ test("boards page renders template empty state or local boards", async ({ page }
 test("agents page renders reusable agent bundles", async ({ page }) => {
   await page.goto("/agents");
 
-  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
   await expectActiveNav(page, "Agents");
   await expect(page.getByRole("link", { name: "Create agent" })).toBeVisible();
-  await expect(page.locator("body")).toContainText(/No agents found|AGENT\.md|Agent files/);
+  await expect(page.locator("body")).toContainText(/No agents yet|Agent roster|How to think about agents/);
 });
 
 test("tasks kanban column new-task links prefill status", async ({ page }) => {
