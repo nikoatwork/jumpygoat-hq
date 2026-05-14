@@ -20,7 +20,7 @@ function createNotifyEmailTool(runtime: ConnectorRuntimeConfig): ConnectorToolDe
     description: "Send one email notification through the configured Resend connector. Requires subject and body; uses automation defaults for to/from unless supplied.",
     promptSnippet: "Send a gated email notification through Resend",
     promptGuidelines: [
-      "Use notify_email only when the skill instructions say an email notification is warranted.",
+      "Use notify_email only when the agent instructions say an email notification is warranted.",
       "Do not call notify_email for routine FYI-only summaries or duplicate notifications.",
     ],
     parameters: {
@@ -68,7 +68,7 @@ function createNotifyEmailTool(runtime: ConnectorRuntimeConfig): ConnectorToolDe
         const summary = connectorSummary({
           runId: runtime.runId,
           automation: runtime.automationName,
-          skill: runtime.skillName,
+          agent: runtime.agentName,
           toolCallId,
           intent: "notify.email",
           toolName: "notify_email",
@@ -90,7 +90,7 @@ function createNotifyEmailTool(runtime: ConnectorRuntimeConfig): ConnectorToolDe
         const summary = connectorSummary({
           runId: runtime.runId,
           automation: runtime.automationName,
-          skill: runtime.skillName,
+          agent: runtime.agentName,
           toolCallId,
           intent: "notify.email",
           toolName: "notify_email",

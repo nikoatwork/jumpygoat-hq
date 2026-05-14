@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-14
 
+- feat: added file-backed projects/tasks, a one-task heartbeat dispatcher, raw HTML kanban/status routes, run project/task metadata, docs, and validation — pending archive from `tasks/todo/tasks-agent-task-queue.md`.
 - feat: added read-only web schedule agenda for scheduled agent runs, including 5-field cron expansion, cron install/orphan warnings, docs, and Playwright coverage — completed in `tasks/done/2026-05-14_tasks-cron-calendar-view.md`.
 - docs: clarified pre-release strategy around agents as the product primitive, minimal Hermes/OpenClaw-like scope, strong primitives, limited features, and open-source extension seams — see `docs/vision/strategy/agent.md`, `tasks/vision.md`, and `tasks/spec.md`.
 

@@ -29,10 +29,7 @@ const NotifyEmailConfig = z.object({
   subjectPrefix: z.string().optional(),
 });
 
-const AutomationFrontmatter = z.object({
-  skill: z.string().min(1),
-  schedule: z.string().optional(),
-  model: z.string().optional(),
+export const ConnectorOverridesSchema = z.object({
   web: z.object({
     search: WebSearchConfig.optional(),
     scrape: WebScrapeConfig.optional(),
@@ -41,6 +38,14 @@ const AutomationFrontmatter = z.object({
   notify: z.object({
     email: NotifyEmailConfig.optional(),
   }).optional(),
+});
+
+export type ConnectorOverrides = z.infer<typeof ConnectorOverridesSchema>;
+
+const AutomationFrontmatter = ConnectorOverridesSchema.extend({
+  agent: z.string().min(1),
+  schedule: z.string().optional(),
+  model: z.string().optional(),
 });
 
 export type Automation = z.infer<typeof AutomationFrontmatter> & {

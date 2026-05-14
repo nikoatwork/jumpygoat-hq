@@ -2,14 +2,12 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
+import { agenthqHome, agentsDir, automationsDir, dbPath, repoRoot } from "../packages/shared/paths.js";
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(scriptDir, "..");
 const explicitAutomation = Boolean(process.env.AGENTHQ_SMOKE_AUTOMATION || process.argv[2]);
 const automation = process.env.AGENTHQ_SMOKE_AUTOMATION || process.argv[2] || "agenthq-smoke";
-const dbFile = process.env.AGENTHQ_DB_PATH || path.join(repoRoot, "data", "agenthq.sqlite");
+const dbFile = dbPath();
 const startedAt = new Date().toISOString();
 const cleanupPaths: string[] = [];
 const cleanupDirs: string[] = [];
@@ -26,7 +24,7 @@ function tail(text: string, max = 4_000): string {
 function run(command: string, args: string[]): { status: number; stdout: string; stderr: string } {
   section(`$ ${[command, ...args].join(" ")}`);
   const result = spawnSync(command, args, {
-    cwd: repoRoot,
+    cwd: repoRoot(),
     encoding: "utf8",
     env: process.env,
   });
@@ -56,26 +54,26 @@ function latestRun(): Record<string, unknown> | undefined {
 function ensureDefaultSmokeFixture(): void {
   if (explicitAutomation) return;
 
-  const automationFile = path.join(repoRoot, "automations", `${automation}.md`);
-  const skillDir = path.join(repoRoot, "skills", automation);
-  const skillFile = path.join(skillDir, "SKILL.md");
+  const automationFile = path.join(automationsDir(), `${automation}.md`);
+  const agentDir = path.join(agentsDir(), automation);
+  const agentFile = path.join(agentDir, "AGENT.md");
 
-  if (!existsSync(skillFile)) {
-    if (!existsSync(skillDir)) cleanupDirs.push(skillDir);
-    mkdirSync(skillDir, { recursive: true });
-    writeFileSync(skillFile, `---\nname: ${automation}\ndescription: Temporary local backend validation skill.\n---\n\n# Backend Smoke\n\nReply with one concise sentence confirming the smoke run executed.\n`, "utf8");
-    cleanupPaths.push(skillFile);
+  if (!existsSync(agentFile)) {
+    if (!existsSync(agentDir)) cleanupDirs.push(agentDir);
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(agentFile, `---\nname: ${automation}\ndescription: Temporary local backend validation agent.\nallowedIntents: []\n---\n\n# Backend Smoke\n\nReply with one concise sentence confirming the smoke run executed. Do not inspect files, run shell commands, run validation, or perform any other actions.\n`, "utf8");
+    cleanupPaths.push(agentFile);
   }
 
   if (!existsSync(automationFile)) {
     mkdirSync(path.dirname(automationFile), { recursive: true });
-    writeFileSync(automationFile, `---\nskill: "${automation}"\nschedule: "manual"\n---\n\nRun the backend smoke check and reply concisely.\n`, "utf8");
+    writeFileSync(automationFile, `---\nagent: "${automation}"\nschedule: "manual"\n---\n\nRun the backend smoke check by replying with one concise sentence only. Do not use tools or run commands.\n`, "utf8");
     cleanupPaths.push(automationFile);
   }
 
   if (cleanupPaths.length) {
     section("local smoke fixture");
-    console.log(`created temporary gitignored fixture for ${automation}`);
+    console.log(`created temporary gitignored agent/automation fixture for ${automation}`);
   }
 }
 
@@ -100,6 +98,7 @@ let failed = false;
 
 section("agenthq backend smoke");
 console.log(`automation: ${automation}`);
+console.log(`workspace: ${agenthqHome()}`);
 console.log(`db: ${dbFile}`);
 console.log(`started_after: ${startedAt}`);
 ensureDefaultSmokeFixture();

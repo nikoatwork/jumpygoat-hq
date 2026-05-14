@@ -25,6 +25,14 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 - `GET /agents/:name/edit` — raw `AGENT.md` editor
 - `POST /agents/:name` — validate and update `agenthqHome()/agents/<name>/AGENT.md`
 - `POST /agents/:name/delete` — confirmed delete, blocked while referenced by automations
+- `GET /projects` — project list from `agenthqHome()/projects/*/PROJECT.md`
+- `GET /projects/new` / `POST /projects` — create project markdown
+- `GET /projects/:project` / `GET /projects/:project/edit` / `POST /projects/:project` — view/edit project markdown
+- `GET /tasks` — kanban grouped by task status, optionally `?project=<project>`
+- `GET /tasks/new` / `POST /tasks` — create task markdown
+- `GET /projects/:project/tasks/:task` — task detail and status buttons
+- `GET /projects/:project/tasks/:task/edit` / `POST /projects/:project/tasks/:task` — edit task markdown
+- `POST /projects/:project/tasks/:task/status` — non-JS and drag/drop status updates
 - `GET /runs` — recent SQLite runs
 - `GET /runs/:id` — run detail, derived readable trace timeline, output/error, raw trace JSONL hidden in `<details>`
 
@@ -32,8 +40,8 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 
 - `src/index.ts` — HTTP server and startup/shutdown
 - `src/routes.ts` — route handlers
-- `src/readers.ts` — SQLite, automation, agent, and crontab readers
-- `src/actions.ts` — mutating actions, validation, canonical markdown serialization, atomic file writes, and Run now
+- `src/readers.ts` — SQLite, automation, agent, project/task, and crontab readers
+- `src/actions.ts` — mutating actions, validation, canonical markdown serialization, atomic file writes, task status updates, and Run now
 - `src/html.ts` — layout and escaping helpers
 
 ## Local validation
@@ -47,6 +55,7 @@ Run `pnpm validate:web` from the repo root for web build + Playwright smoke cove
 - Automations validate required agent, schedule, prompt, and optional model before writing.
 - `/schedule` is read-only: automation markdown schedules are the source of truth; installed AgentHQ crontab blocks are displayed only as status/evidence, including orphan or malformed blocks.
 - Agents are edited as raw markdown and delete is blocked while any automation references the agent.
+- Projects and tasks are markdown source of truth under `agenthqHome()/projects`; kanban drag/drop posts to the same status route as non-JS buttons.
 - Mutations use POST with redirect-after-post on success.
 
 ## Binding

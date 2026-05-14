@@ -1,14 +1,20 @@
 # agenthq
 
-Personal scheduled Pi skill runner.
+Minimal open-source, file-native control plane for Pi-powered agents.
 
-See `docs/ARCHITECTURE.md` for the current concepts and runtime flow. For a server setup with systemd, see `docs/DEPLOY.md`.
+Pre-release note: **agents** are now the user-facing runtime primitive. Breaking changes are acceptable until release. See `docs/vision/strategy/agent.md` and `tasks/vision.md` for the north star, `tasks/spec.md` for the target spec, and `docs/ARCHITECTURE.md` for architecture.
 
 ## What this is
 
-`automation.md` → `agenthq-runner` → `pi --mode json` → SQLite run history.
+Target shape:
 
-No workflow builder. No custom agent loop. Pi is the harness.
+```txt
+agents as markdown → schedules/tasks/operator commands → Pi runs → auditable SQLite history
+```
+
+agenthq aims to be the smallest useful Hermes/OpenClaw-like agent operations layer: strong primitives, limited features, open-source extension seams.
+
+No workflow builder. No broad personal-assistant clone. No custom agent loop. Pi is the harness.
 
 ## Setup
 
@@ -18,7 +24,7 @@ pnpm build
 pnpm run doctor
 ```
 
-This public repo is a template: it ships with no active skills, automations, or SQLite data. Local `skills/*`, `automations/*.md`, `data/`, and `workspaces/` are gitignored so a personalized checkout can stay private.
+This public repo is a template: it ships with no active agents, automations, tasks, or SQLite data. By default mutable instance state lives under local `workspace/` and is gitignored: `workspace/agents/`, `workspace/automations/`, `workspace/projects/`, `workspace/data/`, `workspace/traces/`, and `workspace/workspaces/`. Set `AGENTHQ_HOME=/path/to/agenthq-home` to place that state on an external volume for deployment.
 
 Pi must also be installed and authenticated/configured. Preferred personal setup is to log into Pi as the same Unix user that will run cron:
 
@@ -37,10 +43,10 @@ cp .env.example .env.local
 
 ## Resend email notifications
 
-Notifications are opt-in and skill-decided. The runner sends email only when all are true:
+Notifications are opt-in and agent-decided. The runner sends email only when all are true:
 
-- the skill declares `allowedIntents: [notify.email]`
-- the automation enables `notify.email`
+- the agent declares `allowedIntents: [notify.email]`
+- the agent or automation enables `notify.email`
 - Pi output includes a valid `agenthq-action` block requesting `notify.email`
 - Resend sender/recipient/API key config is present
 
@@ -55,7 +61,7 @@ AGENTHQ_NOTIFY_EMAIL_FROM="AgentHQ <agent@yourdomain.com>"
 AGENTHQ_NOTIFY_SUBJECT_PREFIX="[agenthq] "
 ```
 
-Per-automation non-secret config lives in frontmatter:
+Agent connector defaults live in `AGENT.md`; automation frontmatter may override run-specific non-secret config:
 
 ```yaml
 notify:
@@ -71,11 +77,11 @@ For real delivery, verify the `from` domain/address in Resend. Cron jobs must ha
 
 ## Create a local automation
 
-Create a local skill with the web UI at `/skills/new`, or by writing `skills/<name>/SKILL.md`. Then create a local automation at `/automations/new`, or by writing `automations/<name>.md`:
+Create `workspace/agents/<name>/AGENT.md`, then create an automation that references it:
 
 ```md
 ---
-skill: your-skill
+agent: your-agent
 schedule: "manual"
 ---
 
@@ -88,7 +94,7 @@ Run it manually:
 pnpm runner <automation-name>
 ```
 
-Run history is created locally under `data/agenthq.sqlite` and is gitignored.
+Run history is created locally under `workspace/data/agenthq.sqlite` and is gitignored. Override the mutable root with `AGENTHQ_HOME`; override only the DB path with `AGENTHQ_DB_PATH` when needed. Relative `AGENTHQ_DB_PATH` values resolve under `AGENTHQ_HOME`.
 
 ## Check the environment
 
@@ -113,7 +119,7 @@ HOST=127.0.0.1 PORT=3000 pnpm web
 
 Default bind is `127.0.0.1` for safety. For Coolify/reverse proxy use, set `HOST=0.0.0.0` only behind trusted auth/proxy/firewall.
 
-The web UI is intentionally raw server-rendered HTML. It shows automations, skills, installed cron entries, runs, run details, and a simple “Run now” button.
+The web UI is intentionally raw server-rendered HTML. It shows automations, agents, projects/tasks, a kanban board, installed cron entries, runs, run details, and a simple “Run now” button.
 
 ## Local validation for coding agents
 
@@ -131,7 +137,7 @@ Frontend validation starts the local web server on `127.0.0.1:3123` by default. 
 pnpm exec playwright install chromium
 ```
 
-Backend validation runs exactly one automation and prints the runner stdout/stderr plus the latest run summary, output tail, error tail, and trace tail. By default it creates a temporary gitignored `agenthq-smoke` skill/automation if needed, runs it, and removes the fixture. It requires local Pi auth/provider setup and may call OpenAI Codex. Override the automation only when intentional:
+Backend validation runs exactly one automation and prints the runner stdout/stderr plus the latest run summary, output tail, error tail, and trace tail. By default it creates a temporary gitignored `agenthq-smoke` agent/automation if needed, runs it, and removes the fixture. It requires local Pi auth/provider setup and may call OpenAI Codex. Override the automation only when intentional:
 
 ```bash
 AGENTHQ_SMOKE_AUTOMATION=<automation-name> pnpm validate:backend
@@ -143,6 +149,17 @@ Common failures:
 - Browser missing: run `pnpm exec playwright install chromium`.
 - DB missing: `pnpm validate:backend` runs `pnpm setup:db`; run it manually if you need to inspect setup output.
 - Pi auth/provider missing: run `pi /login` and `pnpm run doctor`.
+
+## Dispatch assigned tasks
+
+Create projects and tasks under `workspace/projects/` or through the web UI. Tasks with `status: ready` and a valid `assignee` are claimed by the heartbeat dispatcher:
+
+```bash
+pnpm dispatch:tasks          # claims one ready task
+pnpm dispatch:tasks --limit=3 # optional small local batch
+```
+
+The dispatcher records a normal SQLite run row with `project` and `task_id`, transitions successful runs to `review`, and marks failed runs `failed` with dispatch notes.
 
 ## Install as a cron job
 
@@ -170,25 +187,28 @@ Remove it:
 pnpm uninstall:cron <automation-name>
 ```
 
-Cron logs go to `data/cron-<automation>.log`.
+Cron logs go to `workspace/data/cron-<automation>.log` by default, or `$AGENTHQ_HOME/data/cron-<automation>.log` when `AGENTHQ_HOME` is set.
 
 Cron entries export the current `HOME` and `PATH` so Pi can find its stored auth and the `pi` binary. Install cron as the same Unix user that ran `pi /login`.
 
 ## Data model
 
-Automations are still files:
-
-- `AGENTS.md` — repo instructions for Pi/agent runs
-- `automations/*.md` — scheduled prompt definitions, local/gitignored by default
-- `skills/*/SKILL.md` — Pi skills, local/gitignored by default
+- `AGENTS.md` — repo instructions for coding agents working on this project
+- `workspace/agents/*/AGENT.md` — AgentHQ agents, local/gitignored by default
+- `workspace/agents/*/context/*.md` — optional scoped agent context
+- `workspace/automations/*.md` — scheduled/manual prompt definitions, local/gitignored by default
+- `workspace/projects/<project>/PROJECT.md` and `tasks/*.md` — project/task kanban source of truth, active state local/gitignored by default
+- `workspace/skills/README.md` — legacy pointer; active runtime configuration is agents
 - `packages/web/` — minimal raw HTML viewer over files, crontab, and SQLite
-- `workspaces/<automation>/` — per-automation working dir, gitignored
+- `workspace/workspaces/<automation>/` — per-automation Pi working dir, gitignored
+- `workspace/traces/` — optional trace artifacts, gitignored
 
 Past runs are stored in SQLite:
 
-- default DB: `data/agenthq.sqlite`
-- override with `AGENTHQ_DB_PATH`
-- `data/` is gitignored
+- default DB: `workspace/data/agenthq.sqlite`
+- mutable root override: `AGENTHQ_HOME=/path/to/agenthq-home`
+- explicit DB override: `AGENTHQ_DB_PATH` (relative paths resolve under `AGENTHQ_HOME`)
+- runtime workspace directories are gitignored
 
 Current table:
 
@@ -196,7 +216,10 @@ Current table:
 runs(
   id text primary key,
   automation text,
-  skill text,
+  agent text,
+  skill text, -- legacy/backfill column
+  project text,
+  task_id text,
   model text,
   schedule text,
   status text,

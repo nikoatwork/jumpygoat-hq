@@ -3,20 +3,39 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
-import { automationsDir, repoRoot, skillsDir } from "./paths.js";
-import { listAutomations, listSkills } from "./readers.js";
+import { agentsDir, automationsDir, repoRoot } from "./paths.js";
+import { generateTaskId, loadProject, loadTask, projectExists, TASK_PRIORITIES, TASK_STATUSES, transitionTaskStatus, writeProject, writeTask, type AgentTask, type Project, type TaskStatus } from "../../shared/tasks.js";
+import { listAgents, listAutomations, listProjects } from "./readers.js";
 
 export type AutomationFormValues = {
   name: string;
-  skill: string;
+  agent: string;
   schedule: string;
   model: string;
   prompt: string;
 };
 
-export type SkillFormValues = {
+export type AgentFormValues = {
   name: string;
   content: string;
+};
+
+export type ProjectFormValues = {
+  id: string;
+  name: string;
+  description: string;
+  default_agent: string;
+  body: string;
+};
+
+export type TaskFormValues = {
+  id: string;
+  project: string;
+  title: string;
+  status: string;
+  assignee: string;
+  priority: string;
+  body: string;
 };
 
 export type ValidationResult<T> = { ok: true; values: T } | { ok: false; values: T; errors: string[] };
@@ -27,8 +46,16 @@ export function assertAutomationName(name: string): void {
   if (!SAFE_NAME.test(name)) throw new Error(`Invalid automation name: ${name}`);
 }
 
-export function assertSkillName(name: string): void {
-  if (!SAFE_NAME.test(name)) throw new Error(`Invalid skill name: ${name}`);
+export function assertAgentName(name: string): void {
+  if (!SAFE_NAME.test(name)) throw new Error(`Invalid agent name: ${name}`);
+}
+
+export function assertProjectName(name: string): void {
+  if (!SAFE_NAME.test(name)) throw new Error(`Invalid project name: ${name}`);
+}
+
+export function assertTaskId(id: string): void {
+  if (!SAFE_NAME.test(id)) throw new Error(`Invalid task id: ${id}`);
 }
 
 export function automationPath(name: string): string {
@@ -36,38 +63,61 @@ export function automationPath(name: string): string {
   return path.join(automationsDir(), `${name}.md`);
 }
 
-export function skillPath(name: string): string {
-  assertSkillName(name);
-  return path.join(skillsDir(), name, "SKILL.md");
+export function localAgentPath(name: string): string {
+  assertAgentName(name);
+  return path.join(agentsDir(), name, "AGENT.md");
 }
 
 export function parseAutomationForm(form: URLSearchParams, fallbackName = ""): AutomationFormValues {
   return {
     name: String(form.get("name") || fallbackName).trim(),
-    skill: String(form.get("skill") || "").trim(),
+    agent: String(form.get("agent") || "").trim(),
     schedule: parseScheduleForm(form),
     model: String(form.get("model") || "").trim(),
     prompt: String(form.get("prompt") || "").trim(),
   };
 }
 
-export function parseSkillForm(form: URLSearchParams, fallbackName = ""): SkillFormValues {
+export function parseAgentForm(form: URLSearchParams, fallbackName = ""): AgentFormValues {
   return {
     name: String(form.get("name") || fallbackName).trim(),
     content: String(form.get("content") || ""),
   };
 }
 
+export function parseProjectForm(form: URLSearchParams, fallbackId = ""): ProjectFormValues {
+  const id = String(form.get("id") || fallbackId).trim();
+  return {
+    id,
+    name: String(form.get("name") || id).trim(),
+    description: String(form.get("description") || "").trim(),
+    default_agent: String(form.get("default_agent") || "").trim(),
+    body: String(form.get("body") || ""),
+  };
+}
+
+export function parseTaskForm(form: URLSearchParams, fallbackProject = "", fallbackId = ""): TaskFormValues {
+  return {
+    id: String(form.get("id") || fallbackId).trim(),
+    project: String(form.get("project") || fallbackProject).trim(),
+    title: String(form.get("title") || "").trim(),
+    status: String(form.get("status") || "backlog").trim(),
+    assignee: String(form.get("assignee") || "").trim(),
+    priority: String(form.get("priority") || "normal").trim(),
+    body: String(form.get("body") || ""),
+  };
+}
+
 export async function validateAutomation(values: AutomationFormValues, mode: "create" | "update"): Promise<ValidationResult<AutomationFormValues>> {
   const errors: string[] = [];
   if (!SAFE_NAME.test(values.name)) errors.push("Name must use lowercase letters, numbers, and hyphens only.");
-  if (!values.skill) errors.push("Skill is required.");
+  if (!values.agent) errors.push("Agent is required.");
   if (!values.prompt) errors.push("Prompt is required.");
   if (!isValidSchedule(values.schedule)) errors.push("Schedule must be 'manual' or a valid 5-field cron expression.");
   if (values.model.length > 200) errors.push("Model must be 200 characters or fewer.");
 
-  const skills = await listSkills();
-  if (values.skill && !skills.some((skill) => skill.name === values.skill)) errors.push(`Skill does not exist: ${values.skill}`);
+  const agents = await listAgents();
+  if (values.agent && !agents.some((agent) => agent.name === values.agent)) errors.push(`Agent does not exist: ${values.agent}`);
 
   if (SAFE_NAME.test(values.name)) {
     const exists = existsSync(automationPath(values.name));
@@ -78,21 +128,57 @@ export async function validateAutomation(values: AutomationFormValues, mode: "cr
   return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
-export function validateSkill(values: SkillFormValues, mode: "create" | "update"): ValidationResult<SkillFormValues> {
+export async function validateProject(values: ProjectFormValues, mode: "create" | "update"): Promise<ValidationResult<ProjectFormValues>> {
+  const errors: string[] = [];
+  if (!SAFE_NAME.test(values.id)) errors.push("Project id must use lowercase letters, numbers, and hyphens only.");
+  if (!values.name) errors.push("Project name is required.");
+  if (values.default_agent) {
+    const agents = await listAgents();
+    if (!agents.some((agent) => agent.name === values.default_agent)) errors.push(`Default agent does not exist: ${values.default_agent}`);
+  }
+  if (SAFE_NAME.test(values.id)) {
+    const exists = projectExists(values.id);
+    if (mode === "create" && exists) errors.push(`Project already exists: ${values.id}`);
+    if (mode === "update" && !exists) errors.push(`Project does not exist: ${values.id}`);
+  }
+  return errors.length ? { ok: false, values, errors } : { ok: true, values };
+}
+
+export async function validateTask(values: TaskFormValues, mode: "create" | "update"): Promise<ValidationResult<TaskFormValues>> {
+  const errors: string[] = [];
+  if (values.id && !SAFE_NAME.test(values.id)) errors.push("Task id must use lowercase letters, numbers, and hyphens only.");
+  if (!SAFE_NAME.test(values.project)) errors.push("Project is required.");
+  if (!values.title) errors.push("Title is required.");
+  if (!TASK_STATUSES.includes(values.status as TaskStatus)) errors.push("Status is invalid.");
+  if (!TASK_PRIORITIES.includes(values.priority as never)) errors.push("Priority is invalid.");
+  if ((values.status === "ready" || values.status === "doing") && !values.assignee) errors.push("Assignee is required before a task can be ready or doing.");
+  if (values.assignee) {
+    const agents = await listAgents();
+    if (!agents.some((agent) => agent.name === values.assignee)) errors.push(`Assignee agent does not exist: ${values.assignee}`);
+  }
+  if (SAFE_NAME.test(values.project)) {
+    const projects = await listProjects();
+    if (!projects.some((project) => project.id === values.project)) errors.push(`Project does not exist: ${values.project}`);
+  }
+  if (mode === "update" && !values.id) errors.push("Task id is required.");
+  return errors.length ? { ok: false, values, errors } : { ok: true, values };
+}
+
+export function validateAgent(values: AgentFormValues, mode: "create" | "update"): ValidationResult<AgentFormValues> {
   const errors: string[] = [];
   if (!SAFE_NAME.test(values.name)) errors.push("Name must use lowercase letters, numbers, and hyphens only.");
-  if (!values.content.trim()) errors.push("Skill content is required.");
+  if (!values.content.trim()) errors.push("Agent content is required.");
   if (values.content.trim()) {
     try {
       matter(values.content);
     } catch (error) {
-      errors.push(`Skill markdown/frontmatter could not be parsed: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(`Agent markdown/frontmatter could not be parsed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   if (SAFE_NAME.test(values.name)) {
-    const exists = existsSync(skillPath(values.name));
-    if (mode === "create" && exists) errors.push(`Skill already exists: ${values.name}`);
-    if (mode === "update" && !exists) errors.push(`Skill does not exist: ${values.name}`);
+    const exists = existsSync(localAgentPath(values.name));
+    if (mode === "create" && exists) errors.push(`Agent already exists: ${values.name}`);
+    if (mode === "update" && !exists) errors.push(`Agent does not exist: ${values.name}`);
   }
   return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
@@ -112,22 +198,55 @@ export async function deleteAutomation(name: string): Promise<void> {
   await rm(automationPath(name), { force: false });
 }
 
-export async function createSkill(values: SkillFormValues): Promise<void> {
-  await writeAtomic(skillPath(values.name), values.content.trimEnd() + "\n");
+export async function createAgent(values: AgentFormValues): Promise<void> {
+  await writeAtomic(localAgentPath(values.name), values.content.trimEnd() + "\n");
 }
 
-export async function updateSkill(name: string, values: SkillFormValues): Promise<void> {
-  assertSkillName(name);
-  if (name !== values.name) throw new Error("Renaming skills is not supported. Create a new skill instead.");
-  await writeAtomic(skillPath(name), values.content.trimEnd() + "\n");
+export async function createProject(values: ProjectFormValues): Promise<void> {
+  await writeProject(projectFromValues(values));
 }
 
-export async function deleteSkill(name: string): Promise<void> {
-  assertSkillName(name);
+export async function updateProject(id: string, values: ProjectFormValues): Promise<void> {
+  assertProjectName(id);
+  if (id !== values.id) throw new Error("Renaming projects is not supported. Create a new project instead.");
+  await writeProject(projectFromValues(values));
+}
+
+export async function createTask(values: TaskFormValues): Promise<AgentTask> {
+  const now = new Date().toISOString();
+  const id = values.id || generateTaskId(values.title);
+  const task = taskFromValues({ ...values, id }, now, now, 0);
+  await writeTask(task);
+  return task;
+}
+
+export async function updateTaskFile(project: string, id: string, values: TaskFormValues): Promise<void> {
+  assertProjectName(project);
+  assertTaskId(id);
+  if (project !== values.project || id !== values.id) throw new Error("Renaming or moving tasks is not supported. Create a new task instead.");
+  const current = await loadTask(project, id);
+  await writeTask(taskFromValues(values, current.created_at, new Date().toISOString(), current.attempts, current.claimed_at, current.run_id));
+}
+
+export async function setTaskStatus(project: string, id: string, status: string): Promise<void> {
+  assertProjectName(project);
+  assertTaskId(id);
+  if (!TASK_STATUSES.includes(status as TaskStatus)) throw new Error(`Invalid task status: ${status}`);
+  await transitionTaskStatus(project, id, status as TaskStatus);
+}
+
+export async function updateAgent(name: string, values: AgentFormValues): Promise<void> {
+  assertAgentName(name);
+  if (name !== values.name) throw new Error("Renaming agents is not supported. Create a new agent instead.");
+  await writeAtomic(localAgentPath(name), values.content.trimEnd() + "\n");
+}
+
+export async function deleteAgent(name: string): Promise<void> {
+  assertAgentName(name);
   const automations = await listAutomations();
-  const users = automations.filter((automation) => automation.skill === name).map((automation) => automation.name);
-  if (users.length) throw new Error(`Cannot delete skill ${name}; used by automation(s): ${users.join(", ")}`);
-  await rm(path.join(skillsDir(), name), { recursive: true, force: false });
+  const users = automations.filter((automation) => automation.agent === name).map((automation) => automation.name);
+  if (users.length) throw new Error(`Cannot delete agent ${name}; used by automation(s): ${users.join(", ")}`);
+  await rm(path.join(agentsDir(), name), { recursive: true, force: false });
 }
 
 export async function readAutomationRaw(name: string): Promise<AutomationFormValues> {
@@ -136,20 +255,48 @@ export async function readAutomationRaw(name: string): Promise<AutomationFormVal
   const parsed = matter(raw);
   return {
     name,
-    skill: String(parsed.data.skill || ""),
+    agent: String(parsed.data.agent || ""),
     schedule: String(parsed.data.schedule || "manual"),
     model: parsed.data.model ? String(parsed.data.model) : "",
     prompt: parsed.content.trim(),
   };
 }
 
-export async function readSkillRaw(name: string): Promise<SkillFormValues> {
-  assertSkillName(name);
-  return { name, content: await readFile(skillPath(name), "utf8") };
+export async function readAgentRaw(name: string): Promise<AgentFormValues> {
+  assertAgentName(name);
+  return { name, content: await readFile(localAgentPath(name), "utf8") };
 }
 
-export function defaultSkillContent(name: string): string {
-  return `---\nname: ${name || "new-skill"}\ndescription: Describe when to use this skill.\n---\n\n## Overview\n\nDescribe what this skill does and how Pi should use it.\n`;
+export async function readProjectRaw(id: string): Promise<ProjectFormValues> {
+  const project = await loadProject(id);
+  return {
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    default_agent: project.default_agent || "",
+    body: project.body,
+  };
+}
+
+export async function readTaskRaw(project: string, id: string): Promise<TaskFormValues> {
+  const task = await loadTask(project, id);
+  return {
+    id: task.id,
+    project: task.project,
+    title: task.title,
+    status: task.status,
+    assignee: task.assignee,
+    priority: task.priority,
+    body: task.body,
+  };
+}
+
+export function defaultAgentContent(name: string): string {
+  return `---\nname: ${name || "new-agent"}\ndescription: Describe this agent's role.\nallowedIntents: []\n---\n\n## Instructions\n\nDescribe what this agent does, how it should decide, and when it may use connectors.\n`;
+}
+
+export function defaultProjectBody(name: string): string {
+  return `# ${name || "Project"}\n\nDescribe the project context, constraints, and definition of done for assigned tasks.\n`;
 }
 
 export async function runNow(name: string): Promise<{ stdout: string; stderr: string }> {
@@ -165,8 +312,35 @@ export async function runNow(name: string): Promise<{ stdout: string; stderr: st
   });
 }
 
+function projectFromValues(values: ProjectFormValues): Project {
+  return {
+    id: values.id,
+    name: values.name,
+    description: values.description,
+    default_agent: values.default_agent || undefined,
+    body: values.body,
+  };
+}
+
+function taskFromValues(values: TaskFormValues, createdAt: string, updatedAt: string, attempts: number, claimedAt?: string, runId?: string): AgentTask {
+  return {
+    id: values.id,
+    title: values.title,
+    project: values.project,
+    status: values.status as TaskStatus,
+    assignee: values.assignee,
+    priority: values.priority as AgentTask["priority"],
+    created_at: createdAt,
+    updated_at: updatedAt,
+    claimed_at: claimedAt,
+    run_id: runId,
+    attempts,
+    body: values.body,
+  };
+}
+
 function automationMarkdown(values: AutomationFormValues): string {
-  const lines = ["---", `skill: ${JSON.stringify(values.skill)}`, `schedule: ${JSON.stringify(values.schedule || "manual")}`];
+  const lines = ["---", `agent: ${JSON.stringify(values.agent)}`, `schedule: ${JSON.stringify(values.schedule || "manual")}`];
   if (values.model) lines.push(`model: ${JSON.stringify(values.model)}`);
   lines.push("---", "", values.prompt.trim(), "");
   return lines.join("\n");

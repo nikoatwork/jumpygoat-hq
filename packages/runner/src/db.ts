@@ -1,14 +1,10 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { repoRoot } from "./paths.js";
+import { dbPath } from "./paths.js";
+export { dbPath } from "./paths.js";
+import type { AgentMeta } from "./agent.js";
 import type { Automation } from "./automation.js";
-
-export function dbPath(): string {
-  const configured = process.env.AGENTHQ_DB_PATH;
-  if (!configured) return path.join(repoRoot(), "data", "agenthq.sqlite");
-  return path.isAbsolute(configured) ? configured : path.join(repoRoot(), configured);
-}
 
 export function openDb(): Database.Database {
   const file = dbPath();
@@ -25,7 +21,10 @@ export function setupDb(db?: Database.Database): void {
     create table if not exists runs (
       id text primary key,
       automation text not null,
-      skill text not null,
+      agent text not null,
+      skill text,
+      project text,
+      task_id text,
       model text,
       schedule text,
       status text not null,
@@ -43,7 +42,11 @@ export function setupDb(db?: Database.Database): void {
     create index if not exists runs_started_at_idx on runs(started_at desc);
     create index if not exists runs_automation_idx on runs(automation, started_at desc);
   `);
+  ensureColumn(target, "runs", "agent", "text");
+  ensureColumn(target, "runs", "project", "text");
+  ensureColumn(target, "runs", "task_id", "text");
   ensureColumn(target, "runs", "connector_actions_json", "text not null default '[]'");
+  target.exec("create index if not exists runs_task_idx on runs(project, task_id, started_at desc)");
   if (!db) target.close();
 }
 
@@ -63,16 +66,23 @@ function openRawDb(): Database.Database {
 export function insertRun(db: Database.Database, args: {
   runId: string;
   automation: Automation;
+  agent: AgentMeta;
+  model?: string;
   startedAt: string;
+  project?: string;
+  taskId?: string;
 }): void {
   db.prepare(`
-    insert into runs (id, automation, skill, model, schedule, status, started_at)
-    values (@id, @automation, @skill, @model, @schedule, 'running', @started_at)
+    insert into runs (id, automation, agent, skill, project, task_id, model, schedule, status, started_at)
+    values (@id, @automation, @agent, @skill, @project, @task_id, @model, @schedule, 'running', @started_at)
   `).run({
     id: args.runId,
     automation: args.automation.name,
-    skill: args.automation.skill,
-    model: args.automation.model ?? null,
+    agent: args.automation.agent,
+    skill: args.automation.agent,
+    project: args.project ?? null,
+    task_id: args.taskId ?? null,
+    model: args.model ?? null,
     schedule: args.automation.schedule ?? null,
     started_at: args.startedAt,
   });

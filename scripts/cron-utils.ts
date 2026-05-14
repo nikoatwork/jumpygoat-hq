@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { loadAutomation } from "../packages/runner/src/automation.js";
-import { repoRoot } from "../packages/runner/src/paths.js";
+import { dataDir, repoRoot } from "../packages/shared/paths.js";
 
 export function readCrontab(): string {
   try {
@@ -46,15 +46,20 @@ export async function buildCronBlock(name: string): Promise<string> {
   assertFiveFieldCron(automation.schedule);
 
   const root = repoRoot();
-  mkdirSync(path.join(root, "data"), { recursive: true });
+  const logDir = dataDir();
+  mkdirSync(logDir, { recursive: true });
+  const logFile = path.join(logDir, `cron-${name}.log`);
   const home = process.env.HOME || "";
   const pathEnv = process.env.PATH || "/usr/local/bin:/usr/bin:/bin";
-  const inner = `export HOME=${shellQuote(home)} PATH=${shellQuote(pathEnv)}; pnpm runner ${name} >> data/cron-${name}.log 2>&1`;
+  const exports = [`HOME=${shellQuote(home)}`, `PATH=${shellQuote(pathEnv)}`];
+  if (process.env.AGENTHQ_HOME) exports.push(`AGENTHQ_HOME=${shellQuote(process.env.AGENTHQ_HOME)}`);
+  if (process.env.AGENTHQ_DB_PATH) exports.push(`AGENTHQ_DB_PATH=${shellQuote(process.env.AGENTHQ_DB_PATH)}`);
+  const inner = `export ${exports.join(" ")}; pnpm runner ${name} >> ${shellQuote(logFile)} 2>&1`;
   const command = `cd ${shellQuote(root)} && /bin/bash -lc ${shellQuote(inner)}`;
 
   return [
     markerStart(name),
-    `# ${automation.skill} via agenthq`,
+    `# ${automation.agent} via agenthq`,
     `${automation.schedule} ${command}`,
     markerEnd(name),
   ].join("\n");

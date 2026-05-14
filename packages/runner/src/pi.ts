@@ -1,27 +1,32 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Agent } from "./agent.js";
 import type { Automation } from "./automation.js";
 import { connectorPlanEnv, connectorToolNames, type ConnectorPlan } from "./connectors/index.js";
-import { skillPath, workspaceDir } from "./paths.js";
+import { workspaceDir } from "./paths.js";
 import type { RunLog } from "./run-log.js";
 import { pushOutputFromPiEvent, pushTraceLine } from "./run-log.js";
 
 export async function runPiAutomation(args: {
   automation: Automation;
+  agent: Agent;
   log: RunLog;
+  runId: string;
+  model?: string;
   connectorPlan?: ConnectorPlan;
-}): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; skillFile: string }> {
-  const { automation, log, connectorPlan } = args;
-  const skillFile = skillPath(automation.skill);
-  if (!existsSync(skillFile)) throw new Error(`Skill not found: ${skillFile}`);
+}): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; agentFile: string }> {
+  const { automation, agent, log, runId, model, connectorPlan } = args;
+  if (!existsSync(agent.path)) throw new Error(`Agent not found: ${agent.path}`);
 
   const cwd = workspaceDir(automation.name);
   await mkdir(cwd, { recursive: true });
+  const agentFile = await writeGeneratedAgentFile(cwd, runId, agent);
 
-  const piArgs = ["--mode", "json", "--no-session", "--skill", skillFile];
-  if (automation.model) piArgs.push("--model", automation.model);
+  const piArgs = ["--mode", "json", "--no-session", "--skill", agentFile];
+  if (model) piArgs.push("--model", model);
   if (connectorPlan && connectorPlan.tools.length > 0) {
     piArgs.push("--extension", connectorExtensionPath());
   }
@@ -86,9 +91,17 @@ export async function runPiAutomation(args: {
         log.errorLines.push(stderrBuffer.trimEnd());
         pushTraceLine(log, { type: "agenthq_stderr", text: stderrBuffer.trimEnd() });
       }
-      resolve({ exitCode, signal, skillFile });
+      resolve({ exitCode, signal, agentFile });
     });
   });
+}
+
+async function writeGeneratedAgentFile(cwd: string, runId: string, agent: Agent): Promise<string> {
+  const dir = path.join(cwd, ".agenthq");
+  await mkdir(dir, { recursive: true });
+  const file = path.join(dir, `${runId}-AGENT.md`);
+  await writeFile(file, agent.instructions, "utf8");
+  return file;
 }
 
 function connectorExtensionPath(): string {

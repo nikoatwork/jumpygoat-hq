@@ -286,6 +286,35 @@ summary { cursor: pointer; color: var(--cyan); }
 }
 .agenda-list time { color: var(--yellow); font-family: var(--mono); }
 
+.inline-actions, .card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.inline-actions form, .card-actions form { margin: 0; }
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(16rem, 1fr));
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+}
+.kanban-column {
+  min-width: 16rem;
+  padding: var(--space-3);
+  background: rgba(3, 5, 16, 0.35);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.kanban-dropzone { min-height: 8rem; display: flex; flex-direction: column; gap: var(--space-3); }
+.kanban-column.drag-over { border-color: var(--pink); box-shadow: var(--shadow-pink); }
+.kanban-card {
+  padding: var(--space-3);
+  background: linear-gradient(180deg, rgba(23, 19, 44, 0.98), rgba(13, 16, 32, 0.98));
+  border: 1px solid rgba(114, 215, 223, 0.3);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-cyan);
+}
+.kanban-card h4 { margin: 0 0 var(--space-2); color: var(--cyan); }
+.kanban-card p { margin: var(--space-2) 0; }
+.kanban-card.dragging { opacity: 0.5; }
+
 @media (max-width: 760px) {
   body { padding: var(--space-4) var(--space-3); }
   main { padding: var(--space-4); }

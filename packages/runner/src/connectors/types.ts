@@ -54,7 +54,7 @@ export type ResolvedConnectorTool = {
 export type ConnectorRuntimeConfig = {
   runId: string;
   automationName: string;
-  skillName: string;
+  agentName: string;
   tools: ResolvedConnectorTool[];
   firecrawl?: FirecrawlRuntimeConfig;
   resend?: ResendRuntimeConfig;
@@ -66,7 +66,7 @@ export type ConnectorActionRecord = {
   type?: "agenthq_connector_action";
   runId?: string;
   automation?: string;
-  skill?: string;
+  agent?: string;
   toolCallId?: string;
   intent: ConnectorIntent | string;
   toolName?: ConnectorToolName | string;

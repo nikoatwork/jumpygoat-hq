@@ -1,18 +1,21 @@
-# agenthq — spec
+# agenthq — target spec
 
-agenthq is a **personal cron/systemd runner for Pi skills**.
+This is the **pre-release target spec**. The implementation may temporarily lag while the agent refactor is in progress. Breaking changes are acceptable before release.
 
-The core idea: write one markdown automation file, point it at a Pi skill, put it on a schedule, and let Pi do the work. agenthq owns the thin wrapper around scheduling, run storage, and observability. Pi owns the agent runtime.
+agenthq is a **minimal open-source, file-native control plane for Pi-powered agents**.
+
+The core idea: define agents as markdown, run them through schedules or assigned tasks, store auditable run history, and expose only small gated extension points for connectors, tools, and operator surfaces. Pi owns the agent runtime. agenthq owns the product primitives around it.
 
 ---
 
 ## Current stance
 
-- Personal repo/tool first: operator = user.
-- Pi is the harness.
-- Automations and skills are files.
-- Past runs live in a local SQLite DB that is gitignored.
-- Prefer Pi's stored login (`pi /login`) for auth; `.env` is optional for overrides/provider env vars.
+- Smallest useful Hermes/OpenClaw-like agent operations layer, not a feature clone.
+- Single-operator/local-first before release.
+- Pi is the harness; no custom LLM/tool loop.
+- Files are the authoring source of truth.
+- Shared SQLite is for run history/observability.
+- Extension contracts should be simple enough for open-source contributors to add connectors/adapters without changing core internals.
 
 ---
 
@@ -20,179 +23,239 @@ The core idea: write one markdown automation file, point it at a Pi skill, put i
 
 | Primitive | Meaning | Backed by |
 |---|---|---|
-| **Skill** | A Pi skill/context package | `skills/<name>/SKILL.md` |
-| **Automation** | A scheduled invocation of one skill with one prompt | `automations/<name>.md` |
-| **Schedule** | When to run the automation | 5-field cron in frontmatter; installed into user crontab |
-| **Run** | One execution of one automation | `runs` row in SQLite |
-| **Workspace** | Per-automation working directory | `workspaces/<name>/` |
-| **Trace** | Dumb text trace of Pi JSON events | `runs.trace_text` |
-| **Connector** | Runner-owned adapter for an external service | `packages/runner/src/connectors.ts` + env |
-| **Connector action** | A skill-requested external action intent | fenced `agenthq-action` JSON in Pi output |
+| **Agent** | User-facing runtime entity: Pi instructions, context, defaults, and capabilities | `agents/<name>/AGENT.md` + optional `agents/<name>/context/*.md` |
+| **Automation** | Scheduled/manual invocation of one agent with one prompt | `automations/<name>.md` |
+| **Project** | File-backed grouping for assignable work | `projects/<project>/PROJECT.md` |
+| **Task** | File-backed unit of work assigned to an agent | `projects/<project>/tasks/<task-id>.md` |
+| **Schedule** | When an automation should run | `manual` or 5-field cron in automation frontmatter |
+| **Dispatcher** | Local heartbeat that claims ready tasks and runs assigned agents | script/cron/systemd wrapper |
+| **Run** | One auditable execution | shared `runs` row in SQLite |
+| **Workspace** | Per-run/automation working directory | `workspaces/<name>/` |
+| **Trace** | Raw Pi JSON events plus derived readable timeline | `runs.trace_text` |
+| **Connector/tool** | Runner/gateway-owned extension capability | connector package + policy gates + env secrets |
+| **Gateway** | Optional operator chat surface | browser now, Slack later, domain-only tools |
+
+Skills are legacy MVP terminology. The product should converge on agents before release.
+
+---
+
+## Target mutable layout
+
+Local default:
+
+```txt
+workspace/
+  agents/<agent>/AGENT.md
+  agents/<agent>/context/*.md
+  automations/<automation>.md
+  projects/<project>/PROJECT.md
+  projects/<project>/tasks/<task-id>.md
+  data/agenthq.sqlite
+  workspaces/<automation-or-task>/
+  traces/
+```
+
+Deployment override:
+
+```bash
+AGENTHQ_HOME=/var/lib/agenthq
+```
+
+Then the same directories live directly under `$AGENTHQ_HOME`.
+
+---
+
+## Agent format
+
+Target shape:
+
+```markdown
+---
+name: daily-review
+description: Reviews notes/issues and produces a concise daily brief
+model: anthropic/claude-sonnet-4-5
+allowedIntents:
+  - notify.email
+  - web.search
+notify:
+  email:
+    enabled: true
+    connector: resend
+web:
+  search:
+    enabled: true
+    connector: firecrawl
+---
+
+You are the daily review agent. Be concise. Identify blockers, due items, and recommended next actions.
+```
+
+Optional context files under `agents/<agent>/context/*.md` are loaded deterministically, likely alphabetically, and appended/included in the Pi instruction context.
+
+Agent frontmatter owns defaults and capabilities. Secrets never live in agent files.
 
 ---
 
 ## Automation format
 
+Target shape:
+
 ```markdown
 ---
-skill: daily-review
-schedule: "manual"
+agent: daily-review
+schedule: "0 9 * * *"
 model: anthropic/claude-sonnet-4-5
-notify:
-  email:
-    enabled: true
-    connector: resend
-    to: you@example.com
-    from: "AgentHQ <agent@yourdomain.com>"
-    subjectPrefix: "[agenthq] "
 ---
 
-Review my project notes and produce a concise daily brief.
+Review the workspace notes and open issues. Tell me what needs attention today.
 ```
 
 Required:
 
-- `skill`
+- `agent`
 - body prompt
 
 Optional:
 
-- `schedule`
-- `model`
-- `notify.email.enabled` / `connector` / `to` / `from` / `subjectPrefix` for opt-in email notifications
+- `schedule` (`manual` or 5-field cron)
+- `model` override
+- narrow non-secret per-run connector overrides if needed
 
 ---
 
-## Runtime
+## Task/project format
+
+Target project shape:
+
+```markdown
+---
+name: launch-site
+description: Website launch work
+defaultAgent: web-operator
+---
+
+Project notes and constraints.
+```
+
+Target task shape:
+
+```markdown
+---
+id: 2026-05-14-write-homepage-copy
+title: Write homepage copy
+project: launch-site
+status: ready
+assignee: marketing-agent
+priority: medium
+created_at: "2026-05-14T00:00:00.000Z"
+updated_at: "2026-05-14T00:00:00.000Z"
+attempts: 0
+---
+
+Write concise first-pass homepage copy for the product.
+```
+
+Initial statuses:
+
+```txt
+backlog, ready, doing, review, done, blocked, failed
+```
+
+The first dispatcher can assume one local heartbeat and simple atomic file updates; no distributed queue in v1.
+
+---
+
+## Runtime flow: automation
 
 `agenthq-runner <automation>`:
 
-1. Loads `.env` with `dotenv`.
+1. Loads env and resolves `agenthqHome()`.
 2. Parses `automations/<name>.md`.
-3. Resolves `skills/<skill>/SKILL.md`.
-4. Opens/initializes SQLite at `AGENTHQ_DB_PATH` or `data/agenthq.sqlite`.
+3. Resolves `agents/<agent>/AGENT.md` and optional context files.
+4. Opens/initializes shared SQLite at `agenthqHome()/data/agenthq.sqlite` unless overridden.
 5. Inserts a `runs` row with `status = running`.
-6. Spawns Pi:
-
-   ```bash
-   pi --mode json --no-session --skill <skill-path> [--model <model>] <prompt>
-   ```
-
-7. Runs with `cwd = workspaces/<automation>/`.
-8. Accumulates raw Pi JSON lines into `trace_text`.
-9. Accumulates assistant text deltas into `output_text`.
-10. If the Pi run succeeded, parses `output_text` for an optional connector action block.
-11. Executes only the intersection of skill-allowed intents, automation-enabled connector config, and valid requested action.
-12. Updates the `runs` row with status, duration, exit code, output, trace, errors, and connector action metadata.
+6. Resolves connector/tool gates from agent capabilities plus automation/run config.
+7. Spawns Pi with agent instructions/context and allowed extension tools.
+8. Runs with a scoped cwd under `workspaces/`.
+9. Captures raw Pi JSONL trace, assistant output, stderr/errors, and connector summaries.
+10. Updates the run row with status, timing, trace, output, errors, and metadata.
 
 ---
 
-## v0 connector and notification contract
+## Runtime flow: task dispatcher
 
-Connectors are runner-owned adapters for external services. Skills do not call provider APIs directly and should not mention provider-specific secrets. A skill may request an external action only by emitting a machine-readable action block in its normal output.
+`dispatch:tasks` target behavior:
 
-For v0, the only implemented connector is Resend email for the `notify.email` intent. A skill must declare the intent in `SKILL.md` frontmatter:
+1. Scans `projects/*/tasks/*.md` for `status: ready` and `assignee`.
+2. Validates the assignee agent exists.
+3. Atomically claims one or a small batch by moving to `doing` and incrementing attempts.
+4. Builds a prompt from task body, task metadata, project context, and completion instructions.
+5. Runs the assigned agent through the same Pi/run path.
+6. Writes normal shared run rows associated with project/task metadata.
+7. Transitions task to `review`/`done` on success or `failed` on failure.
+
+---
+
+## Connector/tool contract
+
+Connectors are extension-owned adapters for external services. They are exposed only when policy gates allow them.
+
+Required gates:
+
+1. agent declares the intent/capability;
+2. automation/task/run context enables or requests it where appropriate;
+3. required non-secret config exists;
+4. required secrets exist in env/deployment secret store.
+
+Examples:
 
 ```yaml
 allowedIntents:
   - notify.email
+  - web.search
 ```
 
-An automation must also enable email notifications in frontmatter:
-
-```yaml
-notify:
-  email:
-    enabled: true
-    connector: resend
-    to: you@example.com
-    from: "AgentHQ <agent@yourdomain.com>"
-    subjectPrefix: "[agenthq] "
-```
-
-Secrets stay in env only:
+Secrets stay in env:
 
 ```bash
 RESEND_API_KEY=re_...
+FIRECRAWL_API_KEY=fc_...
 ```
 
-Optional non-secret defaults may also come from env and are used when automation frontmatter omits them:
-
-```bash
-AGENTHQ_NOTIFY_EMAIL_TO=you@example.com
-AGENTHQ_NOTIFY_EMAIL_FROM="AgentHQ <agent@yourdomain.com>"
-AGENTHQ_NOTIFY_SUBJECT_PREFIX="[agenthq] "
-```
-
-A skill requests notification by including one fenced JSON block:
-
-````markdown
-```agenthq-action
-{
-  "type": "notify.email",
-  "subject": "Daily review needs attention",
-  "body": "You have 3 overdue items and one blocked task."
-}
-```
-````
-
-Compatibility form with `notify: true` is accepted as `notify.email`, but new skills should use `type: "notify.email"`.
-
-Behavior:
-
-- No action block: store run output and send nothing.
-- Malformed action block: record `skipped_malformed` metadata and send nothing.
-- Action not listed in skill `allowedIntents`: record `skipped_not_allowed` and send nothing.
-- Automation notification config missing or disabled: record `skipped_disabled` and send nothing.
-- Missing `RESEND_API_KEY`, recipient, or sender: record a non-fatal `failed_missing_config` and keep the run status based on Pi.
-- Resend delivery failure: record a non-fatal `failed_delivery` and keep the run status based on Pi.
-- Failed Pi runs do not send normal success notifications; requested actions are recorded as `skipped_run_failed`.
+Connector results should be summarized into run metadata for auditability.
 
 ---
 
-## SQLite schema
+## Web/operator UI
 
-SQLite is local runtime state and is gitignored.
+The web UI remains minimal raw server-rendered HTML until complexity justifies otherwise.
 
-Default path:
+Target pages:
 
-```txt
-data/agenthq.sqlite
-```
+- `/` dashboard
+- `/agents`
+- `/automations`
+- `/projects`
+- `/tasks` or `/kanban`
+- `/schedule` or `/calendar`
+- `/runs`
+- `/runs/:id`
+- optional `/pi` local browser gateway after safe domain tools exist
 
-Override:
+Mutations should call shared domain services, not duplicate validation in route handlers.
 
-```bash
-AGENTHQ_DB_PATH=/some/path.sqlite
-```
+---
 
-Schema:
+## Gateway direction
 
-```sql
-create table if not exists runs (
-  id text primary key,
-  automation text not null,
-  skill text not null,
-  model text,
-  schedule text,
-  status text not null,
-  started_at text not null,
-  finished_at text,
-  duration_ms integer,
-  exit_code integer,
-  signal text,
-  output_text text not null default '',
-  trace_text text not null default '',
-  error_text text not null default '',
-  connector_actions_json text not null default '[]'
-);
-```
+The gateway is an optional adapter layer, not the core product.
 
-Setup command:
-
-```bash
-pnpm setup:db
-```
+- Browser first.
+- Slack Socket Mode later.
+- Deny-by-default allowlists for Slack.
+- Domain-only tools for chat-driven Pi sessions.
+- No repo-wide shell/write access from Slack/browser sessions.
+- Chat edits user-owned AgentHQ workspace content through validated services only.
 
 ---
 
@@ -200,75 +263,36 @@ pnpm setup:db
 
 Preferred personal setup:
 
-1. SSH into the server as the Unix user that will run cron.
-2. Run `pi /login`.
-3. Verify `pi --mode json --no-session "hello"` works.
-4. Run agenthq under that same user.
+1. Run `pi /login` as the Unix user that runs agenthq.
+2. Verify `pi --mode json --no-session "hello"` works.
+3. Run agenthq under that same user for cron/systemd/web.
 
-Pi's stored auth normally lives under `~/.pi/agent/auth.json`. Cron entries export `HOME` and `PATH` so the spawned Pi process can find the same auth and binary.
-
-`.env` is optional and gitignored. Use it for provider-specific env vars or `AGENTHQ_DB_PATH` overrides. Current likely provider is Vercel AI Gateway, but agenthq should not hardcode that provider.
-
-`pnpm run doctor` checks Node, pnpm, Pi, cron, SQLite, and likely Pi auth state.
+`.env.local` is optional and gitignored. Use it for provider env vars, connector secrets, and local overrides such as `AGENTHQ_HOME`.
 
 ---
 
-## Non-goals now
+## Non-goals before release
 
-- workflow builder
+- workflow builder/DAG UI
 - custom LLM/tool loop
-- public dashboard
-- multi-user auth
-- MCP platform
-- normalized tracing schema
+- hosted SaaS
+- multi-user/RBAC/team auth
+- broad personal assistant feature set
+- plugin marketplace
+- generic public JSON API
+- durable distributed task queue
+- per-agent databases/memory system
+- frontend framework migration without clear need
 
 ---
-
-## Cron scheduling
-
-Schedules are installed into the current user's crontab with safe marker blocks:
-
-```bash
-pnpm install:cron daily-review
-pnpm list:cron
-pnpm uninstall:cron daily-review
-```
-
-Generated entries look like:
-
-```cron
-# agenthq:start daily-review
-0 9 * * * cd /path/to/agenthq && /bin/bash -lc 'pnpm runner daily-review >> data/cron-daily-review.log 2>&1'
-# agenthq:end daily-review
-```
-
-Use server-local cron first. Coolify/API-triggered scheduling can be added later if deploy hooks become useful, but the recurring schedule should live with the runner.
-
-## Minimal web viewer
-
-`packages/web` is a tiny Node `http` server that renders raw HTML. It has no frontend framework and no client-side app. It reads:
-
-- `automations/*.md`
-- `skills/*/SKILL.md`
-- marked agenthq crontab blocks
-- SQLite `runs`
-
-Default bind is `HOST=127.0.0.1`, `PORT=3000`. Use `HOST=0.0.0.0` only behind trusted proxy/auth/firewall.
-
-Pages:
-
-- `/` dashboard
-- `/automations`
-- `/skills`
-- `/runs`
-- `/runs/:id`
-
-Only mutation for now: `POST /automations/:name/run` to run an automation immediately.
 
 ## Phase plan
 
 | Phase | Ships |
 |---|---|
-| **v0** | TS runner, `.env`, SQLite runs table, one skill, one automation, cron install scripts |
-| **v1** | minimal raw HTML viewer over automations, skills, crontab, and SQLite runs |
-| **later** | stricter sandbox/tool policy, dashboard editing, auth, Coolify/deploy hooks |
+| **now** | Agent entity refactor; docs/UI/runtime converge on `agent` not `skill` |
+| **next** | Shared domain services and path policy for safe mutations |
+| **then** | File-backed projects/tasks and heartbeat dispatcher |
+| **then** | Read-only schedule/calendar observability |
+| **later** | Browser gateway, then Slack adapter with strict capability policy |
+| **hardening** | systemd/timer deployment templates after primitives stabilize |

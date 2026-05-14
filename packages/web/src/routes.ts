@@ -231,7 +231,7 @@ async function updateTaskStatusRoute(project: string, id: string, form: URLSearc
 }
 
 async function dashboard(): Promise<string> {
-  const [automations, agents] = await Promise.all([listAutomations(), listAgents()]);
+  const [automations, agents, projects, tasks] = await Promise.all([listAutomations(), listAgents(), listProjects(), listTasks()]);
   const cron = listInstalledCronBlocks();
   const runs = listRuns(10);
   const failures = runs.filter((r) => r.status !== "ok").slice(0, 5);
@@ -241,6 +241,8 @@ async function dashboard(): Promise<string> {
     <ul>
       <li>Automations: ${automations.length}</li>
       <li>Agents: ${agents.length}</li>
+      <li>Projects: ${projects.length}</li>
+      <li>Tasks: ${tasks.length}</li>
       <li>Installed cron jobs: ${cron.length}</li>
       <li>Recent runs shown: ${runs.length}</li>
       <li>Recent failures/running: ${failures.length}</li>
@@ -618,6 +620,7 @@ function runDetailPage(id: string): string {
     <table>
       <tr><th>Automation</th><td>${escapeHtml(run.automation)}</td></tr>
       <tr><th>Agent</th><td>${escapeHtml(runAgentName(run))}</td></tr>
+      <tr><th>Project/task</th><td>${run.project && run.task_id ? `<a href="/projects/${encodeURIComponent(run.project)}/tasks/${encodeURIComponent(run.task_id)}"><code>${escapeHtml(run.project)}/${escapeHtml(run.task_id)}</code></a>` : ""}</td></tr>
       <tr><th>Status</th><td>${status(run.status)}</td></tr>
       <tr><th>Started</th><td>${date(run.started_at)}</td></tr>
       <tr><th>Finished</th><td>${date(run.finished_at)}</td></tr>
@@ -641,7 +644,7 @@ function traceLog(entries: TraceLogEntry[]): string {
 
 function runsTable(runs: ReturnType<typeof listRuns>): string {
   if (runs.length === 0) return "<p>No runs found.</p>";
-  return `<table><tr><th>Run</th><th>Automation</th><th>Agent</th><th>Status</th><th>Connector</th><th>Started</th><th>Duration</th><th>Exit</th></tr>${runs.map((r) => `<tr><td>${runLink(r)}</td><td>${escapeHtml(r.automation)}</td><td>${escapeHtml(runAgentName(r))}</td><td>${status(r.status)}</td><td>${clamp(connectorSummary(r.connector_actions_json))}</td><td>${date(r.started_at)}</td><td>${duration(r.duration_ms)}</td><td>${escapeHtml(r.exit_code ?? "")}</td></tr>`).join("")}</table>`;
+  return `<table><tr><th>Run</th><th>Automation</th><th>Agent</th><th>Task</th><th>Status</th><th>Connector</th><th>Started</th><th>Duration</th><th>Exit</th></tr>${runs.map((r) => `<tr><td>${runLink(r)}</td><td>${escapeHtml(r.automation)}</td><td>${escapeHtml(runAgentName(r))}</td><td>${r.project && r.task_id ? `<a href="/projects/${encodeURIComponent(r.project)}/tasks/${encodeURIComponent(r.task_id)}"><code>${escapeHtml(r.project)}/${escapeHtml(r.task_id)}</code></a>` : ""}</td><td>${status(r.status)}</td><td>${clamp(connectorSummary(r.connector_actions_json))}</td><td>${date(r.started_at)}</td><td>${duration(r.duration_ms)}</td><td>${escapeHtml(r.exit_code ?? "")}</td></tr>`).join("")}</table>`;
 }
 
 function clamp(value: string): string {

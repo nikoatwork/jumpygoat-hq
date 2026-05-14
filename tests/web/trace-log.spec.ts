@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { formatTraceLog } from "../../packages/web/src/trace-log";
 
 const sampleTrace = [
-  { type: "agenthq_run_meta", run_id: "01KR4B2H82ZWE7PKZ28SE1NR74", automation: "notification-noop", skill: "notification-review", schedule: "manual" },
+  { type: "agenthq_run_meta", run_id: "01KR4B2H82ZWE7PKZ28SE1NR74", automation: "notification-noop", agent: "notification-review", schedule: "manual" },
   { type: "agenthq_pi_start", command: "pi", args: ["--mode", "json", "--no-session", "<prompt>"], cwd: "/tmp/workspace" },
   { type: "session", version: 3, id: "session-1", cwd: "/tmp/workspace" },
   { type: "message_start", message: { role: "user", content: [{ type: "text", text: "This is a notification smoke test. Produce a short FYI-only response." }] } },

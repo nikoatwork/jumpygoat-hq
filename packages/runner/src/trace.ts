@@ -10,7 +10,7 @@ export type Trace = {
   startedAt: string;
 };
 
-export async function openTrace(automation: Automation, skillFile: string): Promise<Trace> {
+export async function openTrace(automation: Automation, agentFile: string): Promise<Trace> {
   await mkdir(tracesDir(), { recursive: true });
   const runId = process.env.RUN_ID || ulid();
   const startedAt = new Date().toISOString();
@@ -19,8 +19,8 @@ export async function openTrace(automation: Automation, skillFile: string): Prom
     type: "agenthq_run_meta",
     run_id: runId,
     automation: automation.name,
-    skill: automation.skill,
-    skill_file: skillFile,
+    agent: automation.agent,
+    agent_file: agentFile,
     model: automation.model ?? null,
     schedule: automation.schedule ?? null,
     started_at: startedAt,
@@ -50,7 +50,7 @@ export async function closeTrace(args: {
     type: "agenthq_summary",
     run_id: args.runId,
     automation: args.automation.name,
-    skill: args.automation.skill,
+    agent: args.automation.agent,
     model: args.automation.model ?? null,
     status,
     exit_code: args.exitCode,

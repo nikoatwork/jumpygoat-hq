@@ -1,5 +1,5 @@
-import type { Automation } from "../automation.js";
-import type { SkillMeta } from "../skill.js";
+import type { AgentMeta } from "../agent.js";
+import type { Automation, ConnectorOverrides } from "../automation.js";
 import { sendResendEmail } from "./resend/index.js";
 import type { ConnectorActionRecord, ConnectorIntent } from "./types.js";
 
@@ -24,7 +24,7 @@ type EmailConfig = {
 
 export async function processLegacyConnectorActions(args: {
   automation: Automation;
-  skill: SkillMeta;
+  agent: AgentMeta;
   outputText: string;
   runSucceeded: boolean;
   alreadyHandledIntents?: Set<ConnectorIntent | string>;
@@ -43,11 +43,11 @@ export async function processLegacyConnectorActions(args: {
   if (!args.runSucceeded) {
     return [{ intent: action.type, status: "skipped_run_failed" }];
   }
-  if (!args.skill.allowedIntents.includes(action.type)) {
+  if (!args.agent.allowedIntents.includes(action.type)) {
     return [{ intent: action.type, status: "skipped_not_allowed" }];
   }
 
-  const config = resolveEmailConfig(args.automation);
+  const config = resolveEmailConfig(args.agent, args.automation);
   if (!config.enabled) return [{ intent: action.type, connector: config.connector, status: "skipped_disabled" }];
   if (!config.to) return [{ intent: action.type, connector: config.connector, status: "failed_missing_config", error: "Missing notify.email.to or AGENTHQ_NOTIFY_EMAIL_TO." }];
   if (!config.from) return [{ intent: action.type, connector: config.connector, to: config.to, status: "failed_missing_config", error: "Missing notify.email.from or AGENTHQ_NOTIFY_EMAIL_FROM." }];
@@ -84,13 +84,13 @@ export function parseNotificationAction(outputText: string): ParsedNotification 
   }
 }
 
-function resolveEmailConfig(automation: Automation): EmailConfig {
-  const email = automation.notify?.email;
+function resolveEmailConfig(agent: ConnectorOverrides, automation: ConnectorOverrides): EmailConfig {
+  const email = { ...(agent.notify?.email || {}), ...(automation.notify?.email || {}) };
   return {
-    enabled: email?.enabled === true,
+    enabled: email.enabled === true,
     connector: "resend",
-    to: email?.to || process.env.AGENTHQ_NOTIFY_EMAIL_TO,
-    from: email?.from || process.env.AGENTHQ_NOTIFY_EMAIL_FROM,
-    subjectPrefix: email?.subjectPrefix ?? process.env.AGENTHQ_NOTIFY_SUBJECT_PREFIX ?? "",
+    to: email.to || process.env.AGENTHQ_NOTIFY_EMAIL_TO,
+    from: email.from || process.env.AGENTHQ_NOTIFY_EMAIL_FROM,
+    subjectPrefix: email.subjectPrefix ?? process.env.AGENTHQ_NOTIFY_SUBJECT_PREFIX ?? "",
   };
 }

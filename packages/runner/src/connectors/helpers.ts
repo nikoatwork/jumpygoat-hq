@@ -40,7 +40,7 @@ export function textFromUnknown(value: unknown, maxChars: number): string | unde
 export function connectorSummary(args: {
   runId?: string;
   automation?: string;
-  skill?: string;
+  agent?: string;
   toolCallId: string;
   intent: ConnectorIntent;
   toolName: ConnectorToolName;
@@ -59,7 +59,7 @@ export function connectorSummary(args: {
     type: "agenthq_connector_action",
     runId: args.runId,
     automation: args.automation,
-    skill: args.skill,
+    agent: args.agent,
     toolCallId: args.toolCallId,
     intent: args.intent,
     toolName: args.toolName,

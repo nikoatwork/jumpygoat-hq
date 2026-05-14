@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createFirecrawlTools, createResendTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
+import type { AgentMeta } from "../src/agent.js";
 import type { Automation } from "../src/automation.js";
-import type { SkillMeta } from "../src/skill.js";
 
 const automation: Automation = {
   name: "test-auto",
-  skill: "test-skill",
+  agent: "test-agent",
   prompt: "test prompt",
   web: {
     search: { enabled: true, connector: "firecrawl", limit: 2 },
@@ -17,8 +17,8 @@ const automation: Automation = {
   },
 };
 
-const skill: SkillMeta = {
-  name: "test-skill",
+const agent: AgentMeta = {
+  name: "test-agent",
   allowedIntents: ["web.search", "notify.email"],
 };
 
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 }
 
 async function testGating(): Promise<void> {
-  const plan = resolveConnectorPlan({ automation, skill, runId: "run-1" });
+  const plan = resolveConnectorPlan({ automation, agent, runId: "run-1" });
   assert.deepEqual(plan.tools.map((tool) => tool.intent), ["web.search", "notify.email"]);
 }
 
@@ -49,7 +49,7 @@ async function testFirecrawlSearch(): Promise<void> {
   };
 
   try {
-    const plan = resolveConnectorPlan({ automation, skill, runId: "run-1" });
+    const plan = resolveConnectorPlan({ automation, agent, runId: "run-1" });
     const tool = createFirecrawlTools(plan).find((entry) => entry.name === "web_search");
     assert.ok(tool);
     const result = await tool.execute("call-1", { query: "example", limit: 1 });
@@ -80,7 +80,7 @@ async function testFirecrawlScrapeAndCrawl(): Promise<void> {
   try {
     const plan = resolveConnectorPlan({
       automation: { ...automation, web: { search: automation.web?.search, scrape: automation.web?.scrape, crawl: { enabled: true, connector: "firecrawl", maxPages: 1 } } },
-      skill: { ...skill, allowedIntents: ["web.scrape", "web.crawl"] },
+      agent: { ...agent, allowedIntents: ["web.scrape", "web.crawl"] },
       runId: "run-1",
     });
     const tools = createFirecrawlTools(plan);
@@ -104,7 +104,7 @@ async function testFirecrawlErrorResponses(): Promise<void> {
   globalThis.fetch = async () => new Response(JSON.stringify({ success: false, error: "bad request" }), { status: 400 });
 
   try {
-    const plan = resolveConnectorPlan({ automation, skill, runId: "run-1" });
+    const plan = resolveConnectorPlan({ automation, agent, runId: "run-1" });
     const tool = createFirecrawlTools(plan).find((entry) => entry.name === "web_search");
     assert.ok(tool);
     await assert.rejects(() => tool.execute("call-error", { query: "example" }), /Firecrawl API 400: bad request/);
@@ -117,7 +117,7 @@ async function testFirecrawlErrorResponses(): Promise<void> {
 async function testFirecrawlMissingKey(): Promise<void> {
   const originalKey = process.env.FIRECRAWL_API_KEY;
   delete process.env.FIRECRAWL_API_KEY;
-  const plan = resolveConnectorPlan({ automation, skill, runId: "run-1" });
+  const plan = resolveConnectorPlan({ automation, agent, runId: "run-1" });
   const tool = createFirecrawlTools(plan).find((entry) => entry.name === "web_search");
   assert.ok(tool);
   await assert.rejects(() => tool.execute("call-2", { query: "example" }), /Missing FIRECRAWL_API_KEY/);
@@ -136,7 +136,7 @@ async function testResendSuccessAndTrace(): Promise<void> {
   };
 
   try {
-    const plan = resolveConnectorPlan({ automation, skill, runId: "run-1" });
+    const plan = resolveConnectorPlan({ automation, agent, runId: "run-1" });
     const tool = createResendTools(plan).find((entry) => entry.name === "notify_email");
     assert.ok(tool);
     const result = await tool.execute("call-3", { subject: "Hello", body: "World" });
@@ -164,7 +164,7 @@ async function testResendMissingConfig(): Promise<void> {
   delete process.env.AGENTHQ_NOTIFY_EMAIL_FROM;
   const plan = resolveConnectorPlan({
     automation: { ...automation, notify: { email: { enabled: true, connector: "resend" } } },
-    skill,
+    agent,
     runId: "run-1",
   });
   try {

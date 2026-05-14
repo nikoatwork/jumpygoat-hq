@@ -4,13 +4,13 @@ import { loadDotEnv } from "./env.js";
 loadDotEnv();
 import { existsSync } from "node:fs";
 import { ulid } from "ulid";
+import { loadAgent } from "./agent.js";
 import { loadAutomation } from "./automation.js";
-import { openDb, insertRun, finishRun } from "./db.js";
+import { dbPath, openDb, insertRun, finishRun } from "./db.js";
 import { extractConnectorActionsFromTrace, processLegacyConnectorActions, resolveConnectorPlan } from "./connectors/index.js";
 import { runPiAutomation } from "./pi.js";
-import { skillPath } from "./paths.js";
+import { agentPath } from "./paths.js";
 import { createRunLog, errorText, outputText, pushTraceLine, traceText } from "./run-log.js";
-import { loadSkillMeta } from "./skill.js";
 
 async function main(): Promise<number> {
   const name = process.argv[2];
@@ -20,34 +20,36 @@ async function main(): Promise<number> {
   }
 
   const automation = await loadAutomation(name);
-  const skillFile = skillPath(automation.skill);
-  if (!existsSync(skillFile)) throw new Error(`Skill not found: ${skillFile}`);
+  const agentFile = agentPath(automation.agent);
+  if (!existsSync(agentFile)) throw new Error(`Agent not found: ${agentFile}`);
 
-  const skillMeta = await loadSkillMeta(automation.skill);
+  const agent = await loadAgent(automation.agent);
+  const model = automation.model ?? agent.model;
   const db = openDb();
   const runId = process.env.RUN_ID || ulid();
   const startedAt = new Date().toISOString();
   const log = createRunLog();
-  const connectorPlan = resolveConnectorPlan({ automation, skill: skillMeta, runId });
+  const connectorPlan = resolveConnectorPlan({ automation, agent, runId });
 
   pushTraceLine(log, {
     type: "agenthq_run_meta",
     run_id: runId,
     automation: automation.name,
-    skill: automation.skill,
-    skill_file: skillFile,
-    model: automation.model ?? null,
+    agent: automation.agent,
+    agent_file: agentFile,
+    agent_context_files: agent.contextFiles.map((file) => file.path),
+    model: model ?? null,
     schedule: automation.schedule ?? null,
     started_at: startedAt,
   });
 
-  insertRun(db, { runId, automation, startedAt });
+  insertRun(db, { runId, automation, agent, model, startedAt });
 
   console.log(`agenthq run ${runId}`);
-  console.log(`db: ${process.env.AGENTHQ_DB_PATH || "data/agenthq.sqlite"}`);
+  console.log(`db: ${dbPath()}`);
 
   try {
-    const result = await runPiAutomation({ automation, log, connectorPlan });
+    const result = await runPiAutomation({ automation, agent, log, runId, model, connectorPlan });
     const finishedAt = new Date().toISOString();
     const durationMs = Date.now() - Date.parse(startedAt);
     const status = result.exitCode === 0 ? "ok" : "error";
@@ -55,7 +57,7 @@ async function main(): Promise<number> {
     const handledIntents = new Set(traceConnectorActions.map((action) => action.intent));
     const legacyConnectorActions = await processLegacyConnectorActions({
       automation,
-      skill: skillMeta,
+      agent,
       outputText: outputText(log),
       runSucceeded: status === "ok",
       alreadyHandledIntents: handledIntents,
@@ -69,8 +71,8 @@ async function main(): Promise<number> {
       type: "agenthq_summary",
       run_id: runId,
       automation: automation.name,
-      skill: automation.skill,
-      model: automation.model ?? null,
+      agent: automation.agent,
+      model: model ?? null,
       status,
       exit_code: result.exitCode,
       signal: result.signal,

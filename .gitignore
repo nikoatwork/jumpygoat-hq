@@ -5,7 +5,7 @@ dist/
 .DS_Store
 
 # Runtime/local instance state. Keep the public repo as a template;
-# personal skills, automations, run history, and workspaces stay private.
+# personal agents, automations, run history, traces, and workspaces stay private.
 data/
 traces/
 test-results/
@@ -14,6 +14,26 @@ workspaces/
 automations/*
 !automations/
 !automations/README.md
+agents/*
+!agents/
+!agents/README.md
 skills/*
 !skills/
 !skills/README.md
+
+# Canonical mutable local workspace. Keep docs, ignore active state.
+workspace/data/
+workspace/traces/
+workspace/workspaces/
+workspace/automations/*
+!workspace/automations/
+!workspace/automations/README.md
+workspace/agents/*
+!workspace/agents/
+!workspace/agents/README.md
+workspace/skills/*
+!workspace/skills/
+!workspace/skills/README.md
+workspace/projects/*
+!workspace/projects/
+!workspace/projects/README.md

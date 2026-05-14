@@ -1,0 +1,18 @@
+export function repoRoot(): string;
+export function agenthqHome(): string;
+export function automationsDir(): string;
+export function agentsDir(): string;
+export function agentDir(name: string): string;
+export function agentPath(name: string): string;
+export function agentContextDir(name: string): string;
+export function dataDir(): string;
+export function workspacesDir(): string;
+export function workspaceDir(name: string): string;
+export function tracesDir(): string;
+export function dbPath(): string;
+export function automationPath(name: string): string;
+export function projectsDir(): string;
+export function projectDir(name: string): string;
+export function projectPath(name: string): string;
+export function tasksDir(project: string): string;
+export function taskPath(project: string, id: string): string;

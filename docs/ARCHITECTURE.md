@@ -5,7 +5,7 @@ agenthq is a personal runner for scheduled/manual Pi agents.
 Strategic frame: agenthq should stay the smallest useful open-source Hermes/OpenClaw-like agent operations layer. Keep strong primitives, limited features, and clear extension seams; do not broaden into a workflow builder or feature clone.
 
 ```txt
-automation.md -> agent AGENT.md (+ context/*.md) -> runner -> gated Pi connector extension -> pi --mode json -> SQLite run row -> raw HTML viewer
+automation.md or ready task.md -> agent AGENT.md (+ context/*.md) -> runner/dispatcher -> gated Pi connector extension -> pi --mode json -> SQLite run row -> raw HTML viewer
 ```
 
 ## Concepts
@@ -56,9 +56,22 @@ Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_sc
 
 The runner passes a static Pi extension for enabled/allowed tools only. Pi can call tools during the run. Legacy post-run fenced `agenthq-action` email blocks remain temporarily for compatibility, but in-run Pi tools are the default connector architecture.
 
+### Project and task queue
+
+Projects group agent-assigned markdown tasks:
+
+```text
+workspace/projects/<project>/PROJECT.md
+workspace/projects/<project>/tasks/<task-id>.md
+$AGENTHQ_HOME/projects/<project>/PROJECT.md
+$AGENTHQ_HOME/projects/<project>/tasks/<task-id>.md
+```
+
+Task statuses are `backlog`, `ready`, `doing`, `review`, `done`, `blocked`, and `failed`. `pnpm dispatch:tasks` is the heartbeat dispatcher: it scans for `ready` tasks with a valid `assignee`, claims one task by moving it to `doing`, runs Pi with project/task context, writes a normal run row with `project`/`task_id`, then moves success to `review` or failure to `failed`.
+
 ### Workspace
 
-Per-automation Pi working directory:
+Per-automation/task Pi working directory:
 
 ```text
 workspace/workspaces/<automation>/
@@ -76,7 +89,7 @@ workspace/data/agenthq.sqlite
 $AGENTHQ_HOME/data/agenthq.sqlite
 ```
 
-The `runs` table stores automation, agent, optional legacy skill backfill, status/timing, output text, trace text, error text, and connector action JSON.
+The `runs` table stores automation, agent, optional legacy skill backfill, optional `project`/`task_id`, status/timing, output text, trace text, error text, and connector action JSON.
 
 ## Runtime flow
 
@@ -95,7 +108,7 @@ The `runs` table stores automation, agent, optional legacy skill backfill, statu
 
 ## Web viewer
 
-Reads automations, agents, crontab, and SQLite. Default bind is `127.0.0.1:3000`.
+Reads automations, agents, projects/tasks, crontab, and SQLite. Default bind is `127.0.0.1:3000`.
 
 Routes:
 
@@ -103,6 +116,8 @@ Routes:
 - `/automations`, `/automations/new`, `/automations/:name`, `/automations/:name/edit`
 - `/schedule` — read-only 7-day agenda/calendar of scheduled agent runs, cron install status, and orphan/malformed AgentHQ cron block warnings
 - `/agents`, `/agents/new`, `/agents/:name`, `/agents/:name/edit`
+- `/projects`, `/projects/new`, `/projects/:project`, `/projects/:project/edit`
+- `/tasks`, `/tasks/new`, `/projects/:project/tasks/:task`, `/projects/:project/tasks/:task/edit`
 - `/runs`, `/runs/:id`
 
 Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw agent create/update/delete, and “Run now,” which shells out to `pnpm runner <automation>`. The schedule page does not mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only.

@@ -59,7 +59,7 @@ function createSearchTool(runtime: ConnectorRuntimeConfig): ConnectorToolDefinit
         const summary = connectorSummary({
           runId: runtime.runId,
           automation: runtime.automationName,
-          skill: runtime.skillName,
+          agent: runtime.agentName,
           toolCallId,
           intent: "web.search",
           toolName: "web_search",
@@ -118,7 +118,7 @@ function createScrapeTool(runtime: ConnectorRuntimeConfig): ConnectorToolDefinit
         const summary = connectorSummary({
           runId: runtime.runId,
           automation: runtime.automationName,
-          skill: runtime.skillName,
+          agent: runtime.agentName,
           toolCallId,
           intent: "web.scrape",
           toolName: "web_scrape",
@@ -184,7 +184,7 @@ function createCrawlTool(runtime: ConnectorRuntimeConfig): ConnectorToolDefiniti
         const summary = connectorSummary({
           runId: runtime.runId,
           automation: runtime.automationName,
-          skill: runtime.skillName,
+          agent: runtime.agentName,
           toolCallId,
           intent: "web.crawl",
           toolName: "web_crawl",
@@ -296,7 +296,7 @@ function connectorToolError(error: unknown, args: {
   const summary = connectorSummary({
     runId: args.runtime.runId,
     automation: args.runtime.automationName,
-    skill: args.runtime.skillName,
+    agent: args.runtime.agentName,
     toolCallId: args.toolCallId,
     intent: args.intent,
     toolName: args.toolName,

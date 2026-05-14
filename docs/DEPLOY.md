@@ -9,6 +9,7 @@ agenthq currently has no built-in auth. Keep the web UI bound to `127.0.0.1` and
 Examples below use:
 
 - repo path: `/root/jumpygoat-hq`
+- mutable workspace: `/var/lib/agenthq`
 - Unix user: `root`
 - web address on the server: `127.0.0.1:3000`
 
@@ -16,16 +17,19 @@ Adjust paths/usernames if you deploy under a different user such as `agenthq`.
 
 ## 1. Prepare the server checkout
 
-SSH to the server as the user that will run agenthq, then install dependencies, initialize SQLite, and build:
+SSH to the server as the user that will run agenthq, create an external mutable workspace, then install dependencies, initialize SQLite, and build:
 
 ```bash
+mkdir -p /var/lib/agenthq/{agents,automations,projects,data,workspaces,traces}
 cd /root/jumpygoat-hq
 
 pnpm install
-pnpm setup:db
+AGENTHQ_HOME=/var/lib/agenthq pnpm setup:db
 pnpm build
-pnpm run doctor
+AGENTHQ_HOME=/var/lib/agenthq pnpm run doctor
 ```
+
+`AGENTHQ_HOME` is the mutable instance root. Runtime files live directly under `$AGENTHQ_HOME/{agents,automations,projects,data,workspaces,traces}` while source code stays in the repo checkout.
 
 Pi must be installed and authenticated for the same Unix user that will run systemd/cron:
 
@@ -77,6 +81,7 @@ Environment=HOME=/root
 Environment=PATH=/root/.local/share/pi-node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=HOST=127.0.0.1
 Environment=PORT=3000
+Environment=AGENTHQ_HOME=/var/lib/agenthq
 ExecStart=/root/.local/share/pi-node/current/bin/pnpm web
 Restart=always
 RestartSec=5
@@ -135,45 +140,62 @@ systemctl start agenthq-web
 
 ## 6. Install scheduled automations
 
-The public repo ships with no active automations. Create your local `skills/<name>/SKILL.md` and `automations/<name>.md` first, then install scheduled automation runs separately into cron:
+The public repo ships with no active automations. Create `$AGENTHQ_HOME/agents/<name>/AGENT.md` and `$AGENTHQ_HOME/automations/<name>.md` first (or use the web UI), then install scheduled automation runs separately into cron:
 
 ```bash
 cd /root/jumpygoat-hq
-pnpm install:cron <automation-name>
-pnpm list:cron
+AGENTHQ_HOME=/var/lib/agenthq pnpm install:cron <automation-name>
+AGENTHQ_HOME=/var/lib/agenthq pnpm list:cron
 ```
 
 Remove a scheduled automation:
 
 ```bash
-pnpm uninstall:cron <automation-name>
+AGENTHQ_HOME=/var/lib/agenthq pnpm uninstall:cron <automation-name>
 ```
 
-Cron logs are written under `data/`, for example `data/cron-<automation-name>.log`.
+Cron logs are written under `$AGENTHQ_HOME/data/`, for example `/var/lib/agenthq/data/cron-<automation-name>.log`. The generated cron block preserves `AGENTHQ_HOME` from install time.
 
 Install cron as the same Unix user that ran `pi /login`, so Pi can reuse its stored auth.
 
-## 7. Updating an existing deployment
+## 7. Install task dispatcher heartbeat
+
+Projects and tasks live under `$AGENTHQ_HOME/projects`. The dispatcher assumes one local heartbeat process/timer and claims one `ready` assigned task per run by default:
+
+```bash
+cd /root/jumpygoat-hq
+AGENTHQ_HOME=/var/lib/agenthq pnpm dispatch:tasks
+```
+
+Cron example, every five minutes:
+
+```cron
+*/5 * * * * cd /root/jumpygoat-hq && AGENTHQ_HOME=/var/lib/agenthq /root/.local/share/pi-node/current/bin/pnpm dispatch:tasks >> /var/lib/agenthq/data/task-dispatch.log 2>&1
+```
+
+For systemd timers, use the same `WorkingDirectory`, `EnvironmentFile`, `HOME`, `PATH`, and `AGENTHQ_HOME` pattern as the web service, with `ExecStart=<pnpm-path> dispatch:tasks`.
+
+## 8. Updating an existing deployment
 
 ```bash
 cd /root/jumpygoat-hq
 git pull
 pnpm install
-pnpm setup:db
+AGENTHQ_HOME=/var/lib/agenthq pnpm setup:db
 pnpm build
-pnpm run doctor
+AGENTHQ_HOME=/var/lib/agenthq pnpm run doctor
 systemctl restart agenthq-web
 ```
 
 If automation schedules changed, reinstall the affected cron entries:
 
 ```bash
-pnpm install:cron <automation-name>
-pnpm list:cron
+AGENTHQ_HOME=/var/lib/agenthq pnpm install:cron <automation-name>
+AGENTHQ_HOME=/var/lib/agenthq pnpm list:cron
 ```
 
 ## Notes
 
-- Runtime and personal instance state is intentionally local and gitignored: `.env.local`, `data/`, `workspaces/`, active `skills/*`, and active `automations/*.md`.
+- Runtime and personal instance state is intentionally outside source when `AGENTHQ_HOME` is set: `$AGENTHQ_HOME/{agents,automations,projects,data,workspaces,traces}`. Local development uses gitignored `workspace/{agents,automations,projects,data,workspaces,traces}` by default.
 - Keep `HOST=127.0.0.1` unless the service is behind trusted auth/proxy/firewall.
 - For a non-root deployment, replace `User=`, `WorkingDirectory=`, `EnvironmentFile=`, `HOME=`, and the executable paths with that user’s values.

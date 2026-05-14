@@ -1,12 +1,14 @@
 # Research Findings
 
-> **Current reframe:** the goal is now **personal scheduled Pi skills**, not a deterministic workflow builder. The primitive to test is: `automation.md` → cron/systemd → Pi headless run → JSONL trace. Pi is the agent harness. The Activepieces/Dify/n8n workflow-builder research below is kept for contrast/reference, but it is **not** the current direction.
+> **Current reframe:** the goal is now the smallest useful open-source Hermes/OpenClaw-like **agent operations layer**: file-native agents, schedules/tasks, auditable Pi runs, and gated extension seams. Pi is the harness. Breaking changes are acceptable before release; the product primitive should be `agent`, not legacy `skill`.
 
-> Previous reframe (superseded): the goal was *business automations* with `cron → deterministic pipeline → LLM as a node`. That is now intentionally rejected in favor of skill-like agent freedom.
+> Previous reframe (superseded): the goal was **personal scheduled Pi skills**: `automation.md` → cron/systemd → Pi headless run → JSONL trace. That MVP proved the runtime direction but is now being cleaned up into agent-facing primitives.
+
+> Earlier reframe (superseded): the goal was *business automations* with `cron → deterministic pipeline → LLM as a node`. That remains intentionally rejected in favor of agent freedom without becoming a broad workflow builder.
 
 ---
 
-# Part 2 — Scheduled-workflow engines (current target)
+# Part 2 — Scheduled-workflow engines (superseded workflow-builder target)
 
 **What I actually want:**
 - Nocode, opinionated visual builder (not a Trigger.dev-style SDK)
@@ -62,10 +64,12 @@ Despite the "bloated" read, n8n is the one tool in this list that's been battle-
 - **Langflow / Flowise** — LLM-as-router visual builders; drifts back toward the agent shape you're avoiding.
 - **Huginn** — nocode and scheduled, but predates LLMs and the AI story is weak.
 
-### Revised recommended stack
+### Superseded recommendation from the workflow-builder exploration
 1. **Activepieces** self-hosted on the VPS (Docker compose) — workflow engine + scheduler + MCP bridge.
 2. **Langfuse** self-hosted — trace + cost visibility across whatever LLM calls happen inside workflows.
 3. That's it. No OpenClaw, no Mission Control, no agent runtime layer.
+
+This recommendation is retained only as historical contrast. The current direction is explicitly agent-native and borrows the minimal infrastructure shape from Hermes/OpenClaw without cloning their breadth.
 
 ### Validation steps before committing
 1. Build one real workflow in Activepieces: **cron → fetch data → LLM summarize step → write file / send Slack**. Verify the LLM step reads a local file via a piece (not agent loop).

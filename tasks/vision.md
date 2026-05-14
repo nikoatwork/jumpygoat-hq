@@ -1,27 +1,34 @@
 # vision
 
-agenthq is a **personal scheduled-skill runner**: cron/systemd runs Pi skills against plain-English prompts, stores the run history in SQLite, and lets me inspect what happened.
+agenthq is the **smallest useful open-source agent operations layer**: a file-native, local-first control plane for Pi-powered agents.
 
-This is deliberately **not** a workflow builder. No DAGs, no nodes, no deterministic pipeline UI. The primitive to test is:
+The inspiration is the minimal useful slice of Hermes/OpenClaw-style infrastructure, not a feature clone. agenthq should have strong primitives, limited features, and clear extension seams.
 
-> a capable agent harness + a well-written skill + a recurring prompt
+```txt
+agents as markdown → schedules/tasks/operator commands → Pi runs → auditable SQLite history
+```
 
-Pi is the harness.
+Pi is the harness. agenthq owns the product primitives around Pi: files, scheduling, task dispatch, connector gates, safe operator surfaces, and observability.
 
-## The primitive
+## The product primitive
 
-**An automation is a single markdown file.** It says:
+An **agent** is the user-facing runtime entity.
 
-- which Pi skill/context to load
-- which model to use, if overriding Pi defaults
-- when to run
-- what prompt to give the agent
+An agent bundles:
 
-Example:
+- instructions/persona/context;
+- optional scoped markdown context;
+- default model/config;
+- allowed intents/capabilities;
+- connector/tool policy.
+
+An **automation** or **task** runs an agent with a prompt.
+
+Example target shape:
 
 ```markdown
 ---
-skill: daily-review
+agent: daily-review
 schedule: "manual"
 model: anthropic/claude-sonnet-4-5
 ---
@@ -29,52 +36,69 @@ model: anthropic/claude-sonnet-4-5
 Review the workspace notes and open issues. Tell me what needs attention today.
 ```
 
-Edit the file → edit the automation.
+Edit the file → edit the behavior. Files remain the source of truth.
 
-## Runtime state
+## What this is
 
-Past runs are stored in local SQLite:
+- Minimal open-source control plane for agents.
+- Local-first/self-hostable runtime.
+- File-backed agents, automations, projects, and tasks.
+- Shared SQLite run history for auditability.
+- Raw HTML operator UI until richer UI is clearly needed.
+- Connector/domain tool system for safe extensibility.
 
-```txt
-data/agenthq.sqlite
-```
+## What this is not
 
-The DB is gitignored. It stores:
-
-- status
-- timestamps/duration
-- assistant output text
-- raw Pi JSON trace text
-- stderr/error text
-
-Auth should preferably reuse Pi's own stored login: run `pi /login` as the same Unix user that runs agenthq/cron. `.env` is optional and gitignored for provider env vars or local overrides.
+- Not a workflow builder: no DAGs, nodes, or deterministic pipeline UI.
+- Not a broad Hermes/OpenClaw clone.
+- Not a general personal assistant platform.
+- Not a hosted SaaS or multi-user RBAC product for the first release.
+- Not a custom LLM/tool loop.
+- Not a generic repo-coding chat surface.
 
 ## The bet
 
-A scheduled **skill-like agent run** can replace a meaningful slice of recurring manual work better than a workflow graph can.
+A small set of strong primitives can replace a meaningful slice of recurring operational work:
 
-The agent decides the steps. Pi provides the loop and tools. The skill gives repeatable context and instructions. Cron/systemd gives time.
+> a capable agent harness + a file-defined agent + scheduled/assigned work + auditable runs + gated extensions
 
-## Current user model
+The agent decides the steps. Pi provides the loop/tools. agenthq provides the durable product surface around it.
 
-Personal-first:
+## Extensibility stance
 
-- operator = user = me
-- no multi-user assumptions
-- no end-user dashboard requirement yet
-- no public SaaS, no RBAC, no team auth
+Open-source extensibility matters more than feature breadth.
 
-## v0
+Good extensions should be able to add:
 
-Local/server first:
+- a connector/tool;
+- a channel adapter;
+- a task source;
+- a schedule/dispatch adapter;
+- a focused UI view;
+- an agent/context template.
 
-1. one Pi skill
-2. one automation markdown file
-3. `agenthq-runner <automation>` invokes Pi headlessly
-4. run is stored in SQLite
-5. `pnpm install:cron <automation>` installs the schedule on the server
-6. inspect with `sqlite3` or a later tiny viewer
+They should not require understanding a large platform or modifying core runtime internals.
+
+## User model for first release
+
+Single-operator first:
+
+- operator = admin = user;
+- local/private by default;
+- no public SaaS assumptions;
+- no team auth/RBAC until needed;
+- breaking changes are acceptable before release if they clarify primitives.
+
+## Near-term sequence
+
+1. Replace skill-facing concepts with **agents**.
+2. Keep automations as file-backed scheduled/manual agent runs.
+3. Add safe domain services/path policy for all mutations.
+4. Add file-backed projects/tasks and a heartbeat dispatcher.
+5. Add read-only schedule observability.
+6. Add browser/Slack gateway adapters through domain-only tools.
+7. Harden deployment once primitives stabilize.
 
 ## When to stop
 
-If scheduled Pi skills do not produce useful recurring work with less effort than doing it manually, stop. Do not build a platform around a primitive that has not proven itself.
+Stop adding features when they make agenthq feel like a platform clone. The goal is a minimal extensible core with excellent observability, not breadth.

@@ -13,8 +13,8 @@ Connectors are Pi extension tools assembled by the runner for one automation run
 
 A connector tool is registered only when both gates pass:
 
-1. Automation frontmatter enables the provider-backed intent.
-2. The skill frontmatter `allowedIntents` includes the same provider-neutral intent.
+1. Agent or automation frontmatter enables the provider-backed intent.
+2. The agent frontmatter `allowedIntents` includes the same provider-neutral intent.
 
 Intent to tool mapping:
 
@@ -37,7 +37,7 @@ The runner resolves a `ConnectorPlan`, serializes non-secret run/config values i
 
 - Firecrawl tool output is bounded before returning to Pi.
 - `web_crawl` uses a small async crawl with bounded polling and page/depth limits.
-- `notify_email` sends immediately when Pi calls it; the gating and skill prompt are the confirmation layer.
+- `notify_email` sends immediately when Pi calls it; the gating and agent prompt are the confirmation layer.
 - Missing API keys or required config throw tool errors so Pi can read and react to the failure.
 
 ## Connector action records
@@ -49,8 +49,8 @@ Legacy fenced `agenthq-action` email blocks are still parsed after the run for m
 ## Adding a connector
 
 1. Add provider-neutral intent and Pi-safe tool name in `types.ts`.
-2. Extend automation parsing and `resolveConnectorPlan` gating.
+2. Extend agent/automation parsing and `resolveConnectorPlan` gating.
 3. Add a provider folder with an `index.ts` barrel and a tool factory.
 4. Register the new tool factory from `pi-extension.ts`.
 5. Return bounded tool content and compact `connectorSummary` details.
-6. Add mocked connector tests and update this doc plus automation/skill docs.
+6. Add mocked connector tests and update this doc plus automation/agent docs.

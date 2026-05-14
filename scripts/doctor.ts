@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { dbPath, setupDb } from "../packages/runner/src/db.js";
-import { repoRoot } from "../packages/runner/src/paths.js";
+import { agenthqHome, agentsDir, automationsDir, dataDir, repoRoot, tracesDir, workspacesDir } from "../packages/shared/paths.js";
 
 let failed = false;
 
@@ -33,6 +33,12 @@ function commandExists(command: string): boolean {
 console.log("agenthq doctor\n");
 
 ok(`repo root: ${repoRoot()}`);
+ok(`workspace root: ${agenthqHome()}`);
+ok(`automations dir: ${automationsDir()}`);
+ok(`agents dir: ${agentsDir()}`);
+ok(`data dir: ${dataDir()}`);
+ok(`workspaces dir: ${workspacesDir()}`);
+ok(`traces dir: ${tracesDir()}`);
 ok(`user: ${os.userInfo().username}`);
 ok(`HOME: ${os.homedir()}`);
 
