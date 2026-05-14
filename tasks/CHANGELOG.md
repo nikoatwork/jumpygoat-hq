@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-14
 
+- feat: finalized the web sidebar IA with grouped navigation, footer Settings, route copy/docs, invocation/run cleanup, active-state smoke coverage, and manual detail-page checks — completed in `tasks/done/2026-05-14_tasks-sidebar-ia.md`.
 - feat: added explicit task heartbeat cron setup/list/uninstall commands, safe temp-crontab support, setup workspace seeding, heartbeat web status, docs, and validation — completed in `tasks/done/2026-05-14_tasks-task-heartbeat-cron.md`.
 - feat: renamed project/task kanban to boards, switched task statuses to `not-yet`/`ready`/`working-on-it`/`done`, added focused `?status=` task view, updated docs, and validated web/backend — completed in `tasks/done/2026-05-14_tasks-boards-focused-kanban.md`.
 - chore: removed remaining legacy runtime concept compatibility from runtime/web/docs, including the old run column/backfill, file pointers, gitignore contracts, and UI fallbacks — completed in `tasks/done/2026-05-14_tasks-remove-skills.md`.
@@ -52,6 +53,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 - `tasks/done/2026-05-11_tasks-firecrawl-connector.md` — closed; connector tests, build, backend smoke, and web smoke passed.
 - `tasks/done/2026-05-14_tasks-agent-entity.md` — closed; agent entity refactor completed with build, web, backend, connector, web-write, and external `JUMPYGOATHQ_HOME` validation.
 - `tasks/done/2026-05-14_tasks-agent-task-queue.md` — closed; file-backed task queue/kanban completed with build, web, backend, manual web-write/kanban/dispatch, and external `JUMPYGOATHQ_HOME` validation.
+- `tasks/done/2026-05-14_tasks-sidebar-ia.md` — closed; sidebar IA, active-state fix/coverage, docs, web validation, backend smoke, and manual top-level/detail active-state checks passed.
 - `tasks/done/2026-05-14_tasks-task-heartbeat-cron.md` — closed; explicit task heartbeat cron setup completed with safe temp-crontab smoke, web validation, and backend smoke.
 - `tasks/done/2026-05-13_tasks-workspace-restructure.md` — closed; workspace restructure completed with build, web, backend, web-write, and external `JUMPYGOATHQ_HOME` validation.
 - `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.

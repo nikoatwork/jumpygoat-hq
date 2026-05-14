@@ -90,8 +90,9 @@ function navLink(key: string, href: string, label: string, active: string, extra
 
 function activeNavKey(title: string): string {
   const normalized = title.toLowerCase();
-  if (normalized.includes("automation")) return "automations";
+  if (normalized === "dashboard" || normalized.includes("overview")) return "overview";
   if (normalized.includes("schedule")) return "schedule";
+  if (normalized.includes("automation")) return "automations";
   if (normalized.includes("agent")) return "agents";
   if (normalized.includes("board")) return "boards";
   if (normalized.includes("project")) return "boards";
