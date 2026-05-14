@@ -259,8 +259,35 @@ summary { cursor: pointer; color: var(--cyan); }
 .running { color: var(--yellow); }
 .muted { color: var(--muted); }
 
+.badge {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.badge.installed { color: var(--green); }
+.badge.missing, .badge.warning { color: var(--red); }
+.badge.manual { color: var(--muted); }
+.warning-list { color: var(--red); margin: 0; padding-left: var(--space-4); }
+
+.agenda-day { padding: var(--space-4); }
+.agenda-day h3 { margin-top: 0; }
+.agenda-list { list-style: none; padding-left: 0; }
+.agenda-list li {
+  display: grid;
+  grid-template-columns: 8rem minmax(14rem, 1fr) minmax(12rem, 0.7fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-2) 0;
+  border-top: 1px solid rgba(114, 215, 223, 0.14);
+}
+.agenda-list time { color: var(--yellow); font-family: var(--mono); }
+
 @media (max-width: 760px) {
   body { padding: var(--space-4) var(--space-3); }
   main { padding: var(--space-4); }
-  .schedule-grid { grid-template-columns: 1fr; }
+  .schedule-grid, .agenda-list li { grid-template-columns: 1fr; }
 }

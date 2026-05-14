@@ -10,10 +10,11 @@
     "uninstall:cron": "pnpm --filter @agenthq/runner exec tsx ../../scripts/uninstall-cron.ts",
     "list:cron": "pnpm --filter @agenthq/runner exec tsx ../../scripts/list-cron.ts",
     "runner": "pnpm --filter @agenthq/runner start",
+    "dispatch:tasks": "pnpm --filter @agenthq/runner exec tsx ../../scripts/dispatch-tasks.ts",
     "web": "pnpm --filter @agenthq/web start",
     "dev": "pnpm --filter @agenthq/runner dev",
     "dev:web": "pnpm --filter @agenthq/web dev",
-    "validate:web": "playwright test",
+    "validate:web": "pnpm --filter @agenthq/web build && playwright test",
     "validate:backend": "pnpm --filter @agenthq/runner exec tsx ../../scripts/smoke-runner.ts",
     "validate": "pnpm validate:web && pnpm validate:backend"
   },

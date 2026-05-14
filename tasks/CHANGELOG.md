@@ -2,6 +2,19 @@
 
 This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
 
+## 2026-05-14
+
+- feat: added read-only web schedule agenda for scheduled agent runs, including 5-field cron expansion, cron install/orphan warnings, docs, and Playwright coverage — completed in `tasks/done/2026-05-14_tasks-cron-calendar-view.md`.
+- docs: clarified pre-release strategy around agents as the product primitive, minimal Hermes/OpenClaw-like scope, strong primitives, limited features, and open-source extension seams — see `docs/vision/strategy/agent.md`, `tasks/vision.md`, and `tasks/spec.md`.
+
+## 2026-05-14
+
+- feat: replaced the runtime/UI automation→skill model with automation→agent, adding `agents/<name>/AGENT.md` + ordered context loading, agent-gated connector defaults, Agents web CRUD, smoke fixtures, docs, and validation — completed in `tasks/done/2026-05-14_tasks-agent-entity.md`.
+
+## 2026-05-13
+
+- feat: restructured mutable agenthq instance state under `workspace/`/`AGENTHQ_HOME`, centralizing path helpers and updating runner, web, scripts, docs, and validation — completed in `tasks/done/2026-05-13_tasks-workspace-restructure.md`.
+
 ## 2026-05-12
 
 - chore: consolidated task changelog history into canonical `tasks/CHANGELOG.md` and removed the duplicate done-folder changelog.
@@ -30,6 +43,8 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 - `tasks/done/2026-05-08_tasks-04-minimal-web.md` — closed; route/build/manual page checks passed, model-spending run-now verification skipped.
 - `tasks/done/2026-05-12_tasks-readable-run-traces.md` — closed; derived trace timeline implemented, docs/tests updated, and web validation completed.
 - `tasks/done/2026-05-11_tasks-firecrawl-connector.md` — closed; connector tests, build, backend smoke, and web smoke passed.
+- `tasks/done/2026-05-14_tasks-agent-entity.md` — closed; agent entity refactor completed with build, web, backend, connector, web-write, and external `AGENTHQ_HOME` validation.
+- `tasks/done/2026-05-13_tasks-workspace-restructure.md` — closed; workspace restructure completed with build, web, backend, web-write, and external `AGENTHQ_HOME` validation.
 - `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.
 - `tasks/todo/tasks-03-control-plane.md` — conceptually superseded by `tasks-04-minimal-web.md` for the read-only/minimal viewer; full browser editing remains deferred.
 - `tasks/done/2026-05-08_tasks-04-resend-notifications.md` — closed; build, web smoke, backend smoke, real Resend send, and no-notification smoke passed.

@@ -1,198 +1,133 @@
 # agenthq architecture
 
-agenthq is a personal runner for scheduled Pi skills.
+agenthq is a personal runner for scheduled/manual Pi agents.
+
+Strategic frame: agenthq should stay the smallest useful open-source Hermes/OpenClaw-like agent operations layer. Keep strong primitives, limited features, and clear extension seams; do not broaden into a workflow builder or feature clone.
 
 ```txt
-automation.md -> runner -> gated Pi connector extension -> pi --mode json -> SQLite run row -> raw HTML viewer
+automation.md -> agent AGENT.md (+ context/*.md) -> runner -> gated Pi connector extension -> pi --mode json -> SQLite run row -> raw HTML viewer
 ```
 
 ## Concepts
 
-### Skill
+### Agent
 
-A reusable Pi skill.
+A reusable Pi instruction bundle:
 
-```txt
-skills/<name>/SKILL.md
+```text
+workspace/agents/<name>/AGENT.md
+workspace/agents/<name>/context/*.md
+$AGENTHQ_HOME/agents/<name>/AGENT.md
 ```
 
-Skills describe how Pi should perform a class of work. They follow the Agent Skills/Pi skill format: frontmatter plus instructions. Active skills are local/personal by default and gitignored in the public template.
+`AGENT.md` frontmatter defines display metadata and defaults/capabilities such as `name`, `description`, optional `model`, `allowedIntents`, and connector defaults. Optional `context/*.md` files are loaded alphabetically and appended to the generated Pi instruction file for each run.
 
 ### Automation
 
-A scheduled invocation of one skill with one prompt.
+A scheduled or manual invocation of one agent with one prompt:
 
-```txt
-automations/<name>.md
+```text
+workspace/automations/<name>.md
+$AGENTHQ_HOME/automations/<name>.md
 ```
 
-Format:
+Example:
 
-```md
+```yaml
 ---
-skill: your-skill
-schedule: "0 9 * * *"
-model: optional-pi-model-selector
+agent: your-agent
+schedule: manual
+model: gpt-5.5 # optional run override
 ---
 
-Prompt body sent to Pi.
+Prompt for this run.
 ```
 
 Automations are edited as files. The filename is the automation id. Active automation files are local/personal by default and gitignored in the public template.
 
-Optional connector config may enable runner-owned external tools. Connector exposure requires both gates:
+### Connectors
 
-1. automation frontmatter enables the intent/provider; and
-2. skill frontmatter `allowedIntents` includes the provider-neutral intent.
+Connectors are gated twice:
 
-Examples:
+1. the agent frontmatter `allowedIntents` includes the provider-neutral intent; and
+2. the agent or automation connector config enables that intent/provider.
 
-```yaml
-web:
-  search:
-    enabled: true
-    connector: firecrawl
-notify:
-  email:
-    enabled: true
-    connector: resend
-```
+Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, and `notify.email` → `notify_email`.
 
-The runner passes a static Pi extension for enabled/allowed tools only. Pi can then call `web_search`, `web_scrape`, `web_crawl`, and `notify_email` during the run and observe successes/failures in context. Legacy post-run fenced `agenthq-action` email blocks remain temporarily for compatibility, but in-run Pi tools are the default connector architecture.
+The runner passes a static Pi extension for enabled/allowed tools only. Pi can call tools during the run. Legacy post-run fenced `agenthq-action` email blocks remain temporarily for compatibility, but in-run Pi tools are the default connector architecture.
 
 ### Workspace
 
-Per-automation working directory.
+Per-automation Pi working directory:
 
-```txt
-workspaces/<automation>/
+```text
+workspace/workspaces/<automation>/
+$AGENTHQ_HOME/workspaces/<automation>/
 ```
 
 The runner starts Pi with this directory as `cwd`. Runtime data only; gitignored.
 
-### Run
+### Run DB
 
-One execution of one automation.
+One execution of one automation is stored in the shared SQLite DB:
 
-Stored in SQLite:
-
-```txt
-data/agenthq.sqlite
+```text
+workspace/data/agenthq.sqlite
+$AGENTHQ_HOME/data/agenthq.sqlite
 ```
 
-Table: `runs`
-
-```sql
-id text primary key
-automation text
-skill text
-model text
-schedule text
-status text
-started_at text
-finished_at text
-duration_ms integer
-exit_code integer
-signal text
-output_text text
-trace_text text
-error_text text
-connector_actions_json text
-```
-
-`output_text` is assistant text deltas. `trace_text` is raw Pi JSON event lines. The web viewer derives a compact human-readable timeline from this JSONL at render time while keeping the raw trace as the canonical artifact. `error_text` is stderr/errors. `connector_actions_json` records compact connector tool/action summaries for requests, skips, successes, and failures.
-
-### Schedule
-
-A 5-field cron expression in automation frontmatter.
-
-Installed into the current user's crontab with marked blocks:
-
-```cron
-# agenthq:start your-automation
-0 9 * * * cd /repo && /bin/bash -lc '... pnpm runner your-automation ...'
-# agenthq:end your-automation
-```
-
-Commands:
-
-```bash
-pnpm install:cron <automation>
-pnpm list:cron
-pnpm uninstall:cron <automation>
-```
-
-### Web viewer
-
-A minimal raw HTML server.
-
-```txt
-packages/web
-```
-
-Reads automations, skills, crontab, and SQLite. Default bind is `127.0.0.1:3000`.
-
-Routes:
-
-- `/` dashboard
-- `/automations`
-- `/automations/new`
-- `/automations/:name`
-- `/automations/:name/edit`
-- `/skills`
-- `/skills/new`
-- `/skills/:name`
-- `/skills/:name/edit`
-- `/runs`
-- `/runs/:id` with run metadata, derived trace timeline, output/error text, connector metadata, and raw trace JSONL in `<details>`
-
-Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw skill create/update/delete, and “Run now,” which shells out to `pnpm runner <automation>`.
-
-### Local validation loop
-
-Coding agents can validate work from the repo root:
-
-```bash
-pnpm validate:web       # Playwright smoke checks for the raw HTML viewer
-pnpm validate:backend   # one temporary Pi-backed smoke automation run
-pnpm validate           # web smoke, then backend smoke
-```
-
-The backend smoke creates a temporary gitignored smoke skill/automation if needed, writes and verifies one SQLite `runs` row, then prints output/error/trace tails in-session for agent inspection. It does not run all automations or mutate cron.
+The `runs` table stores automation, agent, optional legacy skill backfill, status/timing, output text, trace text, error text, and connector action JSON.
 
 ## Runtime flow
 
 1. Cron or user runs `pnpm runner <automation>`.
-2. Runner parses `automations/<automation>.md`.
-3. Runner resolves `skills/<skill>/SKILL.md`.
-4. Runner inserts `runs.status = running`.
-5. Runner resolves connector gates and spawns Pi:
+2. Runner parses `agenthqHome()/automations/<automation>.md`.
+3. Runner resolves `agenthqHome()/agents/<agent>/AGENT.md` plus alphabetical `context/*.md`.
+4. Runner resolves effective model and connector plan from agent defaults plus automation overrides.
+5. Runner writes a generated instruction file under the per-automation workspace and starts Pi:
 
    ```bash
-   pi --mode json --no-session --skill <skill-file> [--extension <connector-extension>] [--model <model>] <prompt>
+   pi --mode json --no-session --skill <generated-agent-file> [--extension <connector-extension>] [--model <model>] <prompt>
    ```
 
-6. Pi runs in `workspaces/<automation>/`.
-7. Runner captures Pi events and assistant output.
-8. Runner extracts compact connector action summaries from Pi tool trace events and any legacy post-run actions.
-9. Runner updates the SQLite row with status, duration, output, trace, errors, and `connector_actions_json`.
-10. Web viewer displays the result.
+6. Pi runs in `agenthqHome()/workspaces/<automation>/`.
+7. Runner captures Pi JSON events into readable output/trace fields and updates the run row.
 
-## Auth/secrets
+## Web viewer
+
+Reads automations, agents, crontab, and SQLite. Default bind is `127.0.0.1:3000`.
+
+Routes:
+
+- `/`
+- `/automations`, `/automations/new`, `/automations/:name`, `/automations/:name/edit`
+- `/schedule` — read-only 7-day agenda/calendar of scheduled agent runs, cron install status, and orphan/malformed AgentHQ cron block warnings
+- `/agents`, `/agents/new`, `/agents/:name`, `/agents/:name/edit`
+- `/runs`, `/runs/:id`
+
+Mutations are intentionally file-native POST actions: automation create/update/delete, cautious raw agent create/update/delete, and “Run now,” which shells out to `pnpm runner <automation>`. The schedule page does not mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only.
+
+## Validation
+
+Coding agents can validate work from the repo root:
+
+```bash
+pnpm validate:web
+pnpm validate:backend
+pnpm validate
+```
+
+The backend smoke creates a temporary gitignored smoke agent/automation if needed, writes and verifies one SQLite `runs` row, then prints output/error/trace tails in-session for inspection. It does not run all automations or mutate cron.
+
+## Environment and auth
 
 Preferred personal setup: authenticate Pi once as the same Unix user that runs agenthq.
 
-```bash
-pi /login
-```
+`.env.local` is optional and gitignored. Use it for provider env vars or overrides such as `AGENTHQ_HOME` or `AGENTHQ_DB_PATH`; `.env.example` is the commitable template. When unset, `agenthqHome()` is `repoRoot()/workspace`. When set, mutable state lives directly under `AGENTHQ_HOME`. Relative `AGENTHQ_DB_PATH` values resolve under `agenthqHome()`.
 
-`.env.local` is optional and gitignored. Use it for provider env vars or overrides such as `AGENTHQ_DB_PATH`; `.env.example` is the commitable template.
+## Safety constraints
 
-## Current boundaries
-
-- No workflow graph.
-- No custom LLM/tool loop.
-- No multi-user auth.
-- Browser editing is intentionally limited to file-native automation CRUD and cautious raw `SKILL.md` editing.
-- No custom sandbox yet.
-- Web UI is local/private unless placed behind trusted auth/proxy.
+- Pi remains the agent harness; no custom LLM/tool loop.
+- Browser editing is intentionally limited to file-native automation CRUD and cautious raw `AGENT.md` editing.
+- Runtime/personal state is gitignored by default.
+- Web auth is deferred; bind locally or put behind trusted proxy/auth.

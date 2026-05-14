@@ -5,7 +5,8 @@ test("dashboard renders core navigation and run summary", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Automations" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Skills" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Agents" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Schedule" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Runs" })).toBeVisible();
   await expect(page.getByText("Automations:")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent runs" })).toBeVisible();
@@ -17,6 +18,15 @@ test("automations page renders template empty state or local automations", async
   await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Create automation" })).toBeVisible();
   await expect(page.locator("body")).toContainText(/No automations found|Cron installed/);
+});
+
+test("schedule page renders read-only agenda", async ({ page }) => {
+  await page.goto("/schedule");
+
+  await expect(page.getByRole("heading", { name: "Schedule", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Upcoming agenda" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Scheduled run summary" })).toBeVisible();
+  await expect(page.locator("body")).toContainText(/No automations found|Automation/);
 });
 
 test("runs page renders either empty state or run table", async ({ page }) => {

@@ -28,7 +28,7 @@ export function layout(title: string, body: string): string {
 </head>
 <body>
   <h1>jumpyGoat</h1>
-  <nav><a href="/">${icon("grid")}Dashboard</a><a href="/automations">${icon("gear")}Automations</a><a href="/skills">${icon("book")}Skills</a><a href="/runs">${icon("clock")}Runs</a></nav>
+  <nav><a href="/">${icon("grid")}Dashboard</a><a href="/automations">${icon("gear")}Automations</a><a href="/schedule">${icon("calendar")}Schedule</a><a href="/agents">${icon("book")}Agents</a><a href="/runs">${icon("clock")}Runs</a></nav>
   <hr>
   <main>
     ${body}
