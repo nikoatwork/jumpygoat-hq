@@ -429,11 +429,19 @@ td.actions details form { margin: 0; }
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
 }
-.kanban-column h3 {
+.kanban-column-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.kanban-column-header h3 { margin: 0; }
+.kanban-new-task {
+  min-height: 1.9rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.78rem;
+  text-transform: lowercase;
 }
 .kanban-dropzone { min-height: 8rem; display: flex; flex-direction: column; gap: var(--space-3); }
 .kanban-column.drag-over { border-color: rgba(124, 219, 213, 0.55); box-shadow: var(--glow); }

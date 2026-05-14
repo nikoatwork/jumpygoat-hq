@@ -30,6 +30,15 @@ test("schedule page renders read-only agenda", async ({ page }) => {
   await expect(page.locator("body")).toContainText(/No automations found|Automation/);
 });
 
+test("tasks kanban column new-task links prefill status", async ({ page }) => {
+  await page.goto("/tasks");
+
+  await page.locator('.kanban-column[data-status="ready"]').getByRole("link", { name: "+ new task" }).click();
+
+  await expect(page).toHaveURL(/\/tasks\/new\?status=ready/);
+  await expect(page.getByLabel("Status")).toHaveValue("ready");
+});
+
 test("runs page renders either empty state or run table", async ({ page }) => {
   await page.goto("/runs");
 

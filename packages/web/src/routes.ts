@@ -58,7 +58,7 @@ export async function route(method: string, url: URL, form?: URLSearchParams): P
     if (method === "GET" && url.pathname === "/projects/new") return html(await projectFormPage("Create project", parseProjectForm(new URLSearchParams()), []));
     if (method === "POST" && url.pathname === "/projects") return await createProjectRoute(form || new URLSearchParams());
     if (method === "GET" && url.pathname === "/tasks") return html(await kanbanPage(url));
-    if (method === "GET" && url.pathname === "/tasks/new") return html(await taskFormPage("Create task", parseTaskForm(new URLSearchParams(), url.searchParams.get("project") || ""), []));
+    if (method === "GET" && url.pathname === "/tasks/new") return html(await taskFormPage("Create task", parseTaskForm(url.searchParams, url.searchParams.get("project") || ""), []));
     if (method === "POST" && url.pathname === "/tasks") return await createTaskRoute(form || new URLSearchParams());
     if (method === "GET" && url.pathname === "/automations/new") return html(await automationFormPage("Create automation", parseAutomationForm(new URLSearchParams()), []));
     if (method === "POST" && url.pathname === "/automations") return await createAutomationRoute(form || new URLSearchParams());
@@ -462,8 +462,10 @@ async function kanbanPage(url: URL): Promise<string> {
   const project = url.searchParams.get("project") || undefined;
   const tasks = await listTasks(project);
   const columns = TASK_STATUSES.map((statusName) => {
-    const cards = tasks.filter((task) => task.status === statusName).map(taskCard).join("");
-    return `<section class="kanban-column" data-status="${escapeHtml(statusName)}"><h3>${escapeHtml(statusName)} <span class="muted">${tasks.filter((task) => task.status === statusName).length}</span></h3><div class="kanban-dropzone">${cards || "<p class=\"muted\">No tasks.</p>"}</div></section>`;
+    const columnTasks = tasks.filter((task) => task.status === statusName);
+    const cards = columnTasks.map(taskCard).join("");
+    const newTaskHref = `/tasks/new?status=${encodeURIComponent(statusName)}${project ? `&project=${encodeURIComponent(project)}` : ""}`;
+    return `<section class="kanban-column" data-status="${escapeHtml(statusName)}"><div class="kanban-column-header"><h3>${escapeHtml(statusName)} <span class="muted">${columnTasks.length}</span></h3><a class="button-link kanban-new-task" href="${escapeHtml(newTaskHref)}">+ new task</a></div><div class="kanban-dropzone">${cards || "<p class=\"muted\">No tasks.</p>"}</div></section>`;
   }).join("");
   return layout("Tasks", `
     <h2>Tasks${project ? ` for <code>${escapeHtml(project)}</code>` : ""}</h2>
