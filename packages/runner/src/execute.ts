@@ -37,7 +37,7 @@ export async function executeInvocation(invocation: Invocation, options: { runId
   const taskId = invocationTaskId(invocation);
 
   pushTraceLine(log, {
-    type: "agenthq_run_meta",
+    type: "jumpygoathq_run_meta",
     run_id: runId,
     source_type: invocation.source.type,
     source_id: invocation.source.id,
@@ -58,7 +58,7 @@ export async function executeInvocation(invocation: Invocation, options: { runId
 
   insertRun(db, { runId, invocation, agent, model: modelResolution.requestedModel, modelResolution, startedAt });
 
-  console.log(`${options.label || "agenthq run"} ${runId}`);
+  console.log(`${options.label || "jumpyGoatHq run"} ${runId}`);
   if (invocation.source.type === "task") console.log(`task: ${invocation.source.id}`);
   console.log(`db: ${dbPath()}`);
 
@@ -77,10 +77,10 @@ export async function executeInvocation(invocation: Invocation, options: { runId
       alreadyHandledIntents: handledIntents,
     });
     const connectorActions = [...traceConnectorActions, ...legacyConnectorActions];
-    if (connectorActions.length > 0) pushTraceLine(log, { type: "agenthq_connector_actions", actions: connectorActions });
+    if (connectorActions.length > 0) pushTraceLine(log, { type: "jumpygoathq_connector_actions", actions: connectorActions });
 
     pushTraceLine(log, {
-      type: "agenthq_summary",
+      type: "jumpygoathq_summary",
       run_id: runId,
       source_type: invocation.source.type,
       source_id: invocation.source.id,
@@ -117,11 +117,11 @@ export async function executeInvocation(invocation: Invocation, options: { runId
     const message = error instanceof Error ? error.stack || error.message : String(error);
     const finishedAt = new Date().toISOString();
     const durationMs = Date.now() - Date.parse(startedAt);
-    pushTraceLine(log, { type: "agenthq_error", message });
+    pushTraceLine(log, { type: "jumpygoathq_error", message });
     log.errorLines.push(message);
 
     const connectorActions = extractConnectorActionsFromTrace(traceText(log));
-    if (connectorActions.length > 0) pushTraceLine(log, { type: "agenthq_connector_actions", actions: connectorActions });
+    if (connectorActions.length > 0) pushTraceLine(log, { type: "jumpygoathq_connector_actions", actions: connectorActions });
 
     finishRun(db, {
       runId,

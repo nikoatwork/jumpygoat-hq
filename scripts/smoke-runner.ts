@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { agenthqHome, agentsDir, automationsDir, dbPath, repoRoot } from "../packages/shared/paths.js";
+import { jumpyGoatHqHome, agentsDir, automationsDir, dbPath, repoRoot } from "../packages/shared/paths.js";
 
-const explicitAutomation = Boolean(process.env.AGENTHQ_SMOKE_AUTOMATION || process.argv[2]);
-const automation = process.env.AGENTHQ_SMOKE_AUTOMATION || process.argv[2] || "agenthq-smoke";
+const explicitAutomation = Boolean(process.env.JUMPYGOATHQ_SMOKE_AUTOMATION || process.argv[2]);
+const automation = process.env.JUMPYGOATHQ_SMOKE_AUTOMATION || process.argv[2] || "jumpygoathq-smoke";
 const dbFile = dbPath();
 const startedAt = new Date().toISOString();
 const cleanupPaths: string[] = [];
@@ -96,9 +96,9 @@ function cleanupDefaultSmokeFixture(): void {
 
 let failed = false;
 
-section("agenthq backend smoke");
+section("jumpyGoatHq backend smoke");
 console.log(`automation: ${automation}`);
-console.log(`workspace: ${agenthqHome()}`);
+console.log(`workspace: ${jumpyGoatHqHome()}`);
 console.log(`db: ${dbFile}`);
 console.log(`started_after: ${startedAt}`);
 ensureDefaultSmokeFixture();

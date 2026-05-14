@@ -12,7 +12,7 @@ Target shape:
 agents as markdown → schedules/tasks/operator commands → Pi runs → auditable SQLite history
 ```
 
-agenthq aims to be the smallest useful Hermes/OpenClaw-like agent operations layer: strong primitives, limited features, open-source extension seams.
+jumpyGoatHq aims to be the smallest useful Hermes/OpenClaw-like agent operations layer: strong primitives, limited features, open-source extension seams.
 
 No workflow builder. No broad personal-assistant clone. No custom agent loop. Pi is the harness.
 
@@ -58,7 +58,7 @@ Configure secrets and optional defaults in `.env.local` or the cron environment:
 RESEND_API_KEY=re_...
 JUMPYGOATHQ_NOTIFY_EMAIL_TO=you@example.com
 JUMPYGOATHQ_NOTIFY_EMAIL_FROM="jumpyGoatHq <agent@yourdomain.com>"
-JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX="[agenthq] "
+JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX="[jumpyGoatHq] "
 ```
 
 Agent connector defaults live in `AGENT.md`; automation frontmatter may override run-specific non-secret config:
@@ -70,7 +70,7 @@ notify:
     connector: resend
     to: you@example.com
     from: "jumpyGoatHq <agent@yourdomain.com>"
-    subjectPrefix: "[agenthq] "
+    subjectPrefix: "[jumpyGoatHq] "
 ```
 
 For real delivery, verify the `from` domain/address in Resend. Cron jobs must have the same `.env.local` file or exported env vars available.

@@ -1,6 +1,6 @@
 # vision
 
-agenthq is the **smallest useful open-source agent operations layer**: a file-native, local-first control plane for Pi-powered agents.
+jumpyGoatHq is the **smallest useful open-source agent operations layer**: a file-native, local-first control plane for Pi-powered agents.
 
 The inspiration is the minimal useful slice of Hermes/OpenClaw-style infrastructure, not a feature clone. jumpyGoatHq should have strong primitives, limited features, and clear extension seams.
 

@@ -63,7 +63,7 @@ export type ConnectorRuntimeConfig = {
 export type ConnectorPlan = ConnectorRuntimeConfig;
 
 export type ConnectorActionRecord = {
-  type?: "agenthq_connector_action";
+  type?: "jumpygoathq_connector_action";
   runId?: string;
   automation?: string;
   agent?: string;

@@ -131,7 +131,7 @@ async function testResendSuccessAndTrace(): Promise<void> {
   globalThis.fetch = async (input, init) => {
     assert.equal(String(input), "https://api.resend.com/emails");
     assert.equal(init?.method, "POST");
-    assert.equal((init?.headers as Record<string, string>)["idempotency-key"], "agenthq:run-1:call-3");
+    assert.equal((init?.headers as Record<string, string>)["idempotency-key"], "jumpygoathq:run-1:call-3");
     return new Response(JSON.stringify({ id: "email-123" }), { status: 200 });
   };
 
@@ -157,11 +157,11 @@ async function testResendSuccessAndTrace(): Promise<void> {
 
 async function testResendMissingConfig(): Promise<void> {
   const originalKey = process.env.RESEND_API_KEY;
-  const previousTo = process.env.AGENTHQ_NOTIFY_EMAIL_TO;
-  const previousFrom = process.env.AGENTHQ_NOTIFY_EMAIL_FROM;
+  const previousTo = process.env.JUMPYGOATHQ_NOTIFY_EMAIL_TO;
+  const previousFrom = process.env.JUMPYGOATHQ_NOTIFY_EMAIL_FROM;
   process.env.RESEND_API_KEY = "test-resend";
-  delete process.env.AGENTHQ_NOTIFY_EMAIL_TO;
-  delete process.env.AGENTHQ_NOTIFY_EMAIL_FROM;
+  delete process.env.JUMPYGOATHQ_NOTIFY_EMAIL_TO;
+  delete process.env.JUMPYGOATHQ_NOTIFY_EMAIL_FROM;
   const plan = resolveConnectorPlan({
     automation: { ...automation, notify: { email: { enabled: true, connector: "resend" } } },
     agent,
@@ -173,8 +173,8 @@ async function testResendMissingConfig(): Promise<void> {
     await assert.rejects(() => tool.execute("call-missing", { subject: "Hello", body: "World" }), /Missing notify.email.to/);
   } finally {
     restoreEnv("RESEND_API_KEY", originalKey);
-    restoreEnv("AGENTHQ_NOTIFY_EMAIL_TO", previousTo);
-    restoreEnv("AGENTHQ_NOTIFY_EMAIL_FROM", previousFrom);
+    restoreEnv("JUMPYGOATHQ_NOTIFY_EMAIL_TO", previousTo);
+    restoreEnv("JUMPYGOATHQ_NOTIFY_EMAIL_FROM", previousFrom);
   }
 }
 

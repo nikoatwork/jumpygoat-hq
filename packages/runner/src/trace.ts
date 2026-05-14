@@ -16,7 +16,7 @@ export async function openTrace(automation: Automation, agentFile: string): Prom
   const startedAt = new Date().toISOString();
   const file = path.join(tracesDir(), `${runId}.jsonl`);
   await writeJsonLine(file, {
-    type: "agenthq_run_meta",
+    type: "jumpygoathq_run_meta",
     run_id: runId,
     automation: automation.name,
     agent: automation.agent,
@@ -47,7 +47,7 @@ export async function closeTrace(args: {
   const durationMs = Date.now() - Date.parse(args.startedAt);
   const status = args.exitCode === 0 ? "ok" : "error";
   await writeJsonLine(args.file, {
-    type: "agenthq_summary",
+    type: "jumpygoathq_summary",
     run_id: args.runId,
     automation: args.automation.name,
     agent: args.automation.agent,

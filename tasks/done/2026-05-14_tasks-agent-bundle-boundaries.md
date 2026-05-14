@@ -2,11 +2,11 @@
 
 ## Completion summary
 
-Completed 2026-05-14. AgentHQ bundle/tool/invocation/run boundaries are documented, only `AGENT.md` plus ordered `context/*.md` are loaded today, reserved agent resource directories are documented as non-loaded, Pi run framing now disables raw Pi resource/context discovery, generated agent instructions include an AgentHQ runtime frame, and web/docs/examples match the split.
+Completed 2026-05-14. jumpyGoatHq bundle/tool/invocation/run boundaries are documented, only `AGENT.md` plus ordered `context/*.md` are loaded today, reserved agent resource directories are documented as non-loaded, Pi run framing now disables raw Pi resource/context discovery, generated agent instructions include an jumpyGoatHq runtime frame, and web/docs/examples match the split.
 
 ## Goal
 
-Clarify and implement the AgentHQ mental model inspired by Hermes/Pi skills without reintroducing `skill` as a top-level product primitive:
+Clarify and implement the jumpyGoatHq mental model inspired by Hermes/Pi skills without reintroducing `skill` as a top-level product primitive:
 
 ```text
 Agent bundle = identity, instructions, context, memory, reusable procedures
@@ -15,21 +15,21 @@ Automation/task = invocation of an agent
 Run = audit record
 ```
 
-Agents should be allowed to grow beyond a single markdown file through explicit AgentHQ contracts, while connectors remain the governed path for external side effects.
+Agents should be allowed to grow beyond a single markdown file through explicit jumpyGoatHq contracts, while connectors remain the governed path for external side effects.
 
 ## Notes
 
 - Hermes separates identity (`SOUL.md`), memory, skills/procedural knowledge, tools/toolsets, cron jobs, and runs. The useful lesson is the split, not copying every concept.
-- For AgentHQ, keep primitives small: agent, connector/tool, automation/task, run.
+- For jumpyGoatHq, keep primitives small: agent, connector/tool, automation/task, run.
 - Treat skill-like folders as an implementation/design influence: progressive disclosure, reusable procedures, references, assets, helper scripts, memory.
 - Do not make raw Pi skills the public control-plane primitive.
-- Investigate whether AgentHQ should pass a custom Pi system prompt for runs, or whether generated `AGENT.md` + context injection via `--skill` is enough.
+- Investigate whether jumpyGoatHq should pass a custom Pi system prompt for runs, or whether generated `AGENT.md` + context injection via `--skill` is enough.
 
 ## Findings
 
 - **2026-05-14:** Pi docs/CLI confirm `--system-prompt` replaces the default prompt but still appends context files and skills; `--append-system-prompt` appends to the system prompt; `--skill` is repeatable; `--no-skills` disables discovered skills while explicit CLI skill paths still load; `--no-context-files` disables parent/current `AGENTS.md` and `CLAUDE.md`; JSON mode emits JSONL events. Source inspection of Pi `resource-loader.js` confirmed explicit CLI skills remain in the path list when `--no-skills` is set.
-- **2026-05-14:** Because AgentHQ workspaces live under the repo by default, keeping Pi context discovery could silently load parent repo `AGENTS.md` into scheduled/task runs. Decision: disable raw Pi skill discovery and context-file discovery for AgentHQ runs; only the generated AgentHQ instruction file and explicit connector extension should frame the run.
-- **2026-05-14:** No custom `--system-prompt`/`--append-system-prompt` is needed now. Generated `AGENT.md` injection is enough if the generated file includes a small AgentHQ runtime frame for connector boundaries, workspace rules, and output expectations. This avoids duplicating large context across a system prompt plus generated skill file.
+- **2026-05-14:** Because jumpyGoatHq workspaces live under the repo by default, keeping Pi context discovery could silently load parent repo `AGENTS.md` into scheduled/task runs. Decision: disable raw Pi skill discovery and context-file discovery for jumpyGoatHq runs; only the generated jumpyGoatHq instruction file and explicit connector extension should frame the run.
+- **2026-05-14:** No custom `--system-prompt`/`--append-system-prompt` is needed now. Generated `AGENT.md` injection is enough if the generated file includes a small jumpyGoatHq runtime frame for connector boundaries, workspace rules, and output expectations. This avoids duplicating large context across a system prompt plus generated skill file.
 - **2026-05-14:** First-class agent bundle directories now are `AGENT.md` and `context/*.md` only. Reserved/non-loaded directories: `references/`, `templates/`, `assets/`, `procedures/`, `scripts/`, and `memory/`.
 - **2026-05-14:** Future memory should be bounded, curated, frozen at run start, and updated only through an explicit domain service/tool. Default should be per-agent curated memory in the agent folder; project/user-wide memory should be represented by documented project files or a shared data store, not hidden workspace writes.
 - **2026-05-14:** Agent-created procedures should be deferred until core primitives stabilize. `procedures/`/`references/` are reserved authoring space only for now. `scripts/` must not execute unless a future contract adds explicit gating, trace metadata, and audit behavior.
@@ -37,7 +37,7 @@ Agents should be allowed to grow beyond a single markdown file through explicit 
 
 ## Validation
 
-- [x] `pnpm --filter @agenthq/runner build && pnpm --filter @agenthq/web build` — passed.
+- [x] `pnpm --filter @jumpygoat-hq/runner build && pnpm --filter @jumpygoat-hq/web build` — passed.
 - [x] `pnpm validate:web` — passed, 15 Playwright/tests.
 - [x] `pnpm validate:backend` — passed; smoke run `01KRK8XC12F4JDS89BH8VRR2NS` invoked Pi with the generated agent bundle and wrote an inspectable run row.
 
@@ -76,11 +76,11 @@ Agents should be allowed to grow beyond a single markdown file through explicit 
   - [x] 2.4 Define naming and ordering rules for any future loaded resources.
   - [x] 2.5 Define where mutable agent-owned state should live if memory is added: inside agent folder, invocation workspace, or shared data store.
 
-- [x] 3.0 Investigate Pi system prompt control for AgentHQ runs
+- [x] 3.0 Investigate Pi system prompt control for jumpyGoatHq runs
   - [x] 3.1 Read Pi docs and CLI behavior for `--system-prompt`, `--append-system-prompt`, `--skill`, context files, and JSON mode.
   - [~] 3.2 Run a small local experiment comparing generated agent file via `--skill` vs `--system-prompt`/`--append-system-prompt` if safe - Skipped: a model-bearing prompt comparison would spend tokens and was unnecessary after docs/source inspection plus backend smoke; decision does not require custom system prompt now.
-  - [x] 3.3 Determine whether AgentHQ should disable Pi context discovery with `--no-context-files` for scheduled/task runs, or keep it as useful project context.
-  - [x] 3.4 Determine whether a custom AgentHQ system prompt would improve policy clarity, connector guidance, and run framing.
+  - [x] 3.3 Determine whether jumpyGoatHq should disable Pi context discovery with `--no-context-files` for scheduled/task runs, or keep it as useful project context.
+  - [x] 3.4 Determine whether a custom jumpyGoatHq system prompt would improve policy clarity, connector guidance, and run framing.
   - [x] 3.5 Document the decision: generated `AGENT.md` injection is enough, or add explicit system prompt/append prompt support.
 
 - [x] 4.0 Strengthen generated run instructions if needed

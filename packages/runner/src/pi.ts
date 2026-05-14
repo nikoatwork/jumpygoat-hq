@@ -25,9 +25,9 @@ export async function runPiInvocation(args: {
   await mkdir(cwd, { recursive: true });
   const agentFile = await writeGeneratedAgentFile(cwd, runId, agent);
 
-  // Pi's CLI calls this generated instruction file a "skill". AgentHQ keeps raw Pi
+  // Pi's CLI calls this generated instruction file a "skill". jumpyGoatHq keeps raw Pi
   // skill/context discovery disabled so scheduled/task runs are framed only by the
-  // AgentHQ agent bundle plus explicitly enabled connectors.
+  // jumpyGoatHq agent bundle plus explicitly enabled connectors.
   const piArgs = ["--mode", "json", "--no-session", "--no-skills", "--no-context-files", "--skill", agentFile];
   if (model) piArgs.push("--model", model);
   if (connectorPlan && connectorPlan.tools.length > 0) {
@@ -37,7 +37,7 @@ export async function runPiInvocation(args: {
 
   if (connectorPlan && connectorPlan.tools.length > 0) {
     pushTraceLine(log, {
-      type: "agenthq_connector_plan",
+      type: "jumpygoathq_connector_plan",
       run_id: connectorPlan.runId,
       tools: connectorToolNames(connectorPlan),
       intents: connectorPlan.tools.map((tool) => tool.intent),
@@ -45,7 +45,7 @@ export async function runPiInvocation(args: {
   }
 
   pushTraceLine(log, {
-    type: "agenthq_pi_start",
+    type: "jumpygoathq_pi_start",
     command: "pi",
     args: piArgs.map((arg) => (arg === invocation.prompt ? "<prompt>" : arg)),
     cwd,
@@ -56,8 +56,8 @@ export async function runPiInvocation(args: {
       cwd,
       env: {
         ...process.env,
-        AGENTHQ_RUN_ID: connectorPlan?.runId,
-        AGENTHQ_CONNECTORS_CONFIG_JSON: connectorPlan && connectorPlan.tools.length > 0 ? connectorPlanEnv(connectorPlan) : undefined,
+        JUMPYGOATHQ_RUN_ID: connectorPlan?.runId,
+        JUMPYGOATHQ_CONNECTORS_CONFIG_JSON: connectorPlan && connectorPlan.tools.length > 0 ? connectorPlanEnv(connectorPlan) : undefined,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -83,7 +83,7 @@ export async function runPiInvocation(args: {
         stderrBuffer = line.remaining;
         if (line.value.trim()) {
           log.errorLines.push(line.value);
-          pushTraceLine(log, { type: "agenthq_stderr", text: line.value });
+          pushTraceLine(log, { type: "jumpygoathq_stderr", text: line.value });
         }
       });
     });
@@ -92,7 +92,7 @@ export async function runPiInvocation(args: {
       if (stdoutBuffer.trim()) writePiLine(log, stdoutBuffer.trimEnd());
       if (stderrBuffer.trim()) {
         log.errorLines.push(stderrBuffer.trimEnd());
-        pushTraceLine(log, { type: "agenthq_stderr", text: stderrBuffer.trimEnd() });
+        pushTraceLine(log, { type: "jumpygoathq_stderr", text: stderrBuffer.trimEnd() });
       }
       resolve({ exitCode, signal, agentFile });
     });
@@ -100,7 +100,7 @@ export async function runPiInvocation(args: {
 }
 
 async function writeGeneratedAgentFile(cwd: string, runId: string, agent: Agent): Promise<string> {
-  const dir = path.join(cwd, ".agenthq");
+  const dir = path.join(cwd, ".jumpygoathq");
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${runId}-AGENT.md`);
   await writeFile(file, agent.instructions, "utf8");
@@ -121,7 +121,7 @@ function writePiLine(log: RunLog, line: string): void {
     pushTraceLine(log, trimmed);
     pushOutputFromPiEvent(log, parsed);
   } catch {
-    pushTraceLine(log, { type: "agenthq_non_json_stdout", text: trimmed });
+    pushTraceLine(log, { type: "jumpygoathq_non_json_stdout", text: trimmed });
   }
 }
 

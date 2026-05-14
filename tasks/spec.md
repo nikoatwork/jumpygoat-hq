@@ -2,7 +2,7 @@
 
 This is the **pre-release target spec**. The implementation may temporarily lag while the agent refactor is in progress. Breaking changes are acceptable before release.
 
-agenthq is a **minimal open-source, file-native control plane for Pi-powered agents**.
+jumpyGoatHq is a **minimal open-source, file-native control plane for Pi-powered agents**.
 
 The core idea: define agents as markdown, run them through schedules or assigned tasks, store auditable run history, and expose only small gated extension points for connectors, tools, and operator surfaces. Pi owns the agent runtime. jumpyGoatHq owns the product primitives around it.
 

@@ -98,7 +98,7 @@ async function dispatchOne(board: Board, task: AgentTask, runId: string): Promis
     }), { expectedStatus: "ready" });
     claimed = true;
 
-    const result = await executeInvocation(invocationFromTask(board, task), { runId, label: "agenthq task run" });
+    const result = await executeInvocation(invocationFromTask(board, task), { runId, label: "jumpyGoatHq task run" });
     await updateTask(task.board, task.id, (current) => ({
       ...current,
       status: result.status === "ok" ? "done" : "not-yet",

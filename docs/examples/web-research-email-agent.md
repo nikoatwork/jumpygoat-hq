@@ -1,6 +1,6 @@
 # Example: web research agent with email notification
 
-This is a documentation example only. Copy it into `agenthqHome()/agents/` and `agenthqHome()/automations/` when you want to use it.
+This is a documentation example only. Copy it into `jumpyGoatHqHome()/agents/` and `jumpyGoatHqHome()/automations/` when you want to use it.
 
 ## Agent bundle
 
@@ -38,7 +38,7 @@ Use web_search when current information materially improves the answer. Use web_
 
 ## Connector policy
 
-External web access and email must use the enabled AgentHQ connector tools. Do not ask for or expose secrets.
+External web access and email must use the enabled jumpyGoatHq connector tools. Do not ask for or expose secrets.
 
 ## Output expectations
 

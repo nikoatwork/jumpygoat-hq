@@ -9,7 +9,7 @@ import { invocationFromAutomation } from "./invocation.js";
 async function main(): Promise<number> {
   const name = process.argv[2];
   if (!name || name === "-h" || name === "--help") {
-    console.error("Usage: agenthq-runner <automation-name>");
+    console.error("Usage: jumpygoat-hq-runner <automation-name>");
     return name ? 0 : 1;
   }
 

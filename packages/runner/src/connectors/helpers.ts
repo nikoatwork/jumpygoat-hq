@@ -56,7 +56,7 @@ export function connectorSummary(args: {
   error?: string;
 }): ConnectorActionRecord {
   return {
-    type: "agenthq_connector_action",
+    type: "jumpygoathq_connector_action",
     runId: args.runId,
     automation: args.automation,
     agent: args.agent,

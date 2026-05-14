@@ -12,12 +12,12 @@ Add a small task assignment/kanban layer so operators can create markdown tasks,
 
 - This depends conceptually on the Agent Entity work (`tasks/todo/tasks-agent-entity.md`). Implement after or alongside that refactor.
 - Keep v1 small: no workflow engine, no multi-step graph, no per-agent SQLite, no complex scheduling, no frontend framework.
-- Source of truth for tasks/projects should be markdown under `agenthqHome()`.
+- Source of truth for tasks/projects should be markdown under `jumpyGoatHqHome()`.
 - Shared SQLite remains for runs only unless a later indexing need emerges.
 - Heartbeat should claim tasks safely enough for one local dispatcher; avoid over-engineering distributed locks in v1.
 - Proposed local/deploy layout:
-  - `agenthqHome()/projects/<project>/PROJECT.md`
-  - `agenthqHome()/projects/<project>/tasks/<task-id>.md`
+  - `jumpyGoatHqHome()/projects/<project>/PROJECT.md`
+  - `jumpyGoatHqHome()/projects/<project>/tasks/<task-id>.md`
 - Proposed minimal statuses: `backlog`, `ready`, `doing`, `review`, `done`, `blocked`, `failed`.
 - Proposed heartbeat command: `pnpm dispatch:tasks` or similar, intended for cron/systemd timer.
 - Kanban drag-and-drop should be progressive enhancement over normal POST/status buttons. Markdown files remain the source of truth.
@@ -46,7 +46,7 @@ Add a small task assignment/kanban layer so operators can create markdown tasks,
 - `.gitignore` - Ignore active `workspace/projects/*` while allowing README docs.
 - `README.md` - Update mental model and heartbeat setup.
 - `docs/ARCHITECTURE.md` - Add Project/Task/Dispatcher concepts and runtime flow.
-- `docs/DEPLOY.md` - Add `$AGENTHQ_HOME/projects` and heartbeat cron/systemd timer instructions.
+- `docs/DEPLOY.md` - Add `$JUMPYGOATHQ_HOME/projects` and heartbeat cron/systemd timer instructions.
 - `packages/web/DOCS.md` - Document task/kanban routes and safety constraints.
 - `AGENTS.md` - Update hard constraints/docs references.
 - `tasks/CHANGELOG.md` - Update when complete.
@@ -107,7 +107,7 @@ Add a small task assignment/kanban layer so operators can create markdown tasks,
   - [x] 7.1 Document manual dispatch command.
   - [x] 7.2 Document cron example for heartbeat, e.g. every minute or every five minutes.
   - [x] 7.3 Document single-dispatcher assumption and expected task status lifecycle.
-  - [x] 7.4 Update VPS deployment docs to create `$AGENTHQ_HOME/projects`.
+  - [x] 7.4 Update VPS deployment docs to create `$JUMPYGOATHQ_HOME/projects`.
 
 - [x] 8.0 Validate
   - [x] 8.1 Run `pnpm build`.
@@ -116,7 +116,7 @@ Add a small task assignment/kanban layer so operators can create markdown tasks,
   - [x] 8.4 Manually verify creating a project/task via web writes under `workspace/projects/`.
   - [x] 8.5 Manually verify kanban status buttons and drag-and-drop update task markdown status.
   - [x] 8.6 Manually verify `dispatch:tasks` claims exactly one ready task and updates status/run metadata.
-  - [x] 8.7 Manually verify `AGENTHQ_HOME=/tmp/agenthq-task-test pnpm ...` uses external `projects/`, agents, and run DB paths.
+  - [x] 8.7 Manually verify `JUMPYGOATHQ_HOME=/tmp/jumpygoat-hq-task-test pnpm ...` uses external `projects/`, agents, and run DB paths.
 
 ## Decisions
 

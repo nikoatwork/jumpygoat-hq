@@ -43,8 +43,8 @@ function createNotifyEmailTool(runtime: ConnectorRuntimeConfig): ConnectorToolDe
 
       try {
         if (!process.env.RESEND_API_KEY) throw new Error("Missing RESEND_API_KEY.");
-        if (!to) throw new Error("Missing notify.email.to or AGENTHQ_NOTIFY_EMAIL_TO.");
-        if (!from) throw new Error("Missing notify.email.from or AGENTHQ_NOTIFY_EMAIL_FROM.");
+        if (!to) throw new Error("Missing notify.email.to or JUMPYGOATHQ_NOTIFY_EMAIL_TO.");
+        if (!from) throw new Error("Missing notify.email.from or JUMPYGOATHQ_NOTIFY_EMAIL_FROM.");
         if (!subject) throw new Error("notify_email subject is required.");
         if (!body) throw new Error("notify_email body is required.");
 
@@ -55,11 +55,11 @@ function createNotifyEmailTool(runtime: ConnectorRuntimeConfig): ConnectorToolDe
           subject,
           body,
           timeoutMs: 30_000,
-          idempotencyKey: `agenthq:${runtime.runId}:${toolCallId}`,
+          idempotencyKey: `jumpygoathq:${runtime.runId}:${toolCallId}`,
           headers: {
-            "X-AgentHQ-Run-Id": runtime.runId,
-            "X-AgentHQ-Automation": runtime.automationName,
-            "X-AgentHQ-Tool-Call-Id": toolCallId,
+            "X-jumpyGoatHq-Run-Id": runtime.runId,
+            "X-jumpyGoatHq-Automation": runtime.automationName,
+            "X-jumpyGoatHq-Tool-Call-Id": toolCallId,
           },
           signal,
         });

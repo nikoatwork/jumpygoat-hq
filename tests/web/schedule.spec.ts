@@ -61,11 +61,11 @@ test.describe("cron expansion", () => {
   });
 });
 
-test("schedule route renders a temp AgentHQ home without mutating cron", async () => {
-  const previousHome = process.env.AGENTHQ_HOME;
-  const tempHome = await mkdtemp(path.join(os.tmpdir(), "agenthq-schedule-"));
+test("schedule route renders a temp jumpyGoatHq home without mutating cron", async () => {
+  const previousHome = process.env.JUMPYGOATHQ_HOME;
+  const tempHome = await mkdtemp(path.join(os.tmpdir(), "jumpygoathq-schedule-"));
   try {
-    process.env.AGENTHQ_HOME = tempHome;
+    process.env.JUMPYGOATHQ_HOME = tempHome;
     await mkdir(path.join(tempHome, "agents", "analyst"), { recursive: true });
     await mkdir(path.join(tempHome, "automations"), { recursive: true });
     await writeFile(path.join(tempHome, "agents", "analyst", "AGENT.md"), "---\nname: analyst\ndescription: Market analyst\n---\n\nInstructions\n", "utf8");
@@ -80,8 +80,8 @@ test("schedule route renders a temp AgentHQ home without mutating cron", async (
     expect(response.body).toContain("manual-idea");
     expect(response.body).toContain("Market analyst");
   } finally {
-    if (previousHome === undefined) delete process.env.AGENTHQ_HOME;
-    else process.env.AGENTHQ_HOME = previousHome;
+    if (previousHome === undefined) delete process.env.JUMPYGOATHQ_HOME;
+    else process.env.JUMPYGOATHQ_HOME = previousHome;
     await rm(tempHome, { recursive: true, force: true });
   }
 });

@@ -27,10 +27,10 @@ export function formatTraceLog(traceText: string): TraceLogEntry[] {
 
     const type = stringValue(event.type);
     switch (type) {
-      case "agenthq_run_meta":
+      case "jumpygoathq_run_meta":
         entries.push({ category: "run", label: "Run metadata", detail: joinDetails([pair("run", event.run_id), pair("source", event.source_id ?? event.automation), pair("type", event.source_type), pair("agent", event.agent), pair("requested", event.requested_model ?? event.model), pair("resolved", event.resolved_model), pair("profile", event.model_profile), pair("schedule", event.schedule)]) });
         break;
-      case "agenthq_pi_start":
+      case "jumpygoathq_pi_start":
         entries.push({ category: "pi", label: "Pi started", detail: joinDetails([pair("command", event.command), pair("cwd", event.cwd), pair("args", Array.isArray(event.args) ? event.args.join(" ") : undefined)]) });
         break;
       case "session":
@@ -59,25 +59,25 @@ export function formatTraceLog(traceText: string): TraceLogEntry[] {
       case "turn_end":
         handleUsage(event.message, entries, usageEntries);
         break;
-      case "agenthq_stderr":
+      case "jumpygoathq_stderr":
         entries.push({ category: "stderr", label: "stderr", detail: preview(stringValue(event.text)) });
         break;
-      case "agenthq_non_json_stdout":
+      case "jumpygoathq_non_json_stdout":
         entries.push({ category: "raw", label: "Non-JSON stdout", detail: preview(stringValue(event.text)) });
         break;
-      case "agenthq_connector_plan":
+      case "jumpygoathq_connector_plan":
         entries.push({ category: "connector", label: "Connector tools enabled", detail: joinDetails([pair("tools", Array.isArray(event.tools) ? event.tools.join(", ") : undefined), pair("intents", Array.isArray(event.intents) ? event.intents.join(", ") : undefined)]) });
         break;
-      case "agenthq_connector_action":
+      case "jumpygoathq_connector_action":
         entries.push({ category: "connector", label: "Connector action", detail: connectorDetail([event]) });
         break;
-      case "agenthq_connector_actions":
+      case "jumpygoathq_connector_actions":
         entries.push({ category: "connector", label: "Connector actions", detail: connectorDetail(event.actions) });
         break;
-      case "agenthq_summary":
+      case "jumpygoathq_summary":
         entries.push({ category: "run", label: "Run summary", detail: joinDetails([pair("status", event.status), pair("exit", event.exit_code ?? event.exitCode), pair("duration", durationText(event.duration_ms ?? event.durationMs))]) });
         break;
-      case "agenthq_error":
+      case "jumpygoathq_error":
         entries.push({ category: "error", label: "Runner error", detail: preview(stringValue(event.message)) });
         break;
       case "agent_start":

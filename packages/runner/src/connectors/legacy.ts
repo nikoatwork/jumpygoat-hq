@@ -56,8 +56,8 @@ export async function processLegacyConnectorActions(args: {
 
   const config = resolveEmailConfig(args.agent, invocation);
   if (!config.enabled) return [{ intent: action.type, connector: config.connector, status: "skipped_disabled" }];
-  if (!config.to) return [{ intent: action.type, connector: config.connector, status: "failed_missing_config", error: "Missing notify.email.to or AGENTHQ_NOTIFY_EMAIL_TO." }];
-  if (!config.from) return [{ intent: action.type, connector: config.connector, to: config.to, status: "failed_missing_config", error: "Missing notify.email.from or AGENTHQ_NOTIFY_EMAIL_FROM." }];
+  if (!config.to) return [{ intent: action.type, connector: config.connector, status: "failed_missing_config", error: "Missing notify.email.to or JUMPYGOATHQ_NOTIFY_EMAIL_TO." }];
+  if (!config.from) return [{ intent: action.type, connector: config.connector, to: config.to, status: "failed_missing_config", error: "Missing notify.email.from or JUMPYGOATHQ_NOTIFY_EMAIL_FROM." }];
   if (!process.env.RESEND_API_KEY) return [{ intent: action.type, connector: config.connector, to: config.to, status: "failed_missing_config", error: "Missing RESEND_API_KEY." }];
 
   try {
@@ -67,7 +67,7 @@ export async function processLegacyConnectorActions(args: {
       to: config.to,
       subject: `${config.subjectPrefix || ""}${action.subject}`,
       body: action.body,
-      headers: { "X-AgentHQ-Legacy-Action": "true" },
+      headers: { "X-jumpyGoatHq-Legacy-Action": "true" },
     });
     return [{ intent: action.type, connector: config.connector, to: config.to, status: "sent", providerMessageId }];
   } catch (error) {
@@ -76,7 +76,7 @@ export async function processLegacyConnectorActions(args: {
 }
 
 export function parseNotificationAction(outputText: string): ParsedNotification {
-  const match = outputText.match(/```(?:agenthq-action|agenthq-notification)\s*\n([\s\S]*?)\n```/);
+  const match = outputText.match(/```(?:jumpygoathq-action|jumpygoathq-notification)\s*\n([\s\S]*?)\n```/);
   if (!match) return { kind: "none" };
 
   try {
@@ -96,8 +96,8 @@ function resolveEmailConfig(agent: ConnectorOverrides, automation: ConnectorOver
   return {
     enabled: email.enabled === true,
     connector: "resend",
-    to: email.to || process.env.AGENTHQ_NOTIFY_EMAIL_TO,
-    from: email.from || process.env.AGENTHQ_NOTIFY_EMAIL_FROM,
-    subjectPrefix: email.subjectPrefix ?? process.env.AGENTHQ_NOTIFY_SUBJECT_PREFIX ?? "",
+    to: email.to || process.env.JUMPYGOATHQ_NOTIFY_EMAIL_TO,
+    from: email.from || process.env.JUMPYGOATHQ_NOTIFY_EMAIL_FROM,
+    subjectPrefix: email.subjectPrefix ?? process.env.JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX ?? "",
   };
 }

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { agenthqHome, settingsPath } from "./paths.js";
+import { jumpyGoatHqHome, settingsPath } from "./paths.js";
 
 export const DEFAULT_SETTINGS = Object.freeze({
   defaultModelProfile: undefined,
@@ -16,7 +16,7 @@ export function loadSettings(file = settingsPath()) {
     return parseSettingsText(readFileSync(file, "utf8"));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Could not parse AgentHQ settings at ${file}: ${message}`);
+    throw new Error(`Could not parse jumpyGoatHq settings at ${file}: ${message}`);
   }
 }
 
@@ -56,7 +56,7 @@ export function parseSettingsText(text) {
 }
 
 export function formatSettings(settings) {
-  const lines = ["# AgentHQ instance settings", "# Secrets/API keys stay in Pi config or environment, never here."];
+  const lines = ["# jumpyGoatHq instance settings", "# Secrets/API keys stay in Pi config or environment, never here."];
   if (settings.defaultModelProfile) lines.push(`defaultModelProfile: ${quoteYaml(settings.defaultModelProfile)}`);
   else lines.push("defaultModelProfile: null");
   lines.push("modelProfiles:");
@@ -98,7 +98,7 @@ export function resolveModelRequest(requestedModel, settings = DEFAULT_SETTINGS)
 }
 
 export function settingsLocation() {
-  return { home: agenthqHome(), path: settingsPath() };
+  return { home: jumpyGoatHqHome(), path: settingsPath() };
 }
 
 function assertProfileKey(value, field = "profile key") {

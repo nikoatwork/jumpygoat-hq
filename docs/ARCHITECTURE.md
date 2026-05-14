@@ -1,6 +1,6 @@
 # jumpyGoatHq architecture
 
-agenthq is a personal runner for scheduled/manual Pi agents.
+jumpyGoatHq is a personal runner for scheduled/manual Pi agents.
 
 Strategic frame: jumpyGoatHq should stay the smallest useful open-source Hermes/OpenClaw-like agent operations layer. Keep strong primitives, limited features, and clear extension seams; do not broaden into a workflow builder or feature clone.
 

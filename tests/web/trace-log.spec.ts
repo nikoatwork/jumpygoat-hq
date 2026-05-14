@@ -3,15 +3,15 @@ import { expect, test } from "@playwright/test";
 import { formatTraceLog } from "../../packages/web/src/trace-log";
 
 const sampleTrace = [
-  { type: "agenthq_run_meta", run_id: "01KR4B2H82ZWE7PKZ28SE1NR74", automation: "notification-noop", agent: "notification-review", schedule: "manual" },
-  { type: "agenthq_pi_start", command: "pi", args: ["--mode", "json", "--no-session", "<prompt>"], cwd: "/tmp/workspace" },
+  { type: "jumpygoathq_run_meta", run_id: "01KR4B2H82ZWE7PKZ28SE1NR74", automation: "notification-noop", agent: "notification-review", schedule: "manual" },
+  { type: "jumpygoathq_pi_start", command: "pi", args: ["--mode", "json", "--no-session", "<prompt>"], cwd: "/tmp/workspace" },
   { type: "session", version: 3, id: "session-1", cwd: "/tmp/workspace" },
   { type: "message_start", message: { role: "user", content: [{ type: "text", text: "This is a notification smoke test. Produce a short FYI-only response." }] } },
   { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "FY" } },
   { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "I" } },
   { type: "message_update", assistantMessageEvent: { type: "text_end", content: "FYI: no user-facing outcome was found.", partial: { responseId: "resp_1" } } },
   { type: "message_end", message: { role: "assistant", responseId: "resp_1", content: [{ type: "text", text: "FYI: no user-facing outcome was found." }], model: "gpt-5.5", usage: { input: 2532, output: 14, totalTokens: 2546, cost: { total: 0.01308 } } } },
-  { type: "agenthq_summary", status: "ok", exitCode: 0, durationMs: 1200 },
+  { type: "jumpygoathq_summary", status: "ok", exitCode: 0, durationMs: 1200 },
 ].map((event) => JSON.stringify(event)).join("\n");
 
 test("trace formatter compacts streaming deltas into readable entries", () => {

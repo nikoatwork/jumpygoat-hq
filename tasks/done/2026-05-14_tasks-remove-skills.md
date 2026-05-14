@@ -1,29 +1,29 @@
-# Remove Skills as an AgentHQ Concept
+# Remove Skills as an jumpyGoatHq Concept
 
 ## Completion summary
 
-Completed 2026-05-14. AgentHQ-facing runtime/web/docs no longer expose skills as a product concept. The only current non-archived references are Pi adapter details for `--skill`/`--no-skills` in `packages/runner/src/pi.ts` and `docs/ARCHITECTURE.md`. Legacy file pointers were deleted, gitignore runtime contracts were removed, the run DB schema no longer declares or writes the legacy column, web fallbacks were removed, and setup now drops the old column from existing local DBs.
+Completed 2026-05-14. jumpyGoatHq-facing runtime/web/docs no longer expose skills as a product concept. The only current non-archived references are Pi adapter details for `--skill`/`--no-skills` in `packages/runner/src/pi.ts` and `docs/ARCHITECTURE.md`. Legacy file pointers were deleted, gitignore runtime contracts were removed, the run DB schema no longer declares or writes the legacy column, web fallbacks were removed, and setup now drops the old column from existing local DBs.
 
 ## Goal
 
-Remove remaining AgentHQ-facing `skill` concepts now that the product primitive is `agent`. Keep only the unavoidable Pi CLI adapter detail where AgentHQ invokes `pi --skill <generated-agent-file>`, and document that as an implementation detail rather than a domain concept.
+Remove remaining jumpyGoatHq-facing `skill` concepts now that the product primitive is `agent`. Keep only the unavoidable Pi CLI adapter detail where jumpyGoatHq invokes `pi --skill <generated-agent-file>`, and document that as an implementation detail rather than a domain concept.
 
 ## Notes
 
 - Pre-release breaking changes are allowed; do not keep compatibility shims just to support old `skill:` automations or old run rows.
-- Agents connect to external services through AgentHQ connectors: `allowedIntents` + connector config + runner-resolved Pi extension tools.
+- Agents connect to external services through jumpyGoatHq connectors: `allowedIntents` + connector config + runner-resolved Pi extension tools.
 - Avoid introducing a new abstraction to replace skills. The clean primitive set is agent, automation, project/task, connector/tool, workspace, run, instance settings.
 
 ## Findings
 
-- **2026-05-14:** Final boundary: current product docs/code may mention Pi `--skill`/`--no-skills` only as Pi CLI adapter terminology. Current AgentHQ concepts are agent, automation, project/task, connector/tool, workspace, run, and instance settings.
+- **2026-05-14:** Final boundary: current product docs/code may mention Pi `--skill`/`--no-skills` only as Pi CLI adapter terminology. Current jumpyGoatHq concepts are agent, automation, project/task, connector/tool, workspace, run, and instance settings.
 - **2026-05-14:** Old automation frontmatter with a top-level legacy field is unsupported. Runner frontmatter parsing is strict, so unknown top-level keys fail instead of being migrated or silently accepted.
 - **2026-05-14:** Old SQLite run rows/columns do not need preservation. New schema omits the legacy column; setup drops it from existing local DBs so inserts do not fail against old `not null` constraints.
 - **2026-05-14:** `rg -ni "skill|skills" packages scripts tests docs workspace README.md .gitignore -g '*.ts' -g '*.md'` now returns only Pi adapter references in `packages/runner/src/pi.ts` and `docs/ARCHITECTURE.md`. Broader task-tree hits are historical archived task/changelog/research text plus this completed task file.
 
 ## Validation
 
-- [x] `pnpm --filter @agenthq/runner build && pnpm --filter @agenthq/web build` — passed.
+- [x] `pnpm --filter @jumpygoat-hq/runner build && pnpm --filter @jumpygoat-hq/web build` — passed.
 - [x] `pnpm validate:web` — passed, 16 tests.
 - [x] `pnpm validate:backend` — first exposed an existing DB `not null` issue for the old column; after adding setup cleanup, passed with run `01KRK9EXSZAGX73C3T1QZH50RB`.
 

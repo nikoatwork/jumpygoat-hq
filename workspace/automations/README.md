@@ -1,6 +1,6 @@
 # workspace/automations
 
-Local active automations live here by default. Set `AGENTHQ_HOME=/path/to/agenthq-home` to use an external workspace; then active automations live in `$AGENTHQ_HOME/automations/`.
+Local active automations live here by default. Set `JUMPYGOATHQ_HOME=/path/to/jumpygoat-hq-home` to use an external workspace; then active automations live in `$JUMPYGOATHQ_HOME/automations/`.
 
 Each automation is one markdown file:
 

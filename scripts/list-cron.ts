@@ -6,15 +6,15 @@ let printing = false;
 let found = false;
 
 for (const line of lines) {
-  if (line.startsWith("# agenthq:start ")) {
+  if (line.startsWith("# jumpygoathq:start ")) {
     printing = true;
     found = true;
   }
   if (printing) console.log(line);
-  if (line.startsWith("# agenthq:end ")) {
+  if (line.startsWith("# jumpygoathq:end ")) {
     printing = false;
     console.log();
   }
 }
 
-if (!found) console.log("No agenthq cron entries installed.");
+if (!found) console.log("No jumpyGoatHq cron entries installed.");

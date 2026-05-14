@@ -2,7 +2,7 @@
 
 This guide runs the jumpyGoatHq web UI as a `systemd` service and installs scheduled automations with cron.
 
-agenthq currently has no built-in auth. Keep the web UI bound to `127.0.0.1` and use an SSH tunnel, Tailscale, or a trusted authenticated reverse proxy.
+jumpyGoatHq currently has no built-in auth. Keep the web UI bound to `127.0.0.1` and use an SSH tunnel, Tailscale, or a trusted authenticated reverse proxy.
 
 ## Assumptions
 

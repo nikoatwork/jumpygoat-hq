@@ -8,7 +8,7 @@ Breaking changes are acceptable until release. Prefer a clean primitive model ov
 
 ## Vision
 
-agenthq should be the **smallest useful open-source agent operations layer**: the minimal version of Hermes/OpenClaw-style agent infrastructure, focused on strong primitives, limited features, and easy extension.
+jumpyGoatHq should be the **smallest useful open-source agent operations layer**: the minimal version of Hermes/OpenClaw-style agent infrastructure, focused on strong primitives, limited features, and easy extension.
 
 It is not trying to become a broad personal assistant, workflow builder, or hosted SaaS. It should be a small core that lets operators define agents as files, run them on schedules or queued tasks, inspect exactly what happened, and extend capabilities with safe connectors/tools.
 
@@ -18,7 +18,7 @@ Pi runtime + file-native agents + automations/tasks + run observability + connec
 
 ## Product sentence
 
-agenthq is a minimal, open-source, file-native control plane for Pi-powered agents: define agents as markdown, run them on schedules or assigned tasks, inspect auditable runs, and extend behavior through gated connectors and domain tools.
+jumpyGoatHq is a minimal, open-source, file-native control plane for Pi-powered agents: define agents as markdown, run them on schedules or assigned tasks, inspect auditable runs, and extend behavior through gated connectors and domain tools.
 
 ## What we borrow from Hermes/OpenClaw
 

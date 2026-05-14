@@ -2,7 +2,7 @@
 
 Connectors are Pi extension tools assembled by the runner for one automation or task invocation. Pi must see connector results and failures while it reasons, so in-run tools are the default connector mode.
 
-AgentHQ boundary: agent bundles own identity, instructions, context, and capability policy; connectors/tools own governed external capability. That means connectors are responsible for secrets, provider schemas, Pi-safe tool names, side-effect policy, bounded results, and connector audit records. Agent-local resources, procedures, or scripts must not become an ungated bypass for external services.
+jumpyGoatHq boundary: agent bundles own identity, instructions, context, and capability policy; connectors/tools own governed external capability. That means connectors are responsible for secrets, provider schemas, Pi-safe tool names, side-effect policy, bounded results, and connector audit records. Agent-local resources, procedures, or scripts must not become an ungated bypass for external services.
 
 ## Boundaries
 
@@ -29,11 +29,11 @@ Intent to tool mapping:
 
 ## Runtime config and secrets
 
-The runner resolves a `ConnectorPlan`, serializes non-secret run/config values into `AGENTHQ_CONNECTORS_CONFIG_JSON`, and passes the static extension with `--extension`. Secrets stay in environment variables:
+The runner resolves a `ConnectorPlan`, serializes non-secret run/config values into `JUMPYGOATHQ_CONNECTORS_CONFIG_JSON`, and passes the static extension with `--extension`. Secrets stay in environment variables:
 
 - `FIRECRAWL_API_KEY`
 - `RESEND_API_KEY`
-- optional notification defaults: `AGENTHQ_NOTIFY_EMAIL_TO`, `AGENTHQ_NOTIFY_EMAIL_FROM`, `AGENTHQ_NOTIFY_SUBJECT_PREFIX`
+- optional notification defaults: `JUMPYGOATHQ_NOTIFY_EMAIL_TO`, `JUMPYGOATHQ_NOTIFY_EMAIL_FROM`, `JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX`
 
 ## Tool behavior
 
@@ -46,7 +46,7 @@ The runner resolves a `ConnectorPlan`, serializes non-secret run/config values i
 
 Connector summaries are stored in tool result `details.connectorSummary`. The runner also scans Pi JSON trace `tool_execution_start`/`tool_execution_end` events and persists compact records to `runs.connector_actions_json`. Records include successes and failures, but not large Firecrawl payloads.
 
-Legacy fenced `agenthq-action` email blocks are still parsed after the run for migration compatibility. If `notify_email` was already called in-run, legacy email sending is skipped to reduce duplicate sends.
+Legacy fenced `jumpygoathq-action` email blocks are still parsed after the run for migration compatibility. If `notify_email` was already called in-run, legacy email sending is skipped to reduce duplicate sends.
 
 ## Adding a connector
 

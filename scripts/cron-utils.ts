@@ -52,25 +52,25 @@ export async function buildCronBlock(name: string): Promise<string> {
   const home = process.env.HOME || "";
   const pathEnv = process.env.PATH || "/usr/local/bin:/usr/bin:/bin";
   const exports = [`HOME=${shellQuote(home)}`, `PATH=${shellQuote(pathEnv)}`];
-  if (process.env.AGENTHQ_HOME) exports.push(`AGENTHQ_HOME=${shellQuote(process.env.AGENTHQ_HOME)}`);
-  if (process.env.AGENTHQ_DB_PATH) exports.push(`AGENTHQ_DB_PATH=${shellQuote(process.env.AGENTHQ_DB_PATH)}`);
+  if (process.env.JUMPYGOATHQ_HOME) exports.push(`JUMPYGOATHQ_HOME=${shellQuote(process.env.JUMPYGOATHQ_HOME)}`);
+  if (process.env.JUMPYGOATHQ_DB_PATH) exports.push(`JUMPYGOATHQ_DB_PATH=${shellQuote(process.env.JUMPYGOATHQ_DB_PATH)}`);
   const inner = `export ${exports.join(" ")}; pnpm runner ${name} >> ${shellQuote(logFile)} 2>&1`;
   const command = `cd ${shellQuote(root)} && /bin/bash -lc ${shellQuote(inner)}`;
 
   return [
     markerStart(name),
-    `# ${automation.agent} via agenthq`,
+    `# ${automation.agent} via jumpyGoatHq`,
     `${automation.schedule} ${command}`,
     markerEnd(name),
   ].join("\n");
 }
 
 export function markerStart(name: string): string {
-  return `# agenthq:start ${name}`;
+  return `# jumpygoathq:start ${name}`;
 }
 
 export function markerEnd(name: string): string {
-  return `# agenthq:end ${name}`;
+  return `# jumpygoathq:end ${name}`;
 }
 
 export function assertAutomationName(name: string | undefined): string {

@@ -79,9 +79,9 @@ function resolveResendRuntimeConfig(agent: ConnectorOverrides, automation: Conne
   const email = mergeConfig(agent.notify?.email, automation.notify?.email);
   if (!email) return undefined;
   return {
-    to: email.to || process.env.AGENTHQ_NOTIFY_EMAIL_TO,
-    from: email.from || process.env.AGENTHQ_NOTIFY_EMAIL_FROM,
-    subjectPrefix: email.subjectPrefix ?? process.env.AGENTHQ_NOTIFY_SUBJECT_PREFIX ?? "",
+    to: email.to || process.env.JUMPYGOATHQ_NOTIFY_EMAIL_TO,
+    from: email.from || process.env.JUMPYGOATHQ_NOTIFY_EMAIL_FROM,
+    subjectPrefix: email.subjectPrefix ?? process.env.JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX ?? "",
   };
 }
 

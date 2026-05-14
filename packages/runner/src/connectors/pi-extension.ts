@@ -2,13 +2,13 @@ import { createFirecrawlTools } from "./firecrawl/index.js";
 import { createResendTools } from "./resend/index.js";
 import type { ConnectorRuntimeConfig, ConnectorToolDefinition, ConnectorToolName } from "./types.js";
 
-const CONFIG_ENV = "AGENTHQ_CONNECTORS_CONFIG_JSON";
+const CONFIG_ENV = "JUMPYGOATHQ_CONNECTORS_CONFIG_JSON";
 
 type PiLike = {
   registerTool(tool: ConnectorToolDefinition): void;
 };
 
-export default function agenthqConnectorExtension(pi: PiLike): void {
+export default function jumpyGoatHqConnectorExtension(pi: PiLike): void {
   const runtime = parseRuntimeConfig(process.env[CONFIG_ENV]);
   if (!runtime || runtime.tools.length === 0) return;
 

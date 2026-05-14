@@ -1,10 +1,10 @@
 {
-  "name": "@agenthq/runner",
+  "name": "@jumpygoat-hq/runner",
   "version": "0.0.0",
   "type": "module",
   "private": true,
   "bin": {
-    "agenthq-runner": "./dist/index.js"
+    "jumpygoat-hq-runner": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
