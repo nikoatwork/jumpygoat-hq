@@ -8,6 +8,7 @@ Use this file as a map. Detailed product/runtime docs live elsewhere.
 - Vision: `tasks/vision.md`
 - Target spec/phase plan: `tasks/spec.md`
 - Architecture/current target: `docs/ARCHITECTURE.md`
+- End-to-end agent testing guide: `docs/testing/end-to-end-agent.md`
 - Canonical task changelog: `tasks/CHANGELOG.md`
 - Completed local MVP task: `tasks/done/2026-05-08_tasks-01-local-mvp.md`
 - Completed minimal web task: `tasks/done/2026-05-08_tasks-04-minimal-web.md`

@@ -69,7 +69,7 @@ Reconsider a React/client-heavy migration only if the product needs a genuinely 
 
 ## Local validation
 
-Run `pnpm validate:web` from the repo root for web build + Playwright smoke coverage. It starts the web server locally, checks the dashboard, automations page, schedule page, and runs page, and retains screenshots/traces only on failure.
+Run `pnpm check:design` for the lightweight design-system guardrails. Run `pnpm validate:web` from the repo root for web build + Playwright smoke coverage. It starts the web server locally, checks the dashboard, automations page, schedule page, and runs page, and retains screenshots/traces only on failure.
 
 ## Safety constraints
 

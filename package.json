@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.10.0",
   "scripts": {
     "build": "pnpm --filter @agenthq/runner build && pnpm --filter @agenthq/web build",
+    "check:design": "node scripts/check-design-system.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "prepare": "git config core.hooksPath .githooks || true",
     "setup:db": "pnpm --filter @agenthq/runner exec tsx ../../scripts/setup-db.ts",

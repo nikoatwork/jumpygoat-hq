@@ -1,10 +1,20 @@
 #!/usr/bin/env sh
 set -eu
 
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+
 # Validate TypeScript builds before commits that can affect TS output.
-if git diff --cached --name-only --diff-filter=ACMR | grep -Eq '(^|/)(package.json|pnpm-lock.yaml|tsconfig[^/]*\.json)$|\.(ts|tsx)$'; then
+if printf '%s\n' "$STAGED_FILES" | grep -Eq '(^|/)(package.json|pnpm-lock.yaml|tsconfig[^/]*\.json)$|\.(ts|tsx)$'; then
   echo "pre-commit: TypeScript-impacting changes detected; running pnpm build..."
   pnpm build
 else
   echo "pre-commit: no TypeScript-impacting staged changes; skipping pnpm build."
+fi
+
+# Guard the lightweight raw-HTML web design system conventions.
+if printf '%s\n' "$STAGED_FILES" | grep -Eq '^(package.json|pnpm-lock\.yaml|packages/web/(package\.json|DOCS\.md|public/.*\.css|src/.*\.(ts|tsx)))$'; then
+  echo "pre-commit: web/design-system changes detected; running pnpm check:design..."
+  pnpm check:design
+else
+  echo "pre-commit: no web/design-system staged changes; skipping design-system check."
 fi
