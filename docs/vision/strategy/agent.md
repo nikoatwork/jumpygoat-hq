@@ -56,21 +56,21 @@ Keep the primitive set small and durable:
 |---|---|
 | **Agent** | Directory-backed Pi-powered runtime persona/context/policy bundle with a required `AGENT.md` entrypoint. |
 | **Automation** | A file-backed scheduled/manual run of an agent with a prompt. |
-| **Project/task** | File-backed unit of assignable work for an agent. |
+| **Board/task** | File-backed kanban and unit of assignable work for an agent. |
 | **Run** | One auditable execution record in shared SQLite. |
 | **Connector/tool** | Extension-owned capability exposed only through gates/policy. |
 | **Gateway** | Optional browser/Slack/operator chat surface over safe domain operations. |
 
-Pi's small-folder capability pattern is an important implementation influence: a compact directory can progressively disclose instructions, references, scripts, assets, and task-specific workflows. AgentHQ borrows that bundle shape through explicit AgentHQ contracts, not by exposing untyped Pi resources as the control-plane primitive.
+Pi's small-folder capability pattern is an important implementation influence: a compact directory can progressively disclose instructions, references, scripts, assets, and task-specific workflows. jumpyGoatHq borrows that bundle shape through explicit jumpyGoatHq contracts, not by exposing untyped Pi resources as the control-plane primitive.
 
-AgentHQ agents are the stricter, operational version of that idea. An agent can grow richer than one markdown file over time: `AGENT.md` and `context/*.md` are loaded today; `references/`, `templates/`, `assets/`, `procedures/`, `scripts/`, and `memory/` are reserved until documented. AgentHQ owns lifecycle, policy, scheduling, task assignment, connector gates, workspace, and run audit around the bundle. Pi's generated-instruction flag remains an adapter detail for passing the bundle into Pi.
+jumpyGoatHq agents are the stricter, operational version of that idea. An agent can grow richer than one markdown file over time: `AGENT.md` and `context/*.md` are loaded today; `references/`, `templates/`, `assets/`, `procedures/`, `scripts/`, and `memory/` are reserved until documented. jumpyGoatHq owns lifecycle, policy, scheduling, task assignment, connector gates, workspace, and run audit around the bundle. Pi's generated-instruction flag remains an adapter detail for passing the bundle into Pi.
 
 ## Strategic guardrails
 
 ### Keep
 
 - Pi as the harness; no custom LLM/tool loop unless Pi blocks the product.
-- File-native source of truth under `workspace/` or `AGENTHQ_HOME`.
+- File-native source of truth under `workspace/` or `JUMPYGOATHQ_HOME`.
 - Shared SQLite for run history/observability, not as the primary authoring database.
 - Strong primitives over many features.
 - Open-source extensibility: documented file contracts, connector contracts, and domain-service seams.
@@ -92,7 +92,7 @@ AgentHQ agents are the stricter, operational version of that idea. An agent can 
 
 Extensibility should be boring and inspectable:
 
-- **Files first:** agents, automations, projects, and tasks are inspectable files with markdown/frontmatter entrypoints.
+- **Files first:** agents, automations, boards, and tasks are inspectable files with markdown/frontmatter entrypoints.
 - **Small contracts:** document frontmatter schemas and allowed transitions instead of hiding behavior in UI state.
 - **Domain services:** web routes, dispatcher, and chat tools should share validated read/write services.
 - **Connector gates:** external actions require both agent capability and run/task/automation configuration; agent-local resources do not bypass connector policy.
@@ -105,15 +105,15 @@ The goal is for contributors to add one connector, one adapter, one task source,
 
 ### Minimal Hermes/OpenClaw vs feature clone
 
-A clone would chase channels, memory, plugins, mobile/control surfaces, and rich session management. agenthq should instead ship the smallest slice that proves useful work can be assigned, run, observed, and extended.
+A clone would chase channels, memory, plugins, mobile/control surfaces, and rich session management. jumpyGoatHq should instead ship the smallest slice that proves useful work can be assigned, run, observed, and extended.
 
 Decision bias: build fewer features with clearer seams.
 
 ### Agent bundle vs untyped bundle flexibility
 
-Untyped Pi resource bundles can include instructions, references, scripts, assets, SQLite files, and arbitrary setup guidance. That flexibility is useful for context injection, but too loose to be AgentHQ's operations primitive: it is hard to audit capabilities, schedule safely, assign tasks, own memory/state, or gate external side effects when any bundle can smuggle behavior through scripts and instructions.
+Untyped Pi resource bundles can include instructions, references, scripts, assets, SQLite files, and arbitrary setup guidance. That flexibility is useful for context injection, but too loose to be jumpyGoatHq's operations primitive: it is hard to audit capabilities, schedule safely, assign tasks, own memory/state, or gate external side effects when any bundle can smuggle behavior through scripts and instructions.
 
-Agents are the product primitive: a typed, policy-aware, runnable bundle. `AGENT.md` is the required entrypoint; optional context/resources/memory may grow around it only through explicit AgentHQ contracts. External service access belongs to org/instance connectors and run-scoped tools, not hidden local implementations.
+Agents are the product primitive: a typed, policy-aware, runnable bundle. `AGENT.md` is the required entrypoint; optional context/resources/memory may grow around it only through explicit jumpyGoatHq contracts. External service access belongs to org/instance connectors and run-scoped tools, not hidden local implementations.
 
 Decision bias: accept breaking migration to `agent:` before release, while preserving the useful folder shape for future agent richness.
 
@@ -145,10 +145,10 @@ Decision bias: no frontend framework until agent/task/schedule workflows become 
 
 2. **Domain service/path-policy extraction**
    - One safe service layer for web, dispatcher, and future chat tools.
-   - Mutation stays under `AGENTHQ_HOME`, not repo source.
+   - Mutation stays under `JUMPYGOATHQ_HOME`, not repo source.
 
-3. **Project/task queue MVP**
-   - File-backed projects/tasks.
+3. **Board/task queue MVP**
+   - File-backed boards/tasks.
    - Single local heartbeat dispatcher.
    - Task execution creates normal run rows.
 

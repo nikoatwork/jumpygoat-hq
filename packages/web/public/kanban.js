@@ -9,7 +9,7 @@
       dragged = card;
       card.classList.add("dragging");
       event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", `${card.dataset.project}/${card.dataset.taskId}`);
+      event.dataTransfer.setData("text/plain", `${card.dataset.board}/${card.dataset.taskId}`);
     });
     card.addEventListener("dragend", () => {
       card.classList.remove("dragging");
@@ -30,11 +30,11 @@
       column.classList.remove("drag-over");
       if (!dragged) return;
       const status = column.dataset.status;
-      const project = dragged.dataset.project;
+      const board = dragged.dataset.board;
       const id = dragged.dataset.taskId;
-      if (!status || !project || !id) return;
+      if (!status || !board || !id) return;
       const body = new URLSearchParams({ status, format: "json" });
-      const response = await fetch(`/projects/${encodeURIComponent(project)}/tasks/${encodeURIComponent(id)}/status`, {
+      const response = await fetch(`/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}/status`, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body,

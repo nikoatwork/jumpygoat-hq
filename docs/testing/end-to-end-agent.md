@@ -1,23 +1,23 @@
-# Testing AgentHQ end-to-end
+# Testing jumpyGoatHq end-to-end
 
-Tight loop for coding agents testing a real AgentHQ agent/automation locally.
+Tight loop for coding agents testing a real jumpyGoatHq agent/automation locally.
 
 ## 1. Choose instance state
 
 Default local state is gitignored and safe for ad hoc tests:
 
 ```bash
-# default: AGENTHQ_HOME unset => ./workspace
+# default: JUMPYGOATHQ_HOME unset => ./workspace
 ```
 
 For extra isolation:
 
 ```bash
-export AGENTHQ_HOME=/tmp/agenthq-e2e-test
-mkdir -p "$AGENTHQ_HOME"
+export JUMPYGOATHQ_HOME=/tmp/jumpygoat-hq-e2e-test
+mkdir -p "$JUMPYGOATHQ_HOME"
 ```
 
-Do not commit active `workspace/{agents,automations,projects,data,workspaces,traces}` files.
+Do not commit active `workspace/{agents,automations,boards,data,workspaces,traces}` files.
 
 ## 2. Start web UI
 
@@ -48,16 +48,16 @@ workspace/agents/<agent>/AGENT.md              # required agent bundle entrypoin
 workspace/agents/<agent>/context/*.md          # optional scoped context loaded alphabetically
 workspace/agents/<agent>/{references,templates,assets,procedures,scripts,memory}/ # reserved, not loaded
 workspace/automations/<automation>.md          # invocation source
-workspace/projects/<project>/PROJECT.md
-workspace/projects/<project>/tasks/<task-id>.md # task invocation source
+workspace/boards/<board>/BOARD.md
+workspace/boards/<board>/tasks/<task-id>.md # task invocation source
 ```
 
-For connector tests, ensure `.env.local` has required secrets, e.g. `FIRECRAWL_API_KEY`, `RESEND_API_KEY`, and `AGENTHQ_NOTIFY_EMAIL_FROM`. Do not place secrets in `AGENT.md`, context files, or reserved agent resource directories.
+For connector tests, ensure `.env.local` has required secrets, e.g. `FIRECRAWL_API_KEY`, `RESEND_API_KEY`, and `JUMPYGOATHQ_NOTIFY_EMAIL_FROM`. Do not place secrets in `AGENT.md`, context files, or reserved agent resource directories.
 
 ## 4. Dry-check config before spending/sending
 
 ```bash
-pnpm --filter @agenthq/runner exec tsx - <<'EOF'
+pnpm --filter @jumpygoat-hq/runner exec tsx - <<'EOF'
 import { loadDotEnv } from './src/env.js';
 loadDotEnv();
 const { loadAutomation } = await import('./src/automation.js');
@@ -99,7 +99,7 @@ Web:
 CLI summary:
 
 ```bash
-pnpm --filter @agenthq/web exec tsx - <<'EOF'
+pnpm --filter @jumpygoat-hq/web exec tsx - <<'EOF'
 import { listRuns } from './src/readers.js';
 const run = listRuns(1)[0];
 console.log(JSON.stringify({ id: run?.id, automation: run?.automation, agent: run?.agent, project: run?.project, task_id: run?.task_id, status: run?.status, exit_code: run?.exit_code, connector_actions_json: run?.connector_actions_json }, null, 2));
@@ -112,7 +112,7 @@ Check generated workspace/state files under:
 
 ```txt
 workspace/workspaces/<automation>/
-workspace/data/agenthq.sqlite
+workspace/data/jumpygoat-hq.sqlite
 ```
 
 ## 7. Cleanup cost-bearing test artifacts
@@ -139,7 +139,7 @@ pnpm uninstall:cron <automation>
 If unsure whether cron was installed, verify:
 
 ```bash
-crontab -l 2>/dev/null | grep -n '<automation>\|agenthq:start\|agenthq:end' || true
+crontab -l 2>/dev/null | grep -n '<automation>\|jumpygoathq:start\|jumpygoathq:end' || true
 ```
 
-Keep useful gitignored agent/automation/project files only when requested. Otherwise remove test fixtures under `workspace/agents/`, `workspace/automations/`, `workspace/projects/`, and `workspace/workspaces/`.
+Keep useful gitignored agent/automation/board files only when requested. Otherwise remove test fixtures under `workspace/agents/`, `workspace/automations/`, `workspace/boards/`, and `workspace/workspaces/`.

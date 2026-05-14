@@ -1,10 +1,10 @@
-# agenthq — target spec
+# jumpyGoatHq — target spec
 
 This is the **pre-release target spec**. The implementation may temporarily lag while the agent refactor is in progress. Breaking changes are acceptable before release.
 
 agenthq is a **minimal open-source, file-native control plane for Pi-powered agents**.
 
-The core idea: define agents as markdown, run them through schedules or assigned tasks, store auditable run history, and expose only small gated extension points for connectors, tools, and operator surfaces. Pi owns the agent runtime. agenthq owns the product primitives around it.
+The core idea: define agents as markdown, run them through schedules or assigned tasks, store auditable run history, and expose only small gated extension points for connectors, tools, and operator surfaces. Pi owns the agent runtime. jumpyGoatHq owns the product primitives around it.
 
 ---
 
@@ -25,8 +25,8 @@ The core idea: define agents as markdown, run them through schedules or assigned
 |---|---|---|
 | **Agent** | User-facing runtime entity: Pi instructions, context, defaults, and capabilities | `agents/<name>/AGENT.md` + optional `agents/<name>/context/*.md` |
 | **Automation** | Scheduled/manual invocation of one agent with one prompt | `automations/<name>.md` |
-| **Project** | File-backed grouping for assignable work | `projects/<project>/PROJECT.md` |
-| **Task** | File-backed unit of work assigned to an agent | `projects/<project>/tasks/<task-id>.md` |
+| **Board** | File-backed grouping/kanban for assignable work | `boards/<board>/BOARD.md` |
+| **Task** | File-backed unit of work assigned to an agent | `boards/<board>/tasks/<task-id>.md` |
 | **Schedule** | When an automation should run | `manual` or 5-field cron in automation frontmatter |
 | **Dispatcher** | Local heartbeat that claims ready tasks and runs assigned agents | script/cron/systemd wrapper |
 | **Run** | One auditable execution | shared `runs` row in SQLite |
@@ -48,9 +48,9 @@ workspace/
   agents/<agent>/AGENT.md
   agents/<agent>/context/*.md
   automations/<automation>.md
-  projects/<project>/PROJECT.md
-  projects/<project>/tasks/<task-id>.md
-  data/agenthq.sqlite
+  boards/<board>/BOARD.md
+  boards/<board>/tasks/<task-id>.md
+  data/jumpygoat-hq.sqlite
   workspaces/<automation-or-task>/
   traces/
 ```
@@ -58,10 +58,10 @@ workspace/
 Deployment override:
 
 ```bash
-AGENTHQ_HOME=/var/lib/agenthq
+JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq
 ```
 
-Then the same directories live directly under `$AGENTHQ_HOME`.
+Then the same directories live directly under `$JUMPYGOATHQ_HOME`.
 
 ---
 
@@ -123,9 +123,9 @@ Optional:
 
 ---
 
-## Task/project format
+## Task/board format
 
-Target project shape:
+Target board shape:
 
 ```markdown
 ---
@@ -134,7 +134,7 @@ description: Website launch work
 defaultAgent: web-operator
 ---
 
-Project notes and constraints.
+Board notes and constraints.
 ```
 
 Target task shape:
@@ -143,7 +143,7 @@ Target task shape:
 ---
 id: 2026-05-14-write-homepage-copy
 title: Write homepage copy
-project: launch-site
+board: launch-site
 status: ready
 assignee: marketing-agent
 priority: medium
@@ -158,7 +158,7 @@ Write concise first-pass homepage copy for the product.
 Initial statuses:
 
 ```txt
-backlog, ready, doing, review, done, blocked, failed
+not-yet, ready, working-on-it, done
 ```
 
 The first dispatcher can assume one local heartbeat and simple atomic file updates; no distributed queue in v1.
@@ -167,12 +167,12 @@ The first dispatcher can assume one local heartbeat and simple atomic file updat
 
 ## Runtime flow: automation
 
-`agenthq-runner <automation>`:
+`jumpygoat-hq-runner <automation>`:
 
-1. Loads env and resolves `agenthqHome()`.
+1. Loads env and resolves `jumpyGoatHqHome()`.
 2. Parses `automations/<name>.md`.
 3. Resolves `agents/<agent>/AGENT.md` and optional context files.
-4. Opens/initializes shared SQLite at `agenthqHome()/data/agenthq.sqlite` unless overridden.
+4. Opens/initializes shared SQLite at `jumpyGoatHqHome()/data/jumpygoat-hq.sqlite` unless overridden.
 5. Inserts a `runs` row with `status = running`.
 6. Resolves connector/tool gates from agent capabilities plus automation/run config.
 7. Spawns Pi with agent instructions/context and allowed extension tools.
@@ -186,13 +186,13 @@ The first dispatcher can assume one local heartbeat and simple atomic file updat
 
 `dispatch:tasks` target behavior:
 
-1. Scans `projects/*/tasks/*.md` for `status: ready` and `assignee`.
+1. Scans `boards/*/tasks/*.md` for `status: ready` and `assignee`.
 2. Validates the assignee agent exists.
-3. Atomically claims one or a small batch by moving to `doing` and incrementing attempts.
-4. Builds a prompt from task body, task metadata, project context, and completion instructions.
+3. Atomically claims one or a small batch by moving to `working-on-it` and incrementing attempts.
+4. Builds a prompt from task body, task metadata, board context, and completion instructions.
 5. Runs the assigned agent through the same Pi/run path.
-6. Writes normal shared run rows associated with project/task metadata.
-7. Transitions task to `review`/`done` on success or `failed` on failure.
+6. Writes normal shared run rows associated with board/task metadata.
+7. Transitions task to `done` on success or `not-yet` with dispatch notes on failure.
 
 ---
 
@@ -235,7 +235,7 @@ Target pages:
 - `/` dashboard
 - `/agents`
 - `/automations`
-- `/projects`
+- `/boards`
 - `/tasks` or `/kanban`
 - `/schedule` or `/calendar`
 - `/runs`
@@ -255,7 +255,7 @@ The gateway is an optional adapter layer, not the core product.
 - Deny-by-default allowlists for Slack.
 - Domain-only tools for chat-driven Pi sessions.
 - No repo-wide shell/write access from Slack/browser sessions.
-- Chat edits user-owned AgentHQ workspace content through validated services only.
+- Chat edits user-owned jumpyGoatHq workspace content through validated services only.
 
 ---
 
@@ -263,11 +263,11 @@ The gateway is an optional adapter layer, not the core product.
 
 Preferred personal setup:
 
-1. Run `pi /login` as the Unix user that runs agenthq.
+1. Run `pi /login` as the Unix user that runs jumpyGoatHq.
 2. Verify `pi --mode json --no-session "hello"` works.
-3. Run agenthq under that same user for cron/systemd/web.
+3. Run jumpyGoatHq under that same user for cron/systemd/web.
 
-`.env.local` is optional and gitignored. Use it for provider env vars, connector secrets, and local overrides such as `AGENTHQ_HOME`.
+`.env.local` is optional and gitignored. Use it for provider env vars, connector secrets, and local overrides such as `JUMPYGOATHQ_HOME`.
 
 ---
 
@@ -292,7 +292,7 @@ Preferred personal setup:
 |---|---|
 | **now** | Agent entity refactor; docs/UI/runtime converge on `agent` as the product primitive |
 | **next** | Shared domain services and path policy for safe mutations |
-| **then** | File-backed projects/tasks and heartbeat dispatcher |
+| **then** | File-backed boards/tasks and heartbeat dispatcher |
 | **then** | Read-only schedule/calendar observability |
 | **later** | Browser gateway, then Slack adapter with strict capability policy |
 | **hardening** | systemd/timer deployment templates after primitives stabilize |

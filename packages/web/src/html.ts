@@ -52,7 +52,7 @@ export function layout(title: string, body: string): string {
         <div class="nav-group" aria-label="Work">
           <p class="nav-group-label">Work</p>
           ${navLink("tasks", "/tasks", `${icon("list")}Tasks`, active)}
-          ${navLink("projects", "/projects", `${icon("folder")}Projects`, active)}
+          ${navLink("boards", "/boards", `${icon("folder")}Boards`, active)}
         </div>
         <div class="nav-group" aria-label="Automations">
           <p class="nav-group-label">Automations</p>
@@ -93,7 +93,8 @@ function activeNavKey(title: string): string {
   if (normalized.includes("automation")) return "automations";
   if (normalized.includes("schedule")) return "schedule";
   if (normalized.includes("agent")) return "agents";
-  if (normalized.includes("project")) return "projects";
+  if (normalized.includes("board")) return "boards";
+  if (normalized.includes("project")) return "boards";
   if (normalized.includes("task")) return "tasks";
   if (normalized.includes("run")) return "runs";
   if (normalized.includes("settings")) return "settings";

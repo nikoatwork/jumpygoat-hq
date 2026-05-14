@@ -2,13 +2,13 @@
 
 agenthq is the **smallest useful open-source agent operations layer**: a file-native, local-first control plane for Pi-powered agents.
 
-The inspiration is the minimal useful slice of Hermes/OpenClaw-style infrastructure, not a feature clone. agenthq should have strong primitives, limited features, and clear extension seams.
+The inspiration is the minimal useful slice of Hermes/OpenClaw-style infrastructure, not a feature clone. jumpyGoatHq should have strong primitives, limited features, and clear extension seams.
 
 ```txt
 agents as markdown → schedules/tasks/operator commands → Pi runs → auditable SQLite history
 ```
 
-Pi is the harness. agenthq owns the product primitives around Pi: files, scheduling, task dispatch, connector gates, safe operator surfaces, and observability.
+Pi is the harness. jumpyGoatHq owns the product primitives around Pi: files, scheduling, task dispatch, connector gates, safe operator surfaces, and observability.
 
 ```text
 Agent bundle = identity, instructions, context, memory, reusable procedures
@@ -29,7 +29,7 @@ An agent is a directory-backed operational bundle with a required `AGENT.md` ent
 - allowed intents/capabilities;
 - connector/tool policy.
 
-The shape intentionally borrows Pi's useful progressive-disclosure pattern for instructions, references, scripts, assets, and workflows. AgentHQ gets that adaptability through explicit contracts without making untyped Pi resources the control-plane primitive. Today only `AGENT.md` and `context/*.md` are loaded. Future agent contracts may add explicit references, templates, assets, procedures, helper scripts, or memory/state, but lifecycle, task assignment, connector policy, workspaces, and run audit remain AgentHQ-owned.
+The shape intentionally borrows Pi's useful progressive-disclosure pattern for instructions, references, scripts, assets, and workflows. jumpyGoatHq gets that adaptability through explicit contracts without making untyped Pi resources the control-plane primitive. Today only `AGENT.md` and `context/*.md` are loaded. Future agent contracts may add explicit references, templates, assets, procedures, helper scripts, or memory/state, but lifecycle, task assignment, connector policy, workspaces, and run audit remain jumpyGoatHq-owned.
 
 An **automation** or **task** runs an agent with a prompt.
 
@@ -51,7 +51,7 @@ Edit the file → edit the behavior. Files remain the source of truth.
 
 - Minimal open-source control plane for agents.
 - Local-first/self-hostable runtime.
-- File-backed agents, automations, projects, and tasks.
+- File-backed agents, automations, boards, and tasks.
 - Shared SQLite run history for auditability.
 - Raw HTML operator UI until richer UI is clearly needed.
 - Connector/domain tool system for safe extensibility.
@@ -72,9 +72,9 @@ A small set of strong primitives can replace a meaningful slice of recurring ope
 
 > a capable agent harness + a file-defined agent + scheduled/assigned work + auditable runs + gated extensions
 
-The agent decides the steps. Pi provides the loop/tools. agenthq provides the durable product surface around it.
+The agent decides the steps. Pi provides the loop/tools. jumpyGoatHq provides the durable product surface around it.
 
-External service access should come through AgentHQ connectors/tools, not hidden agent-local service code. Agent-local resources can improve context, memory, formatting, or deterministic helper behavior; connectors own credentials, side effects, tool schemas, and audit records.
+External service access should come through jumpyGoatHq connectors/tools, not hidden agent-local service code. Agent-local resources can improve context, memory, formatting, or deterministic helper behavior; connectors own credentials, side effects, tool schemas, and audit records.
 
 ## Extensibility stance
 
@@ -106,11 +106,11 @@ Single-operator first:
 1. Keep **agents** as the product primitive while preserving a useful folder shape for future agent richness.
 2. Keep automations as file-backed scheduled/manual agent runs.
 3. Add safe domain services/path policy for all mutations.
-4. Add file-backed projects/tasks and a heartbeat dispatcher.
+4. Add file-backed boards/tasks and a heartbeat dispatcher.
 5. Add read-only schedule observability.
 6. Add browser/Slack gateway adapters through domain-only tools.
 7. Harden deployment once primitives stabilize.
 
 ## When to stop
 
-Stop adding features when they make agenthq feel like a platform clone. The goal is a minimal extensible core with excellent observability, not breadth.
+Stop adding features when they make jumpyGoatHq feel like a platform clone. The goal is a minimal extensible core with excellent observability, not breadth.

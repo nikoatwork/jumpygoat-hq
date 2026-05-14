@@ -4,8 +4,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import Database from "better-sqlite3";
 import matter from "gray-matter";
-import { agentsDir, automationsDir, dbPath, projectsDir, settingsPath, tasksDir } from "./paths.js";
-import { parseProjectMarkdown, parseTaskMarkdown, type AgentTask, type Project } from "../../shared/tasks.js";
+import { agentsDir, automationsDir, boardsDir, dbPath, settingsPath, tasksDir } from "./paths.js";
+import { parseBoardMarkdown, parseTaskMarkdown, type AgentTask, type Board } from "../../shared/tasks.js";
 import { loadSettings, type InstanceSettings } from "../../shared/settings.js";
 import { nextOccurrences } from "./schedule.js";
 
@@ -121,10 +121,12 @@ export type UsageSummaryRow = {
   currency: string;
 };
 
-export type ProjectView = Project & {
+export type BoardView = Board & {
   taskCount: number;
   warning?: string;
 };
+
+export type ProjectView = BoardView;
 
 export type TaskView = AgentTask & {
   latestRun?: RunRow | null;
@@ -205,11 +207,11 @@ export function listInstalledCronBlocks(): CronBlock[] {
   };
 
   for (const line of lines) {
-    const start = line.match(/^# agenthq:start ([^\s]+)$/);
-    const end = line.match(/^# agenthq:end ([^\s]+)$/);
+    const start = line.match(/^# jumpygoathq:start ([^\s]+)$/);
+    const end = line.match(/^# jumpygoathq:end ([^\s]+)$/);
 
     if (start) {
-      if (current) pushBlock(current, "Missing end marker before next AgentHQ cron block.");
+      if (current) pushBlock(current, "Missing end marker before next jumpyGoatHq cron block.");
       current = { name: start[1]!, lines: [line] };
       continue;
     }
@@ -232,7 +234,7 @@ export function listInstalledCronBlocks(): CronBlock[] {
     if (current) current.lines.push(line);
   }
 
-  if (current) pushBlock(current, "Missing end marker for AgentHQ cron block.");
+  if (current) pushBlock(current, "Missing end marker for jumpyGoatHq cron block.");
   return blocks;
 }
 
@@ -290,35 +292,39 @@ export async function readSchedulePageView(windowDays = 7, now = new Date()): Pr
   return { from, until, runs, occurrences, orphanCronBlocks, warnings };
 }
 
-export async function listProjects(): Promise<ProjectView[]> {
-  if (!existsSync(projectsDir())) return [];
-  const entries = await readdir(projectsDir(), { withFileTypes: true });
-  const projects: ProjectView[] = [];
+export async function listBoards(): Promise<BoardView[]> {
+  if (!existsSync(boardsDir())) return [];
+  const entries = await readdir(boardsDir(), { withFileTypes: true });
+  const boards: BoardView[] = [];
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isDirectory()) continue;
-    const file = path.join(projectsDir(), entry.name, "PROJECT.md");
+    const file = path.join(boardsDir(), entry.name, "BOARD.md");
     try {
       const raw = await readFile(file, "utf8");
-      const project = parseProjectMarkdown(entry.name, raw, file);
-      projects.push({ ...project, taskCount: await countProjectTasks(entry.name) });
+      const board = parseBoardMarkdown(entry.name, raw, file);
+      boards.push({ ...board, taskCount: await countBoardTasks(entry.name) });
     } catch (error) {
-      projects.push({ id: entry.name, name: entry.name, description: "", body: "", path: file, taskCount: 0, warning: String(error) });
+      boards.push({ id: entry.name, name: entry.name, description: "", body: "", path: file, taskCount: 0, warning: String(error) });
     }
   }
-  return projects;
+  return boards;
 }
 
-export async function readProject(name: string): Promise<ProjectView | null> {
-  const project = (await listProjects()).find((entry) => entry.id === name);
-  return project || null;
+export const listProjects = listBoards;
+
+export async function readBoard(name: string): Promise<BoardView | null> {
+  const board = (await listBoards()).find((entry) => entry.id === name);
+  return board || null;
 }
 
-export async function listTasks(projectFilter?: string): Promise<TaskView[]> {
-  const projects = projectFilter ? [projectFilter] : (await listProjects()).map((project) => project.id);
+export const readProject = readBoard;
+
+export async function listTasks(boardFilter?: string): Promise<TaskView[]> {
+  const boards = boardFilter ? [boardFilter] : (await listBoards()).map((board) => board.id);
   const latestRuns = latestTaskRuns();
   const tasks: TaskView[] = [];
-  for (const project of projects) {
-    const dir = tasksDir(project);
+  for (const board of boards) {
+    const dir = tasksDir(board);
     if (!existsSync(dir)) continue;
     const files = await readdir(dir, { withFileTypes: true });
     for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
@@ -327,14 +333,15 @@ export async function listTasks(projectFilter?: string): Promise<TaskView[]> {
       const filePath = path.join(dir, file.name);
       try {
         const raw = await readFile(filePath, "utf8");
-        const task = parseTaskMarkdown(project, id, raw, filePath);
-        tasks.push({ ...task, latestRun: latestRuns.get(`${project}/${id}`) || null });
+        const task = parseTaskMarkdown(board, id, raw, filePath);
+        tasks.push({ ...task, latestRun: latestRuns.get(`${board}/${id}`) || null });
       } catch (error) {
         tasks.push({
           id,
           title: id,
-          project,
-          status: "failed",
+          board,
+          project: board,
+          status: "not-yet",
           assignee: "",
           priority: "normal",
           created_at: "",
@@ -342,7 +349,7 @@ export async function listTasks(projectFilter?: string): Promise<TaskView[]> {
           attempts: 0,
           path: filePath,
           body: "",
-          latestRun: latestRuns.get(`${project}/${id}`) || null,
+          latestRun: latestRuns.get(`${board}/${id}`) || null,
           warning: String(error),
         });
       }
@@ -352,13 +359,13 @@ export async function listTasks(projectFilter?: string): Promise<TaskView[]> {
   return tasks;
 }
 
-export async function readTask(project: string, id: string): Promise<TaskView | null> {
-  const task = (await listTasks(project)).find((entry) => entry.id === id);
+export async function readTask(board: string, id: string): Promise<TaskView | null> {
+  const task = (await listTasks(board)).find((entry) => entry.id === id);
   return task || null;
 }
 
-async function countProjectTasks(project: string): Promise<number> {
-  const dir = tasksDir(project);
+async function countBoardTasks(board: string): Promise<number> {
+  const dir = tasksDir(board);
   if (!existsSync(dir)) return 0;
   return (await readdir(dir)).filter((file) => file.endsWith(".md")).length;
 }

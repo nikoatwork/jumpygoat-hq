@@ -1,11 +1,12 @@
-# agenthq task changelog
+# jumpyGoatHq task changelog
 
 This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
 
 ## 2026-05-14
 
+- feat: renamed project/task kanban to boards, switched task statuses to `not-yet`/`ready`/`working-on-it`/`done`, added focused `?status=` task view, updated docs, and validated web/backend — completed in `tasks/done/2026-05-14_tasks-boards-focused-kanban.md`.
 - chore: removed remaining legacy runtime concept compatibility from runtime/web/docs, including the old run column/backfill, file pointers, gitignore contracts, and UI fallbacks — completed in `tasks/done/2026-05-14_tasks-remove-skills.md`.
-- docs/runtime: clarified AgentHQ bundle/tool/invocation/run boundaries, documented reserved agent resource directories, disabled raw Pi resource/context discovery for runs, and strengthened generated agent run framing — completed in `tasks/done/2026-05-14_tasks-agent-bundle-boundaries.md`.
+- docs/runtime: clarified jumpyGoatHq bundle/tool/invocation/run boundaries, documented reserved agent resource directories, disabled raw Pi resource/context discovery for runs, and strengthened generated agent run framing — completed in `tasks/done/2026-05-14_tasks-agent-bundle-boundaries.md`.
 - feat: added instance-local semantic model profiles, settings UI, runner model resolution audit fields, best-effort Pi usage logging, usage summaries, docs, and tests — completed in `tasks/done/2026-05-14_tasks-semantic-model-profiles-settings.md` with backend smoke passing via Codex subscription (`fast` → `openai-codex/gpt-5.4-mini`).
 - feat: added a lightweight raw-HTML web design system with CSS conventions, server-side helpers, stable page refactors, docs, and passing web validation — pending archive from `tasks/todo/tasks-web-design-system.md`.
 - feat: added file-backed projects/tasks, a one-task heartbeat dispatcher, raw HTML kanban/status routes, run project/task metadata, docs, and validation — completed in `tasks/done/2026-05-14_tasks-agent-task-queue.md`.
@@ -18,7 +19,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-13
 
-- feat: restructured mutable agenthq instance state under `workspace/`/`AGENTHQ_HOME`, centralizing path helpers and updating runner, web, scripts, docs, and validation — completed in `tasks/done/2026-05-13_tasks-workspace-restructure.md`.
+- feat: restructured mutable jumpyGoatHq instance state under `workspace/`/`JUMPYGOATHQ_HOME`, centralizing path helpers and updating runner, web, scripts, docs, and validation — completed in `tasks/done/2026-05-13_tasks-workspace-restructure.md`.
 
 ## 2026-05-12
 
@@ -32,7 +33,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-08
 
-- chore: reframed agenthq around personal scheduled Pi skills instead of workflow-builder/custom-agent runtime — see `tasks/vision.md`, `tasks/spec.md`.
+- chore: reframed jumpyGoatHq around personal scheduled Pi skills instead of workflow-builder/custom-agent runtime — see `tasks/vision.md`, `tasks/spec.md`.
 - feat: built local Pi-backed runner primitive — automation files, Pi skill resolution, SQLite run storage, `.env` loading, Pi-auth-first setup, `doctor` checks, and cron scripts — completed in `tasks/done/2026-05-08_tasks-01-local-mvp.md`.
 - feat: built minimal raw HTML web viewer over automations, skills, cron blocks, and SQLite runs, including blocking “Run now” — completed in `tasks/done/2026-05-08_tasks-04-minimal-web.md` and documented in `packages/web/DOCS.md`.
 - docs: added architecture/status-quo documentation — see `docs/ARCHITECTURE.md`.
@@ -48,9 +49,9 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 - `tasks/done/2026-05-08_tasks-04-minimal-web.md` — closed; route/build/manual page checks passed, model-spending run-now verification skipped.
 - `tasks/done/2026-05-12_tasks-readable-run-traces.md` — closed; derived trace timeline implemented, docs/tests updated, and web validation completed.
 - `tasks/done/2026-05-11_tasks-firecrawl-connector.md` — closed; connector tests, build, backend smoke, and web smoke passed.
-- `tasks/done/2026-05-14_tasks-agent-entity.md` — closed; agent entity refactor completed with build, web, backend, connector, web-write, and external `AGENTHQ_HOME` validation.
-- `tasks/done/2026-05-14_tasks-agent-task-queue.md` — closed; file-backed task queue/kanban completed with build, web, backend, manual web-write/kanban/dispatch, and external `AGENTHQ_HOME` validation.
-- `tasks/done/2026-05-13_tasks-workspace-restructure.md` — closed; workspace restructure completed with build, web, backend, web-write, and external `AGENTHQ_HOME` validation.
+- `tasks/done/2026-05-14_tasks-agent-entity.md` — closed; agent entity refactor completed with build, web, backend, connector, web-write, and external `JUMPYGOATHQ_HOME` validation.
+- `tasks/done/2026-05-14_tasks-agent-task-queue.md` — closed; file-backed task queue/kanban completed with build, web, backend, manual web-write/kanban/dispatch, and external `JUMPYGOATHQ_HOME` validation.
+- `tasks/done/2026-05-13_tasks-workspace-restructure.md` — closed; workspace restructure completed with build, web, backend, web-write, and external `JUMPYGOATHQ_HOME` validation.
 - `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.
 - `tasks/todo/tasks-03-control-plane.md` — conceptually superseded by `tasks-04-minimal-web.md` for the read-only/minimal viewer; full browser editing remains deferred.
 - `tasks/done/2026-05-08_tasks-04-resend-notifications.md` — closed; build, web smoke, backend smoke, real Resend send, and no-notification smoke passed.

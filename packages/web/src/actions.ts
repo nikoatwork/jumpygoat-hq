@@ -4,8 +4,8 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
 import { agentsDir, automationsDir, repoRoot, settingsPath } from "./paths.js";
-import { generateTaskId, loadProject, loadTask, projectExists, TASK_PRIORITIES, TASK_STATUSES, transitionTaskStatus, writeProject, writeTask, type AgentTask, type Project, type TaskStatus } from "../../shared/tasks.js";
-import { listAgents, listAutomations, listProjects } from "./readers.js";
+import { boardExists, generateTaskId, loadBoard, loadTask, TASK_PRIORITIES, TASK_STATUSES, transitionTaskStatus, writeBoard, writeTask, type AgentTask, type Board, type TaskStatus } from "../../shared/tasks.js";
+import { listAgents, listAutomations, listBoards } from "./readers.js";
 import { defaultSettingsText, parseSettingsText } from "../../shared/settings.js";
 
 export type AutomationFormValues = {
@@ -21,7 +21,7 @@ export type AgentFormValues = {
   content: string;
 };
 
-export type ProjectFormValues = {
+export type BoardFormValues = {
   id: string;
   name: string;
   description: string;
@@ -29,8 +29,11 @@ export type ProjectFormValues = {
   body: string;
 };
 
+export type ProjectFormValues = BoardFormValues;
+
 export type TaskFormValues = {
   id: string;
+  board: string;
   project: string;
   title: string;
   status: string;
@@ -55,9 +58,11 @@ export function assertAgentName(name: string): void {
   if (!SAFE_NAME.test(name)) throw new Error(`Invalid agent name: ${name}`);
 }
 
-export function assertProjectName(name: string): void {
-  if (!SAFE_NAME.test(name)) throw new Error(`Invalid project name: ${name}`);
+export function assertBoardName(name: string): void {
+  if (!SAFE_NAME.test(name)) throw new Error(`Invalid board name: ${name}`);
 }
+
+export const assertProjectName = assertBoardName;
 
 export function assertTaskId(id: string): void {
   if (!SAFE_NAME.test(id)) throw new Error(`Invalid task id: ${id}`);
@@ -90,7 +95,7 @@ export function parseAgentForm(form: URLSearchParams, fallbackName = ""): AgentF
   };
 }
 
-export function parseProjectForm(form: URLSearchParams, fallbackId = ""): ProjectFormValues {
+export function parseBoardForm(form: URLSearchParams, fallbackId = ""): BoardFormValues {
   const id = String(form.get("id") || fallbackId).trim();
   return {
     id,
@@ -101,12 +106,16 @@ export function parseProjectForm(form: URLSearchParams, fallbackId = ""): Projec
   };
 }
 
-export function parseTaskForm(form: URLSearchParams, fallbackProject = "", fallbackId = ""): TaskFormValues {
+export const parseProjectForm = parseBoardForm;
+
+export function parseTaskForm(form: URLSearchParams, fallbackBoard = "", fallbackId = ""): TaskFormValues {
+  const board = String(form.get("board") || form.get("project") || fallbackBoard).trim();
   return {
     id: String(form.get("id") || fallbackId).trim(),
-    project: String(form.get("project") || fallbackProject).trim(),
+    board,
+    project: board,
     title: String(form.get("title") || "").trim(),
-    status: String(form.get("status") || "backlog").trim(),
+    status: String(form.get("status") || "not-yet").trim(),
     assignee: String(form.get("assignee") || "").trim(),
     priority: String(form.get("priority") || "normal").trim(),
     body: String(form.get("body") || ""),
@@ -137,37 +146,39 @@ export async function validateAutomation(values: AutomationFormValues, mode: "cr
   return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
-export async function validateProject(values: ProjectFormValues, mode: "create" | "update"): Promise<ValidationResult<ProjectFormValues>> {
+export async function validateBoard(values: BoardFormValues, mode: "create" | "update"): Promise<ValidationResult<BoardFormValues>> {
   const errors: string[] = [];
-  if (!SAFE_NAME.test(values.id)) errors.push("Project id must use lowercase letters, numbers, and hyphens only.");
-  if (!values.name) errors.push("Project name is required.");
+  if (!SAFE_NAME.test(values.id)) errors.push("Board id must use lowercase letters, numbers, and hyphens only.");
+  if (!values.name) errors.push("Board name is required.");
   if (values.default_agent) {
     const agents = await listAgents();
     if (!agents.some((agent) => agent.name === values.default_agent)) errors.push(`Default agent does not exist: ${values.default_agent}`);
   }
   if (SAFE_NAME.test(values.id)) {
-    const exists = projectExists(values.id);
-    if (mode === "create" && exists) errors.push(`Project already exists: ${values.id}`);
-    if (mode === "update" && !exists) errors.push(`Project does not exist: ${values.id}`);
+    const exists = boardExists(values.id);
+    if (mode === "create" && exists) errors.push(`Board already exists: ${values.id}`);
+    if (mode === "update" && !exists) errors.push(`Board does not exist: ${values.id}`);
   }
   return errors.length ? { ok: false, values, errors } : { ok: true, values };
 }
 
+export const validateProject = validateBoard;
+
 export async function validateTask(values: TaskFormValues, mode: "create" | "update"): Promise<ValidationResult<TaskFormValues>> {
   const errors: string[] = [];
   if (values.id && !SAFE_NAME.test(values.id)) errors.push("Task id must use lowercase letters, numbers, and hyphens only.");
-  if (!SAFE_NAME.test(values.project)) errors.push("Project is required.");
+  if (!SAFE_NAME.test(values.board)) errors.push("Board is required.");
   if (!values.title) errors.push("Title is required.");
   if (!TASK_STATUSES.includes(values.status as TaskStatus)) errors.push("Status is invalid.");
   if (!TASK_PRIORITIES.includes(values.priority as never)) errors.push("Priority is invalid.");
-  if ((values.status === "ready" || values.status === "doing") && !values.assignee) errors.push("Assignee is required before a task can be ready or doing.");
+  if ((values.status === "ready" || values.status === "working-on-it") && !values.assignee) errors.push("Assignee is required before a task can be ready or working on it.");
   if (values.assignee) {
     const agents = await listAgents();
     if (!agents.some((agent) => agent.name === values.assignee)) errors.push(`Assignee agent does not exist: ${values.assignee}`);
   }
-  if (SAFE_NAME.test(values.project)) {
-    const projects = await listProjects();
-    if (!projects.some((project) => project.id === values.project)) errors.push(`Project does not exist: ${values.project}`);
+  if (SAFE_NAME.test(values.board)) {
+    const boards = await listBoards();
+    if (!boards.some((board) => board.id === values.board)) errors.push(`Board does not exist: ${values.board}`);
   }
   if (mode === "update" && !values.id) errors.push("Task id is required.");
   return errors.length ? { ok: false, values, errors } : { ok: true, values };
@@ -224,15 +235,19 @@ export async function createAgent(values: AgentFormValues): Promise<void> {
   await writeAtomic(localAgentPath(values.name), values.content.trimEnd() + "\n");
 }
 
-export async function createProject(values: ProjectFormValues): Promise<void> {
-  await writeProject(projectFromValues(values));
+export async function createBoard(values: BoardFormValues): Promise<void> {
+  await writeBoard(boardFromValues(values));
 }
 
-export async function updateProject(id: string, values: ProjectFormValues): Promise<void> {
-  assertProjectName(id);
-  if (id !== values.id) throw new Error("Renaming projects is not supported. Create a new project instead.");
-  await writeProject(projectFromValues(values));
+export const createProject = createBoard;
+
+export async function updateBoard(id: string, values: BoardFormValues): Promise<void> {
+  assertBoardName(id);
+  if (id !== values.id) throw new Error("Renaming boards is not supported. Create a new board instead.");
+  await writeBoard(boardFromValues(values));
 }
+
+export const updateProject = updateBoard;
 
 export async function createTask(values: TaskFormValues): Promise<AgentTask> {
   const now = new Date().toISOString();
@@ -248,19 +263,19 @@ export async function updateSettings(values: SettingsFormValues): Promise<void> 
   await writeAtomic(settingsPath(), values.content.trimEnd() + "\n");
 }
 
-export async function updateTaskFile(project: string, id: string, values: TaskFormValues): Promise<void> {
-  assertProjectName(project);
+export async function updateTaskFile(board: string, id: string, values: TaskFormValues): Promise<void> {
+  assertBoardName(board);
   assertTaskId(id);
-  if (project !== values.project || id !== values.id) throw new Error("Renaming or moving tasks is not supported. Create a new task instead.");
-  const current = await loadTask(project, id);
+  if (board !== values.board || id !== values.id) throw new Error("Renaming or moving tasks is not supported. Create a new task instead.");
+  const current = await loadTask(board, id);
   await writeTask(taskFromValues(values, current.created_at, new Date().toISOString(), current.attempts, current.claimed_at, current.run_id));
 }
 
-export async function setTaskStatus(project: string, id: string, status: string): Promise<void> {
-  assertProjectName(project);
+export async function setTaskStatus(board: string, id: string, status: string): Promise<void> {
+  assertBoardName(board);
   assertTaskId(id);
   if (!TASK_STATUSES.includes(status as TaskStatus)) throw new Error(`Invalid task status: ${status}`);
-  await transitionTaskStatus(project, id, status as TaskStatus);
+  await transitionTaskStatus(board, id, status as TaskStatus);
 }
 
 export async function updateAgent(name: string, values: AgentFormValues): Promise<void> {
@@ -295,22 +310,25 @@ export async function readAgentRaw(name: string): Promise<AgentFormValues> {
   return { name, content: await readFile(localAgentPath(name), "utf8") };
 }
 
-export async function readProjectRaw(id: string): Promise<ProjectFormValues> {
-  const project = await loadProject(id);
+export async function readBoardRaw(id: string): Promise<BoardFormValues> {
+  const board = await loadBoard(id);
   return {
-    id: project.id,
-    name: project.name,
-    description: project.description,
-    default_agent: project.default_agent || "",
-    body: project.body,
+    id: board.id,
+    name: board.name,
+    description: board.description,
+    default_agent: board.default_agent || "",
+    body: board.body,
   };
 }
 
-export async function readTaskRaw(project: string, id: string): Promise<TaskFormValues> {
-  const task = await loadTask(project, id);
+export const readProjectRaw = readBoardRaw;
+
+export async function readTaskRaw(board: string, id: string): Promise<TaskFormValues> {
+  const task = await loadTask(board, id);
   return {
     id: task.id,
-    project: task.project,
+    board: task.board,
+    project: task.board,
     title: task.title,
     status: task.status,
     assignee: task.assignee,
@@ -325,12 +343,14 @@ export async function readSettingsRaw(): Promise<SettingsFormValues> {
 }
 
 export function defaultAgentContent(name: string): string {
-  return `---\nname: ${name || "new-agent"}\ndescription: Describe this agent's operational role.\nallowedIntents: []\n---\n\n## Identity\n\nDescribe who this agent is responsible for being and what outcomes it owns.\n\n## Operating policy\n\nDescribe how the agent should decide, what context it should trust, and what it must not do.\n\n## Connector policy\n\nExternal services and side effects must use AgentHQ connectors enabled by allowedIntents plus invocation config. Do not put secrets in this file.\n\n## Output expectations\n\nDescribe the final response format for automations and assigned tasks.\n`;
+  return `---\nname: ${name || "new-agent"}\ndescription: Describe this agent's operational role.\nallowedIntents: []\n---\n\n## Identity\n\nDescribe who this agent is responsible for being and what outcomes it owns.\n\n## Operating policy\n\nDescribe how the agent should decide, what context it should trust, and what it must not do.\n\n## Connector policy\n\nExternal services and side effects must use jumpyGoatHq connectors enabled by allowedIntents plus invocation config. Do not put secrets in this file.\n\n## Output expectations\n\nDescribe the final response format for automations and assigned tasks.\n`;
 }
 
-export function defaultProjectBody(name: string): string {
-  return `# ${name || "Project"}\n\nDescribe the project context, constraints, and definition of done for assigned tasks.\n`;
+export function defaultBoardBody(name: string): string {
+  return `# ${name || "Board"}\n\nDescribe the board context, constraints, and definition of done for assigned tasks.\n`;
 }
+
+export const defaultProjectBody = defaultBoardBody;
 
 export async function runNow(name: string): Promise<{ stdout: string; stderr: string }> {
   assertAutomationName(name);
@@ -345,7 +365,7 @@ export async function runNow(name: string): Promise<{ stdout: string; stderr: st
   });
 }
 
-function projectFromValues(values: ProjectFormValues): Project {
+function boardFromValues(values: BoardFormValues): Board {
   return {
     id: values.id,
     name: values.name,
@@ -359,7 +379,8 @@ function taskFromValues(values: TaskFormValues, createdAt: string, updatedAt: st
   return {
     id: values.id,
     title: values.title,
-    project: values.project,
+    board: values.board,
+    project: values.board,
     status: values.status as TaskStatus,
     assignee: values.assignee,
     priority: values.priority as AgentTask["priority"],

@@ -3,20 +3,20 @@ import { readFile } from "node:fs/promises";
 import {
   createAutomation,
   createAgent,
-  createProject,
+  createBoard,
   createTask,
   defaultAgentContent,
-  defaultProjectBody,
+  defaultBoardBody,
   deleteAutomation,
   deleteAgent,
   parseAutomationForm,
   parseAgentForm,
-  parseProjectForm,
+  parseBoardForm,
   parseSettingsForm,
   parseTaskForm,
   readAutomationRaw,
   readAgentRaw,
-  readProjectRaw,
+  readBoardRaw,
   readSettingsRaw,
   readTaskRaw,
   runNow,
@@ -24,23 +24,23 @@ import {
   updateSettings,
   updateAutomation,
   updateAgent,
-  updateProject,
+  updateBoard,
   updateTaskFile,
   validateAutomation,
   validateAgent,
-  validateProject,
+  validateBoard,
   validateSettings,
   validateTask,
   type AutomationFormValues,
   type AgentFormValues,
-  type ProjectFormValues,
+  type BoardFormValues,
   type SettingsFormValues,
   type TaskFormValues,
 } from "./actions.js";
-import { TASK_STATUSES, type TaskStatus } from "../../shared/tasks.js";
+import { TASK_STATUSES, taskStatusLabel, type TaskStatus } from "../../shared/tasks.js";
 import { badge, date, duration, emptyState, errorPage, escapeHtml, icon, inlineActions, layout, metaTable, notFound, notice, pageHeader, raw, runLink, section, status, table, toolbar } from "./html.js";
-import { agenthqHome, dbPath } from "./paths.js";
-import { getRun, listAutomations, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listProjects, listTasks, readProject, readSchedulePageView, readSettingsView, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
+import { jumpyGoatHqHome, dbPath } from "./paths.js";
+import { getRun, listAutomations, listBoards, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listTasks, readBoard, readSchedulePageView, readSettingsView, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
 import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
 
 export type ResponseData = { status: number; headers?: Record<string, string>; body: string };
@@ -54,11 +54,13 @@ export async function route(method: string, url: URL, form?: URLSearchParams): P
     if (method === "GET" && url.pathname === "/schedule") return html(await schedulePage());
     if (method === "GET" && url.pathname === "/settings") return html(await settingsPage(url));
     if (method === "POST" && url.pathname === "/settings") return await updateSettingsRoute(form || new URLSearchParams());
-    if (method === "GET" && url.pathname === "/projects") return html(await projectsPage(url));
-    if (method === "GET" && url.pathname === "/projects/new") return html(await projectFormPage("Create project", parseProjectForm(new URLSearchParams()), []));
-    if (method === "POST" && url.pathname === "/projects") return await createProjectRoute(form || new URLSearchParams());
+    if (method === "GET" && url.pathname === "/projects") return redirect("/boards");
+    if (method === "GET" && url.pathname === "/projects/new") return redirect("/boards/new");
+    if (method === "GET" && url.pathname === "/boards") return html(await boardsPage(url));
+    if (method === "GET" && url.pathname === "/boards/new") return html(await boardFormPage("Create board", parseBoardForm(new URLSearchParams()), []));
+    if (method === "POST" && url.pathname === "/boards") return await createBoardRoute(form || new URLSearchParams());
     if (method === "GET" && url.pathname === "/tasks") return html(await kanbanPage(url));
-    if (method === "GET" && url.pathname === "/tasks/new") return html(await taskFormPage("Create task", parseTaskForm(url.searchParams, url.searchParams.get("project") || ""), []));
+    if (method === "GET" && url.pathname === "/tasks/new") return html(await taskFormPage("Create task", parseTaskForm(url.searchParams, url.searchParams.get("board") || url.searchParams.get("project") || ""), []));
     if (method === "POST" && url.pathname === "/tasks") return await createTaskRoute(form || new URLSearchParams());
     if (method === "GET" && url.pathname === "/automations/new") return html(await automationFormPage("Create automation", parseAutomationForm(new URLSearchParams()), []));
     if (method === "POST" && url.pathname === "/automations") return await createAutomationRoute(form || new URLSearchParams());
@@ -70,27 +72,33 @@ export async function route(method: string, url: URL, form?: URLSearchParams): P
     const runMatch = url.pathname.match(/^\/runs\/([^/]+)$/);
     if (method === "GET" && runMatch) return html(runDetailPage(decodeURIComponent(runMatch[1]!)));
 
-    const projectEditMatch = url.pathname.match(/^\/projects\/([a-z0-9-]+)\/edit$/);
-    if (method === "GET" && projectEditMatch) {
-      const name = decodeURIComponent(projectEditMatch[1]!);
-      return html(await projectFormPage(`Edit project ${name}`, await readProjectRaw(name), [], name));
+    const legacyProjectTaskMatch = url.pathname.match(/^\/projects\/([a-z0-9-]+)\/tasks\/([a-z0-9-]+)(\/edit|\/status)?$/);
+    if (method === "GET" && legacyProjectTaskMatch) return redirect(`/boards/${encodeURIComponent(decodeURIComponent(legacyProjectTaskMatch[1]!))}/tasks/${encodeURIComponent(decodeURIComponent(legacyProjectTaskMatch[2]!))}${legacyProjectTaskMatch[3] || ""}`);
+
+    const legacyProjectMatch = url.pathname.match(/^\/projects\/([a-z0-9-]+)(\/edit)?$/);
+    if (method === "GET" && legacyProjectMatch) return redirect(`/boards/${encodeURIComponent(decodeURIComponent(legacyProjectMatch[1]!))}${legacyProjectMatch[2] || ""}`);
+
+    const boardEditMatch = url.pathname.match(/^\/boards\/([a-z0-9-]+)\/edit$/);
+    if (method === "GET" && boardEditMatch) {
+      const name = decodeURIComponent(boardEditMatch[1]!);
+      return html(await boardFormPage(`Edit board ${name}`, await readBoardRaw(name), [], name));
     }
 
-    const projectViewMatch = url.pathname.match(/^\/projects\/([a-z0-9-]+)$/);
-    if (method === "GET" && projectViewMatch) return html(await projectDetailPage(decodeURIComponent(projectViewMatch[1]!), url));
-    if (method === "POST" && projectViewMatch) return await updateProjectRoute(decodeURIComponent(projectViewMatch[1]!), form || new URLSearchParams());
+    const boardViewMatch = url.pathname.match(/^\/boards\/([a-z0-9-]+)$/);
+    if (method === "GET" && boardViewMatch) return html(await boardDetailPage(decodeURIComponent(boardViewMatch[1]!), url));
+    if (method === "POST" && boardViewMatch) return await updateBoardRoute(decodeURIComponent(boardViewMatch[1]!), form || new URLSearchParams());
 
-    const taskEditMatch = url.pathname.match(/^\/projects\/([a-z0-9-]+)\/tasks\/([a-z0-9-]+)\/edit$/);
+    const taskEditMatch = url.pathname.match(/^\/boards\/([a-z0-9-]+)\/tasks\/([a-z0-9-]+)\/edit$/);
     if (method === "GET" && taskEditMatch) {
-      const project = decodeURIComponent(taskEditMatch[1]!);
+      const board = decodeURIComponent(taskEditMatch[1]!);
       const id = decodeURIComponent(taskEditMatch[2]!);
-      return html(await taskFormPage(`Edit task ${project}/${id}`, await readTaskRaw(project, id), [], project, id));
+      return html(await taskFormPage(`Edit task ${board}/${id}`, await readTaskRaw(board, id), [], board, id));
     }
 
-    const taskStatusMatch = url.pathname.match(/^\/projects\/([a-z0-9-]+)\/tasks\/([a-z0-9-]+)\/status$/);
+    const taskStatusMatch = url.pathname.match(/^\/boards\/([a-z0-9-]+)\/tasks\/([a-z0-9-]+)\/status$/);
     if (method === "POST" && taskStatusMatch) return await updateTaskStatusRoute(decodeURIComponent(taskStatusMatch[1]!), decodeURIComponent(taskStatusMatch[2]!), form || new URLSearchParams());
 
-    const taskViewMatch = url.pathname.match(/^\/projects\/([a-z0-9-]+)\/tasks\/([a-z0-9-]+)$/);
+    const taskViewMatch = url.pathname.match(/^\/boards\/([a-z0-9-]+)\/tasks\/([a-z0-9-]+)$/);
     if (method === "GET" && taskViewMatch) return html(await taskDetailPage(decodeURIComponent(taskViewMatch[1]!), decodeURIComponent(taskViewMatch[2]!)));
     if (method === "POST" && taskViewMatch) return await updateTaskRoute(decodeURIComponent(taskViewMatch[1]!), decodeURIComponent(taskViewMatch[2]!), form || new URLSearchParams());
 
@@ -193,20 +201,20 @@ async function deleteAgentRoute(name: string, form: URLSearchParams): Promise<Re
   return redirect("/agents?deleted=" + encodeURIComponent(name));
 }
 
-async function createProjectRoute(form: URLSearchParams): Promise<ResponseData> {
-  const values = parseProjectForm(form);
-  const result = await validateProject(values, "create");
-  if (!result.ok) return html(await projectFormPage("Create project", result.values, result.errors), 400);
-  await createProject(result.values);
-  return redirect("/projects?created=" + encodeURIComponent(result.values.id));
+async function createBoardRoute(form: URLSearchParams): Promise<ResponseData> {
+  const values = parseBoardForm(form);
+  const result = await validateBoard(values, "create");
+  if (!result.ok) return html(await boardFormPage("Create board", result.values, result.errors), 400);
+  await createBoard(result.values);
+  return redirect("/boards?created=" + encodeURIComponent(result.values.id));
 }
 
-async function updateProjectRoute(id: string, form: URLSearchParams): Promise<ResponseData> {
-  const values = parseProjectForm(form, id);
-  const result = await validateProject(values, "update");
-  if (!result.ok) return html(await projectFormPage(`Edit project ${id}`, result.values, result.errors, id), 400);
-  await updateProject(id, result.values);
-  return redirect("/projects?updated=" + encodeURIComponent(id));
+async function updateBoardRoute(id: string, form: URLSearchParams): Promise<ResponseData> {
+  const values = parseBoardForm(form, id);
+  const result = await validateBoard(values, "update");
+  if (!result.ok) return html(await boardFormPage(`Edit board ${id}`, result.values, result.errors, id), 400);
+  await updateBoard(id, result.values);
+  return redirect("/boards?updated=" + encodeURIComponent(id));
 }
 
 async function createTaskRoute(form: URLSearchParams): Promise<ResponseData> {
@@ -214,21 +222,21 @@ async function createTaskRoute(form: URLSearchParams): Promise<ResponseData> {
   const result = await validateTask(values, "create");
   if (!result.ok) return html(await taskFormPage("Create task", result.values, result.errors), 400);
   const task = await createTask(result.values);
-  return redirect(`/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}?created=1`);
+  return redirect(`/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}?created=1`);
 }
 
-async function updateTaskRoute(project: string, id: string, form: URLSearchParams): Promise<ResponseData> {
-  const values = parseTaskForm(form, project, id);
+async function updateTaskRoute(board: string, id: string, form: URLSearchParams): Promise<ResponseData> {
+  const values = parseTaskForm(form, board, id);
   const result = await validateTask(values, "update");
-  if (!result.ok) return html(await taskFormPage(`Edit task ${project}/${id}`, result.values, result.errors, project, id), 400);
-  await updateTaskFile(project, id, result.values);
-  return redirect(`/projects/${encodeURIComponent(project)}/tasks/${encodeURIComponent(id)}?updated=1`);
+  if (!result.ok) return html(await taskFormPage(`Edit task ${board}/${id}`, result.values, result.errors, board, id), 400);
+  await updateTaskFile(board, id, result.values);
+  return redirect(`/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}?updated=1`);
 }
 
-async function updateTaskStatusRoute(project: string, id: string, form: URLSearchParams): Promise<ResponseData> {
+async function updateTaskStatusRoute(board: string, id: string, form: URLSearchParams): Promise<ResponseData> {
   const next = String(form.get("status") || "");
   try {
-    await setTaskStatus(project, id, next);
+    await setTaskStatus(board, id, next);
   } catch (error) {
     if (form.get("format") === "json") return { status: 400, headers: { "content-type": "application/json" }, body: JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }) };
     return html(layout("Task status error", `<h2>Task status error</h2><p class="error">${escapeHtml(error instanceof Error ? error.message : String(error))}</p><p><a href="/tasks">Back to tasks</a></p>`), 400);
@@ -246,16 +254,16 @@ async function updateSettingsRoute(form: URLSearchParams): Promise<ResponseData>
 }
 
 async function dashboard(): Promise<string> {
-  const [automations, agents, projects, tasks] = await Promise.all([listAutomations(), listAgents(), listProjects(), listTasks()]);
+  const [automations, agents, boards, tasks] = await Promise.all([listAutomations(), listAgents(), listBoards(), listTasks()]);
   const cron = listInstalledCronBlocks();
   const runs = listRuns(10);
   const failures = runs.filter((r) => r.status !== "ok").slice(0, 5);
   return layout("Dashboard", `
-    ${pageHeader("Overview", { meta: `Workspace: <code>${escapeHtml(agenthqHome())}</code>${process.env.AGENTHQ_HOME ? ` (AGENTHQ_HOME=${escapeHtml(process.env.AGENTHQ_HOME)})` : " (default local workspace)"}<br>DB: <code>${escapeHtml(dbPath())}</code>` })}
+    ${pageHeader("Overview", { meta: `Workspace: <code>${escapeHtml(jumpyGoatHqHome())}</code>${process.env.JUMPYGOATHQ_HOME ? ` (JUMPYGOATHQ_HOME=${escapeHtml(process.env.JUMPYGOATHQ_HOME)})` : " (default local workspace)"}<br>DB: <code>${escapeHtml(dbPath())}</code>` })}
     ${section("Workspace summary", `<ul>
       <li>Automations: ${automations.length}</li>
       <li>Agents: ${agents.length}</li>
-      <li>Projects: ${projects.length}</li>
+      <li>Boards: ${boards.length}</li>
       <li>Tasks: ${tasks.length}</li>
       <li>Installed cron jobs: ${cron.length}</li>
       <li>Recent runs shown: ${runs.length}</li>
@@ -328,7 +336,7 @@ async function schedulePage(): Promise<string> {
     ${section("Upcoming agenda", agenda)}
     ${section("Scheduled run summary", table(["Automation", "Agent", "Schedule", "Model", "Cron", "Next run", "Count", "Warnings"], rows, { empty: "No automations found." }))}
     ${section("Manual automations", table(["Automation", "Agent", "Status", "Warnings"], manualRows, { empty: "No manual automations found." }))}
-    ${section("Installed cron orphans", table(["Name", "Command", "Warning"], orphanRows, { empty: "No orphan AgentHQ cron blocks found." }))}
+    ${section("Installed cron orphans", table(["Name", "Command", "Warning"], orphanRows, { empty: "No orphan jumpyGoatHq cron blocks found." }))}
     ${toolbar(`<span class="muted">Scheduled automations in window: ${scheduled.length}. Manual automations are excluded from the occurrence list.</span>`)}
   `);
 }
@@ -418,111 +426,139 @@ async function automationFormPage(title: string, values: AutomationFormValues, e
   `);
 }
 
-async function projectsPage(url: URL): Promise<string> {
-  const projects = await listProjects();
+async function boardsPage(url: URL): Promise<string> {
+  const boards = await listBoards();
   const message = pageMessage(url, ["created", "updated"]);
-  const rows = projects.map((project) => `<tr>
-    <td><a href="/projects/${encodeURIComponent(project.id)}"><code>${escapeHtml(project.id)}</code></a>${project.warning ? `<br><b class="error">${escapeHtml(project.warning)}</b>` : ""}</td>
-    <td>${escapeHtml(project.name)}</td>
-    <td>${clamp(project.description)}</td>
-    <td>${escapeHtml(project.default_agent || "")}</td>
-    <td>${project.taskCount}</td>
-    <td class="actions"><a href="/projects/${encodeURIComponent(project.id)}/edit">${icon("pen")}Edit</a><a href="/tasks?project=${encodeURIComponent(project.id)}">Kanban</a><a href="/tasks/new?project=${encodeURIComponent(project.id)}">${icon("plus")}Task</a></td>
+  const rows = boards.map((board) => `<tr>
+    <td><a href="/boards/${encodeURIComponent(board.id)}"><code>${escapeHtml(board.id)}</code></a>${board.warning ? `<br><b class="error">${escapeHtml(board.warning)}</b>` : ""}</td>
+    <td>${escapeHtml(board.name)}</td>
+    <td>${clamp(board.description)}</td>
+    <td>${escapeHtml(board.default_agent || "")}</td>
+    <td>${board.taskCount}</td>
+    <td class="actions"><a href="/boards/${encodeURIComponent(board.id)}/edit">${icon("pen")}Edit</a><a href="/tasks?board=${encodeURIComponent(board.id)}">Kanban</a><a href="/tasks/new?board=${encodeURIComponent(board.id)}">${icon("plus")}Task</a></td>
   </tr>`).join("");
-  return layout("Projects", `
-    ${pageHeader("Projects", { description: "Project folders group related one-off tasks and shared context.", actions: `<a href="/projects/new" class="button-link">${icon("plus")}Create project</a><a href="/tasks" class="button-link">Tasks kanban</a>` })}
+  return layout("Boards", `
+    ${pageHeader("Boards", { description: "Boards group related one-off tasks and shared context.", actions: `<a href="/boards/new" class="button-link">${icon("plus")}Create board</a><a href="/tasks" class="button-link">Tasks kanban</a>` })}
     ${message}
-    ${projects.length === 0 ? "<p>No projects found. Create one to start assigning tasks.</p>" : `<table><tr><th>Id</th><th>Name</th><th>Description</th><th>Default agent</th><th>Tasks</th><th>Action</th></tr>${rows}</table>`}
+    ${boards.length === 0 ? "<p>No boards found. Create one to start assigning tasks.</p>" : `<table><tr><th>Id</th><th>Name</th><th>Description</th><th>Default agent</th><th>Tasks</th><th>Action</th></tr>${rows}</table>`}
   `);
 }
 
-async function projectDetailPage(id: string, url: URL): Promise<string> {
-  const project = await readProject(id);
-  if (!project) return layout("Project not found", `<h2>Project not found</h2><p>No project found for <code>${escapeHtml(id)}</code>.</p>`);
+async function boardDetailPage(id: string, url: URL): Promise<string> {
+  const board = await readBoard(id);
+  if (!board) return layout("Board not found", `<h2>Board not found</h2><p>No board found for <code>${escapeHtml(id)}</code>.</p>`);
   const tasks = await listTasks(id);
-  return layout(`Project ${id}`, `
-    <h2>Project <code>${escapeHtml(id)}</code></h2>
+  return layout(`Board ${id}`, `
+    <h2>Board <code>${escapeHtml(id)}</code></h2>
     ${pageMessage(url, ["created", "updated"])}
-    <p><a href="/projects/${encodeURIComponent(id)}/edit">Edit</a> <a href="/tasks/new?project=${encodeURIComponent(id)}">Create task</a> <a href="/tasks?project=${encodeURIComponent(id)}">Kanban</a> <a href="/projects">Back to projects</a></p>
+    <p><a href="/boards/${encodeURIComponent(id)}/edit">Edit</a> <a href="/tasks/new?board=${encodeURIComponent(id)}">Create task</a> <a href="/tasks?board=${encodeURIComponent(id)}">Kanban</a> <a href="/boards">Back to boards</a></p>
     <table>
-      <tr><th>Name</th><td>${escapeHtml(project.name)}</td></tr>
-      <tr><th>Description</th><td>${escapeHtml(project.description)}</td></tr>
-      <tr><th>Default agent</th><td>${escapeHtml(project.default_agent || "")}</td></tr>
-      <tr><th>Path</th><td><code>${escapeHtml(project.path || "")}</code></td></tr>
+      <tr><th>Name</th><td>${escapeHtml(board.name)}</td></tr>
+      <tr><th>Description</th><td>${escapeHtml(board.description)}</td></tr>
+      <tr><th>Default agent</th><td>${escapeHtml(board.default_agent || "")}</td></tr>
+      <tr><th>Path</th><td><code>${escapeHtml(board.path || "")}</code></td></tr>
     </table>
-    <h3>Project body</h3>
-    ${project.body ? `<pre>${escapeHtml(project.body)}</pre>` : "<p class=\"muted\">No project body.</p>"}
+    <h3>Board body</h3>
+    ${board.body ? `<pre>${escapeHtml(board.body)}</pre>` : "<p class=\"muted\">No board body.</p>"}
     <h3>Tasks</h3>
     ${tasksTable(tasks)}
   `);
 }
 
 async function kanbanPage(url: URL): Promise<string> {
-  const project = url.searchParams.get("project") || undefined;
-  const tasks = await listTasks(project);
+  const board = url.searchParams.get("board") || url.searchParams.get("project") || undefined;
+  const focusedStatus = parseFocusedStatus(url.searchParams.get("status"));
+  const tasks = await listTasks(board);
   const columns = TASK_STATUSES.map((statusName) => {
     const columnTasks = tasks.filter((task) => task.status === statusName);
     const cards = columnTasks.map(taskCard).join("");
-    const newTaskHref = `/tasks/new?status=${encodeURIComponent(statusName)}${project ? `&project=${encodeURIComponent(project)}` : ""}`;
-    return `<section class="kanban-column" data-status="${escapeHtml(statusName)}"><div class="kanban-column-header"><h3>${escapeHtml(statusName)} <span class="muted">${columnTasks.length}</span></h3><a class="button-link kanban-new-task" href="${escapeHtml(newTaskHref)}">+ new task</a></div><div class="kanban-dropzone">${cards || "<p class=\"muted\">No tasks.</p>"}</div></section>`;
+    const newTaskHref = taskNewHref(statusName, board);
+    const focusHref = tasksHref(board, statusName);
+    const isCollapsed = Boolean(focusedStatus && focusedStatus !== statusName);
+    if (isCollapsed) {
+      return `<a class="kanban-column kanban-column-collapsed" href="${escapeHtml(focusHref)}" data-status="${escapeHtml(statusName)}"><span>${escapeHtml(taskStatusLabel(statusName))}</span><strong>${columnTasks.length}</strong></a>`;
+    }
+    return `<section class="kanban-column${focusedStatus === statusName ? " focused" : ""}" data-status="${escapeHtml(statusName)}"><div class="kanban-column-header"><h3>${escapeHtml(taskStatusLabel(statusName))} <span class="muted">${columnTasks.length}</span></h3><a class="button-link kanban-new-task" href="${escapeHtml(newTaskHref)}">+ new task</a></div><div class="kanban-dropzone">${cards || "<p class=\"muted\">No tasks.</p>"}</div></section>`;
   }).join("");
+  const focusActions = focusedStatus ? `<a href="${escapeHtml(tasksHref(board))}" class="button-link">All columns</a>` : "";
   return layout("Tasks", `
-    ${pageHeader(`Tasks${project ? ` for ${project}` : ""}`, { description: "One-off prompts assigned to agents, claimed by the task heartbeat dispatcher when ready.", actions: `<a href="/tasks/new${project ? `?project=${encodeURIComponent(project)}` : ""}" class="button-link">${icon("plus")}Create task</a><a href="/projects" class="button-link">Projects</a>` })}
+    ${pageHeader(`Tasks${board ? ` for ${board}` : ""}`, { description: "One-off prompts assigned to agents. Move cards to ready when they should dispatch.", actions: `<a href="${escapeHtml(taskNewHref(undefined, board))}" class="button-link">${icon("plus")}Create task</a><a href="/boards" class="button-link">Boards</a>${focusActions}` })}
     ${pageMessage(url, ["created", "updated"])}
-    <div class="kanban-board" data-kanban>${columns}</div>
+    ${focusedStatus ? `<p class="notice">Focused on <strong>${escapeHtml(taskStatusLabel(focusedStatus))}</strong>.</p>` : ""}
+    <div class="kanban-board${focusedStatus ? " focused" : ""}" data-kanban>${columns}</div>
     <script src="/kanban.js" defer></script>
   `);
 }
 
-async function projectFormPage(title: string, values: ProjectFormValues, errors: string[], editingId?: string): Promise<string> {
+function parseFocusedStatus(value: string | null): TaskStatus | undefined {
+  return value && TASK_STATUSES.includes(value as TaskStatus) ? value as TaskStatus : undefined;
+}
+
+function tasksHref(board?: string, statusName?: string): string {
+  const params = new URLSearchParams();
+  if (board) params.set("board", board);
+  if (statusName) params.set("status", statusName);
+  const suffix = params.toString();
+  return `/tasks${suffix ? `?${suffix}` : ""}`;
+}
+
+function taskNewHref(statusName?: string, board?: string): string {
+  const params = new URLSearchParams();
+  if (statusName) params.set("status", statusName);
+  if (board) params.set("board", board);
+  const suffix = params.toString();
+  return `/tasks/new${suffix ? `?${suffix}` : ""}`;
+}
+
+async function boardFormPage(title: string, values: BoardFormValues, errors: string[], editingId?: string): Promise<string> {
   const agents = await listAgents();
-  const action = editingId ? `/projects/${encodeURIComponent(editingId)}` : "/projects";
+  const action = editingId ? `/boards/${encodeURIComponent(editingId)}` : "/boards";
   const idAttrs = editingId ? "readonly" : "required";
-  const body = values.body || defaultProjectBody(values.name || values.id);
+  const body = values.body || defaultBoardBody(values.name || values.id);
   return layout(title, `
     <h2>${escapeHtml(title)}</h2>
     ${errorsList(errors)}
     <form method="post" action="${action}" class="stack">
-      <label>Project id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
+      <label>Board id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
       <label>Name <input name="name" value="${escapeHtml(values.name)}" required></label>
       <label>Description <input name="description" value="${escapeHtml(values.description)}"></label>
       <label>Default agent <select name="default_agent"><option value="">none</option>${agents.map((agent) => `<option value="${escapeHtml(agent.name)}" ${agent.name === values.default_agent ? "selected" : ""}>${escapeHtml(agent.name)}</option>`).join("")}</select></label>
-      <label>Project body <textarea name="body" rows="14">${escapeHtml(body)}</textarea></label>
-      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/projects">Cancel</a></p>
+      <label>Board body <textarea name="body" rows="14">${escapeHtml(body)}</textarea></label>
+      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/boards">Cancel</a></p>
     </form>
   `);
 }
 
-async function taskFormPage(title: string, values: TaskFormValues, errors: string[], editingProject?: string, editingId?: string): Promise<string> {
-  const [projects, agents] = await Promise.all([listProjects(), listAgents()]);
-  const action = editingProject && editingId ? `/projects/${encodeURIComponent(editingProject)}/tasks/${encodeURIComponent(editingId)}` : "/tasks";
+async function taskFormPage(title: string, values: TaskFormValues, errors: string[], editingBoard?: string, editingId?: string): Promise<string> {
+  const [boards, agents] = await Promise.all([listBoards(), listAgents()]);
+  const action = editingBoard && editingId ? `/boards/${encodeURIComponent(editingBoard)}/tasks/${encodeURIComponent(editingId)}` : "/tasks";
   const idAttrs = editingId ? "readonly required" : "placeholder=\"auto-generated\"";
   return layout(title, `
     <h2>${escapeHtml(title)}</h2>
     ${errorsList(errors)}
     <form method="post" action="${action}" class="stack">
-      <label>Project <select name="project" required ${editingProject ? "readonly" : ""}>${projects.map((project) => `<option value="${escapeHtml(project.id)}" ${project.id === values.project ? "selected" : ""}>${escapeHtml(project.id)}</option>`).join("")}</select></label>
+      <label>Board <select name="board" required ${editingBoard ? "readonly" : ""}>${boards.map((board) => `<option value="${escapeHtml(board.id)}" ${board.id === values.board ? "selected" : ""}>${escapeHtml(board.id)}</option>`).join("")}</select></label>
       <label>Task id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
       <label>Title <input name="title" value="${escapeHtml(values.title)}" required></label>
-      <label>Status <select name="status" required>${TASK_STATUSES.map((entry) => `<option value="${entry}" ${entry === values.status ? "selected" : ""}>${entry}</option>`).join("")}</select></label>
+      <label>Status <select name="status" required>${TASK_STATUSES.map((entry) => `<option value="${entry}" ${entry === values.status ? "selected" : ""}>${escapeHtml(taskStatusLabel(entry))}</option>`).join("")}</select></label>
       <label>Assignee <select name="assignee"><option value="">unassigned</option>${agents.map((agent) => `<option value="${escapeHtml(agent.name)}" ${agent.name === values.assignee ? "selected" : ""}>${escapeHtml(agent.name)}</option>`).join("")}</select></label>
       <label>Priority <select name="priority">${["low", "normal", "high", "urgent"].map((entry) => `<option value="${entry}" ${entry === values.priority ? "selected" : ""}>${entry}</option>`).join("")}</select></label>
       <label>Task body <textarea name="body" rows="16">${escapeHtml(values.body)}</textarea></label>
-      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/tasks${values.project ? `?project=${encodeURIComponent(values.project)}` : ""}">Cancel</a></p>
+      <p><button type="submit">${icon("checkmark")}Save</button> <a href="${escapeHtml(tasksHref(values.board))}">Cancel</a></p>
     </form>
   `);
 }
 
-async function taskDetailPage(project: string, id: string): Promise<string> {
-  const task = (await listTasks(project)).find((entry) => entry.id === id);
-  if (!task) return layout("Task not found", `<h2>Task not found</h2><p>No task found for <code>${escapeHtml(project)}/${escapeHtml(id)}</code>.</p>`);
-  return layout(`Task ${project}/${id}`, `
-    <h2>Task <code>${escapeHtml(project)}/${escapeHtml(id)}</code></h2>
-    <p><a href="/projects/${encodeURIComponent(project)}/tasks/${encodeURIComponent(id)}/edit">Edit</a> <a href="/tasks?project=${encodeURIComponent(project)}">Kanban</a> <a href="/projects/${encodeURIComponent(project)}">Project</a></p>
+async function taskDetailPage(board: string, id: string): Promise<string> {
+  const task = (await listTasks(board)).find((entry) => entry.id === id);
+  if (!task) return layout("Task not found", `<h2>Task not found</h2><p>No task found for <code>${escapeHtml(board)}/${escapeHtml(id)}</code>.</p>`);
+  return layout(`Task ${board}/${id}`, `
+    <h2>Task <code>${escapeHtml(board)}/${escapeHtml(id)}</code></h2>
+    <p><a href="/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}/edit">Edit</a> <a href="/tasks?board=${encodeURIComponent(board)}">Kanban</a> <a href="/boards/${encodeURIComponent(board)}">Board</a></p>
     ${task.warning ? `<p class="error">${escapeHtml(task.warning)}</p>` : ""}
     <table>
       <tr><th>Title</th><td>${escapeHtml(task.title)}</td></tr>
-      <tr><th>Status</th><td>${escapeHtml(task.status)}</td></tr>
+      <tr><th>Status</th><td>${escapeHtml(taskStatusLabel(task.status))}</td></tr>
       <tr><th>Assignee</th><td>${escapeHtml(task.assignee)}</td></tr>
       <tr><th>Priority</th><td>${escapeHtml(task.priority)}</td></tr>
       <tr><th>Attempts</th><td>${task.attempts}</td></tr>
@@ -530,7 +566,7 @@ async function taskDetailPage(project: string, id: string): Promise<string> {
       <tr><th>Path</th><td><code>${escapeHtml(task.path || "")}</code></td></tr>
     </table>
     <h3>Status actions</h3>
-    <div class="inline-actions">${statusActionForms(task, `/projects/${encodeURIComponent(project)}/tasks/${encodeURIComponent(id)}`)}</div>
+    <div class="inline-actions">${statusActionForms(task, `/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}`)}</div>
     <h3>Body</h3>
     ${task.body ? `<pre>${escapeHtml(task.body)}</pre>` : "<p class=\"muted\">No task body.</p>"}
   `);
@@ -538,30 +574,29 @@ async function taskDetailPage(project: string, id: string): Promise<string> {
 
 function tasksTable(tasks: TaskView[]): string {
   const rows = tasks.map((task) => [
-    raw(`<a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}"><code>${escapeHtml(task.id)}</code></a><br>${escapeHtml(task.title)}${task.warning ? `<br><b class="error">${escapeHtml(task.warning)}</b>` : ""}`),
-    task.status,
+    raw(`<a href="/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}"><code>${escapeHtml(task.id)}</code></a><br>${escapeHtml(task.title)}${task.warning ? `<br><b class="error">${escapeHtml(task.warning)}</b>` : ""}`),
+    taskStatusLabel(task.status),
     task.assignee,
     task.priority,
     raw(task.latestRun ? runLink(task.latestRun) : ""),
-    raw(inlineActions(`<a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}/edit">${icon("pen")}Edit</a>${statusActionForms(task, `/projects/${encodeURIComponent(task.project)}`)}`)),
+    raw(inlineActions(`<a href="/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}/edit">${icon("pen")}Edit</a>${statusActionForms(task, `/boards/${encodeURIComponent(task.board)}`)}`)),
   ]);
   return table(["Task", "Status", "Assignee", "Priority", "Latest run", "Action"], rows, { empty: "No tasks found." });
 }
 
 function taskCard(task: TaskView): string {
-  return `<article class="kanban-card" draggable="true" data-project="${escapeHtml(task.project)}" data-task-id="${escapeHtml(task.id)}">
-    <h4><a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}">${escapeHtml(task.title)}</a></h4>
-    <p><code>${escapeHtml(task.project)}/${escapeHtml(task.id)}</code></p>
+  return `<article class="kanban-card" draggable="true" data-board="${escapeHtml(task.board)}" data-task-id="${escapeHtml(task.id)}">
+    <h4><a href="/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}">${escapeHtml(task.title)}</a></h4>
+    <p><code>${escapeHtml(task.board)}/${escapeHtml(task.id)}</code></p>
     <p class="muted">${escapeHtml(task.priority)}${task.assignee ? ` · ${escapeHtml(task.assignee)}` : " · unassigned"}</p>
     ${task.latestRun ? `<p>Run ${runLink(task.latestRun)} ${status(task.latestRun.status)}</p>` : ""}
     ${task.warning ? `<p class="error">${escapeHtml(task.warning)}</p>` : ""}
-    <div class="card-actions">${statusActionForms(task, `/tasks${task.project ? `?project=${encodeURIComponent(task.project)}` : ""}`)} <a href="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}/edit">Edit</a></div>
+    <div class="card-actions">${statusActionForms(task, tasksHref(task.board))} <a href="/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}/edit">Edit</a></div>
   </article>`;
 }
 
-function statusActionForms(task: Pick<TaskView, "project" | "id" | "status">, returnPath: string): string {
-  const actions: TaskStatus[] = ["ready", "blocked", "review", "done"];
-  return actions.filter((next) => next !== task.status).map((next) => `<form method="post" action="/projects/${encodeURIComponent(task.project)}/tasks/${encodeURIComponent(task.id)}/status"><input type="hidden" name="status" value="${next}"><input type="hidden" name="return" value="${escapeHtml(returnPath)}"><button type="submit">${escapeHtml(next)}</button></form>`).join(" ");
+function statusActionForms(task: Pick<TaskView, "board" | "id" | "status">, returnPath: string): string {
+  return TASK_STATUSES.filter((next) => next !== task.status).map((next) => `<form method="post" action="/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}/status"><input type="hidden" name="status" value="${next}"><input type="hidden" name="return" value="${escapeHtml(returnPath)}"><button type="submit">${escapeHtml(taskStatusLabel(next))}</button></form>`).join(" ");
 }
 
 type ScheduleUi = { cadence: string; time: string; weekday: string; raw: string };
@@ -651,7 +686,7 @@ async function agentsPage(url: URL): Promise<string> {
     raw(inlineActions(`<a href="/agents/${encodeURIComponent(s.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(s.name)}</details>`)),
   ]);
   return layout("Agents", `
-    ${pageHeader("Agents", { description: "Reusable AgentHQ bundles: identity, instructions, scoped context, model defaults, connector policy, and reserved future resources/memory.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
+    ${pageHeader("Agents", { description: "Reusable jumpyGoatHq bundles: identity, instructions, scoped context, model defaults, connector policy, and reserved future resources/memory.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
     ${message}
     ${section("Agent files", table(["Name", "Description", "Path", "Action"], rows, { empty: "No agents found." }))}
   `);
@@ -693,7 +728,7 @@ function runDetailPage(id: string): string {
     ${section("Details", metaTable([
       ["Source", raw(runSource(run))],
       ["Agent", runAgentName(run)],
-      ["Project/task", raw(run.project && run.task_id ? `<a href="/projects/${encodeURIComponent(run.project)}/tasks/${encodeURIComponent(run.task_id)}"><code>${escapeHtml(run.project)}/${escapeHtml(run.task_id)}</code></a>` : "")],
+      ["Board/task", raw(run.project && run.task_id ? `<a href="/boards/${encodeURIComponent(run.project)}/tasks/${encodeURIComponent(run.task_id)}"><code>${escapeHtml(run.project)}/${escapeHtml(run.task_id)}</code></a>` : "")],
       ["Status", raw(status(run.status))],
       ["Started", raw(date(run.started_at))],
       ["Finished", raw(date(run.finished_at))],
@@ -723,7 +758,7 @@ function runsTable(runs: ReturnType<typeof listRuns>, empty = "No runs found."):
     raw(runLink(r)),
     raw(runSource(r)),
     runAgentName(r),
-    raw(r.project && r.task_id ? `<a href="/projects/${encodeURIComponent(r.project)}/tasks/${encodeURIComponent(r.task_id)}"><code>${escapeHtml(r.project)}/${escapeHtml(r.task_id)}</code></a>` : ""),
+    raw(r.project && r.task_id ? `<a href="/boards/${encodeURIComponent(r.project)}/tasks/${encodeURIComponent(r.task_id)}"><code>${escapeHtml(r.project)}/${escapeHtml(r.task_id)}</code></a>` : ""),
     raw(status(r.status)),
     r.model_profile || r.resolved_model || r.model || "",
     raw(clamp(connectorSummary(r.connector_actions_json))),

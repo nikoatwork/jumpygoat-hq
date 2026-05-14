@@ -3,8 +3,8 @@ import { readdir } from "node:fs/promises";
 import { ulid } from "ulid";
 import { executeInvocation } from "./execute.js";
 import { invocationFromTask } from "./invocation.js";
-import { agentPath, projectsDir, taskPath, tasksDir } from "./paths.js";
-import { loadProject, loadTask, updateTask, type AgentTask, type Project } from "./task.js";
+import { agentPath, boardsDir, taskPath, tasksDir } from "./paths.js";
+import { loadBoard, loadTask, updateTask, type AgentTask, type Board } from "./task.js";
 
 export type DispatchResult = {
   attempted: number;
@@ -16,7 +16,7 @@ export type DispatchResult = {
 const PRIORITY_RANK: Record<string, number> = { urgent: 4, high: 3, normal: 2, low: 1 };
 
 export async function dispatchTasks(options: { limit?: number } = {}): Promise<DispatchResult> {
-  const limit = Math.max(1, options.limit || Number(process.env.AGENTHQ_TASK_DISPATCH_LIMIT || 1) || 1);
+  const limit = Math.max(1, options.limit || Number(process.env.JUMPYGOATHQ_TASK_DISPATCH_LIMIT || 1) || 1);
   const messages: string[] = [];
   const ready = await listDispatchableTasks();
   let dispatched = 0;
@@ -29,46 +29,46 @@ export async function dispatchTasks(options: { limit?: number } = {}): Promise<D
     const agentFile = agentPath(item.task.assignee);
     if (!item.task.assignee || !existsSync(agentFile)) {
       skipped += 1;
-      messages.push(`skip ${item.task.project}/${item.task.id}: assignee agent not found (${item.task.assignee || "empty"})`);
+      messages.push(`skip ${item.task.board}/${item.task.id}: assignee agent not found (${item.task.assignee || "empty"})`);
       continue;
     }
     try {
       const runId = ulid();
-      const exitCode = await dispatchOne(item.project, item.task, runId);
+      const exitCode = await dispatchOne(item.board, item.task, runId);
       dispatched += 1;
-      messages.push(`dispatched ${item.task.project}/${item.task.id} run=${runId} exit=${exitCode}`);
+      messages.push(`dispatched ${item.task.board}/${item.task.id} run=${runId} exit=${exitCode}`);
     } catch (error) {
       skipped += 1;
-      messages.push(`error ${item.task.project}/${item.task.id}: ${error instanceof Error ? error.message : String(error)}`);
+      messages.push(`error ${item.task.board}/${item.task.id}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   return { attempted: ready.length, dispatched, skipped, messages };
 }
 
-async function listDispatchableTasks(): Promise<Array<{ project: Project; task: AgentTask }>> {
-  if (!existsSync(projectsDir())) return [];
-  const projects = await readdir(projectsDir(), { withFileTypes: true });
-  const ready: Array<{ project: Project; task: AgentTask }> = [];
-  for (const projectEntry of projects.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!projectEntry.isDirectory()) continue;
-    const projectName = projectEntry.name;
-    const projectTaskDir = tasksDir(projectName);
-    if (!existsSync(projectTaskDir)) continue;
-    let project: Project;
+async function listDispatchableTasks(): Promise<Array<{ board: Board; task: AgentTask }>> {
+  if (!existsSync(boardsDir())) return [];
+  const boards = await readdir(boardsDir(), { withFileTypes: true });
+  const ready: Array<{ board: Board; task: AgentTask }> = [];
+  for (const boardEntry of boards.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!boardEntry.isDirectory()) continue;
+    const boardName = boardEntry.name;
+    const boardTaskDir = tasksDir(boardName);
+    if (!existsSync(boardTaskDir)) continue;
+    let board: Board;
     try {
-      project = await loadProject(projectName);
+      board = await loadBoard(boardName);
     } catch (error) {
-      // Skip malformed projects instead of blocking unrelated task dispatch.
+      // Skip malformed boards instead of blocking unrelated task dispatch.
       continue;
     }
-    const files = await readdir(projectTaskDir, { withFileTypes: true });
+    const files = await readdir(boardTaskDir, { withFileTypes: true });
     for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
       if (!file.isFile() || !file.name.endsWith(".md")) continue;
       const id = file.name.replace(/\.md$/, "");
       try {
-        const task = await loadTask(projectName, id);
-        if (task.status === "ready" && task.assignee) ready.push({ project, task });
+        const task = await loadTask(boardName, id);
+        if (task.status === "ready" && task.assignee) ready.push({ board, task });
       } catch {
         // Malformed task files are ignored by the dispatcher; the web UI/docs expose the parser errors.
       }
@@ -83,14 +83,14 @@ async function listDispatchableTasks(): Promise<Array<{ project: Project; task: 
   return ready;
 }
 
-async function dispatchOne(project: Project, task: AgentTask, runId: string): Promise<number | null> {
+async function dispatchOne(board: Board, task: AgentTask, runId: string): Promise<number | null> {
   const startedAt = new Date().toISOString();
   let claimed = false;
 
   try {
-    await updateTask(task.project, task.id, (current) => ({
+    await updateTask(task.board, task.id, (current) => ({
       ...current,
-      status: "doing",
+      status: "working-on-it",
       claimed_at: startedAt,
       run_id: runId,
       attempts: current.attempts + 1,
@@ -98,10 +98,10 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
     }), { expectedStatus: "ready" });
     claimed = true;
 
-    const result = await executeInvocation(invocationFromTask(project, task), { runId, label: "agenthq task run" });
-    await updateTask(task.project, task.id, (current) => ({
+    const result = await executeInvocation(invocationFromTask(board, task), { runId, label: "agenthq task run" });
+    await updateTask(task.board, task.id, (current) => ({
       ...current,
-      status: result.status === "ok" ? "review" : "failed",
+      status: result.status === "ok" ? "done" : "not-yet",
       run_id: runId,
       updated_at: result.finishedAt,
       body: result.status === "ok" ? current.body : appendDispatchNote(current.body, `Run ${runId} failed with exit ${result.exitCode ?? "unknown"}.`),
@@ -110,10 +110,10 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
   } catch (error) {
     const message = error instanceof Error ? error.stack || error.message : String(error);
     const finishedAt = new Date().toISOString();
-    if (claimed && existsSync(taskPath(task.project, task.id))) {
-      await updateTask(task.project, task.id, (current) => ({
+    if (claimed && existsSync(taskPath(task.board, task.id))) {
+      await updateTask(task.board, task.id, (current) => ({
         ...current,
-        status: "failed",
+        status: "not-yet",
         run_id: runId,
         updated_at: finishedAt,
         body: appendDispatchNote(current.body, `Run ${runId} crashed: ${message}`),

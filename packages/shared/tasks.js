@@ -1,25 +1,45 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { projectPath, taskPath } from "./paths.js";
+import { boardPath, taskPath } from "./paths.js";
 
-export const SAFE_PROJECT_NAME = /^[a-z0-9][a-z0-9-]*$/;
+export const SAFE_BOARD_NAME = /^[a-z0-9][a-z0-9-]*$/;
 export const SAFE_TASK_ID = /^[a-z0-9][a-z0-9-]*$/;
-export const TASK_STATUSES = ["backlog", "ready", "doing", "review", "done", "blocked", "failed"];
+export const TASK_STATUSES = ["not-yet", "ready", "working-on-it", "done"];
+export const TASK_STATUS_LABELS = {
+  "not-yet": "not yet",
+  ready: "ready",
+  "working-on-it": "working on it",
+  done: "done",
+};
 export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"];
 
 export const TASK_TRANSITIONS = {
-  backlog: ["ready", "blocked"],
-  ready: ["backlog", "doing", "blocked"],
-  doing: ["review", "done", "blocked", "failed"],
-  review: ["ready", "done", "blocked"],
-  done: ["review", "ready"],
-  blocked: ["backlog", "ready"],
-  failed: ["ready", "blocked"],
+  "not-yet": ["ready", "working-on-it", "done"],
+  ready: ["not-yet", "working-on-it", "done"],
+  "working-on-it": ["not-yet", "ready", "done"],
+  done: ["not-yet", "ready", "working-on-it"],
 };
 
-export function assertProjectName(name) {
-  if (!SAFE_PROJECT_NAME.test(name)) throw new Error(`Invalid project name: ${name}. Use lowercase letters, numbers, and hyphens.`);
+const LEGACY_STATUS_MAP = {
+  backlog: "not-yet",
+  blocked: "not-yet",
+  failed: "not-yet",
+  doing: "working-on-it",
+  review: "done",
+};
+
+export function taskStatusLabel(status) {
+  return TASK_STATUS_LABELS[status] || status;
+}
+
+export function normalizeTaskStatus(status) {
+  const value = String(status || "not-yet").trim();
+  return LEGACY_STATUS_MAP[value] || value;
+}
+
+export function assertBoardName(name) {
+  if (!SAFE_BOARD_NAME.test(name)) throw new Error(`Invalid board name: ${name}. Use lowercase letters, numbers, and hyphens.`);
 }
 
 export function assertTaskId(id) {
@@ -51,23 +71,23 @@ export function generateTaskId(title, now = new Date()) {
   return `${stamp}-${slug}`;
 }
 
-export async function loadProject(name) {
-  assertProjectName(name);
-  const file = projectPath(name);
+export async function loadBoard(name) {
+  assertBoardName(name);
+  const file = boardPath(name);
   const raw = await readFile(file, "utf8");
-  return parseProjectMarkdown(name, raw, file);
+  return parseBoardMarkdown(name, raw, file);
 }
 
-export function parseProjectMarkdown(name, raw, file = projectPath(name)) {
-  assertProjectName(name);
+export function parseBoardMarkdown(name, raw, file = boardPath(name)) {
+  assertBoardName(name);
   const parsed = parseFrontmatter(raw);
   const data = parsed.data || {};
-  const projectName = String(data.name || name).trim();
-  if (!projectName) throw new Error(`Project ${name} is missing name.`);
+  const boardName = String(data.name || name).trim();
+  if (!boardName) throw new Error(`Board ${name} is missing name.`);
   const defaultAgent = data.default_agent == null ? undefined : String(data.default_agent).trim();
   return {
     id: name,
-    name: projectName,
+    name: boardName,
     description: data.description == null ? "" : String(data.description),
     default_agent: defaultAgent || undefined,
     path: file,
@@ -76,26 +96,26 @@ export function parseProjectMarkdown(name, raw, file = projectPath(name)) {
   };
 }
 
-export async function loadTask(project, id) {
-  assertProjectName(project);
+export async function loadTask(board, id) {
+  assertBoardName(board);
   assertTaskId(id);
-  const file = taskPath(project, id);
+  const file = taskPath(board, id);
   const raw = await readFile(file, "utf8");
-  return parseTaskMarkdown(project, id, raw, file);
+  return parseTaskMarkdown(board, id, raw, file);
 }
 
-export function parseTaskMarkdown(project, id, raw, file = taskPath(project, id)) {
-  assertProjectName(project);
+export function parseTaskMarkdown(board, id, raw, file = taskPath(board, id)) {
+  assertBoardName(board);
   assertTaskId(id);
   const parsed = parseFrontmatter(raw);
   const data = parsed.data || {};
   const taskId = String(data.id || id).trim();
-  const taskProject = String(data.project || project).trim();
+  const taskBoard = String(data.board || data.project || board).trim();
   assertTaskId(taskId);
-  assertProjectName(taskProject);
+  assertBoardName(taskBoard);
   if (taskId !== id) throw new Error(`Task id mismatch in ${file}: expected ${id}, got ${taskId}.`);
-  if (taskProject !== project) throw new Error(`Task project mismatch in ${file}: expected ${project}, got ${taskProject}.`);
-  const status = String(data.status || "backlog").trim();
+  if (taskBoard !== board) throw new Error(`Task board mismatch in ${file}: expected ${board}, got ${taskBoard}.`);
+  const status = normalizeTaskStatus(data.status);
   assertTaskStatus(status);
   const priority = String(data.priority || "normal").trim();
   if (!TASK_PRIORITIES.includes(priority)) throw new Error(`Invalid priority for task ${id}: ${priority}`);
@@ -106,7 +126,8 @@ export function parseTaskMarkdown(project, id, raw, file = taskPath(project, id)
   return {
     id: taskId,
     title,
-    project: taskProject,
+    board: taskBoard,
+    project: taskBoard,
     status,
     assignee: data.assignee == null ? "" : String(data.assignee).trim(),
     priority,
@@ -121,8 +142,8 @@ export function parseTaskMarkdown(project, id, raw, file = taskPath(project, id)
   };
 }
 
-export function projectMarkdown(values) {
-  assertProjectName(values.id);
+export function boardMarkdown(values) {
+  assertBoardName(values.id);
   const data = {
     name: values.name || values.id,
     description: values.description || "",
@@ -132,13 +153,14 @@ export function projectMarkdown(values) {
 }
 
 export function taskMarkdown(task) {
-  assertProjectName(task.project);
+  const board = task.board || task.project;
+  assertBoardName(board);
   assertTaskId(task.id);
   assertTaskStatus(task.status);
   const data = {
     id: task.id,
     title: task.title,
-    project: task.project,
+    board,
     status: task.status,
     assignee: task.assignee || "",
     priority: task.priority || "normal",
@@ -151,31 +173,34 @@ export function taskMarkdown(task) {
   return stringifyFrontmatter(data, task.body || "");
 }
 
-export async function writeProject(project) {
-  assertProjectName(project.id);
-  await writeAtomic(projectPath(project.id), projectMarkdown(project));
+export async function writeBoard(board) {
+  assertBoardName(board.id);
+  await writeAtomic(boardPath(board.id), boardMarkdown(board));
 }
 
 export async function writeTask(task) {
-  assertProjectName(task.project);
+  const board = task.board || task.project;
+  assertBoardName(board);
   assertTaskId(task.id);
-  await writeAtomic(taskPath(task.project, task.id), taskMarkdown(task));
+  await writeAtomic(taskPath(board, task.id), taskMarkdown(task));
 }
 
-export async function updateTask(project, id, updater, options = {}) {
-  const current = await loadTask(project, id);
+export async function updateTask(board, id, updater, options = {}) {
+  const current = await loadTask(board, id);
   if (options.expectedStatus && current.status !== options.expectedStatus) {
-    throw new Error(`Task ${project}/${id} is ${current.status}, expected ${options.expectedStatus}.`);
+    throw new Error(`Task ${board}/${id} is ${current.status}, expected ${options.expectedStatus}.`);
   }
   const next = updater({ ...current });
+  next.board = next.board || next.project || board;
+  next.project = next.board;
   next.updated_at = next.updated_at || new Date().toISOString();
   await writeTask(next);
   return next;
 }
 
-export async function transitionTaskStatus(project, id, status, options = {}) {
+export async function transitionTaskStatus(board, id, status, options = {}) {
   assertTaskStatus(status);
-  return await updateTask(project, id, (task) => {
+  return await updateTask(board, id, (task) => {
     if (!options.force) assertTaskTransition(task.status, status);
     task.status = status;
     task.updated_at = new Date().toISOString();
@@ -191,10 +216,19 @@ export async function writeAtomic(file, content) {
   await rename(temp, file);
 }
 
-export function projectExists(name) {
-  assertProjectName(name);
-  return existsSync(projectPath(name));
+export function boardExists(name) {
+  assertBoardName(name);
+  return existsSync(boardPath(name));
 }
+
+// Legacy aliases kept only so older internal imports fail softly during the pre-release rename.
+export const SAFE_PROJECT_NAME = SAFE_BOARD_NAME;
+export const assertProjectName = assertBoardName;
+export const loadProject = loadBoard;
+export const parseProjectMarkdown = parseBoardMarkdown;
+export const projectMarkdown = boardMarkdown;
+export const writeProject = writeBoard;
+export const projectExists = boardExists;
 
 function parseFrontmatter(raw) {
   if (!raw.startsWith("---\n")) return { data: {}, content: raw };

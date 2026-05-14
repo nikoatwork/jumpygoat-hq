@@ -15,18 +15,18 @@ export function repoRoot() {
   }
 }
 
-export function agenthqHome() {
-  const configured = process.env.AGENTHQ_HOME?.trim();
+export function jumpyGoatHqHome() {
+  const configured = process.env.JUMPYGOATHQ_HOME?.trim();
   if (!configured) return path.join(repoRoot(), "workspace");
   return path.isAbsolute(configured) ? configured : path.resolve(repoRoot(), configured);
 }
 
 export function automationsDir() {
-  return path.join(agenthqHome(), "automations");
+  return path.join(jumpyGoatHqHome(), "automations");
 }
 
 export function agentsDir() {
-  return path.join(agenthqHome(), "agents");
+  return path.join(jumpyGoatHqHome(), "agents");
 }
 
 export function agentDir(name) {
@@ -42,11 +42,11 @@ export function agentContextDir(name) {
 }
 
 export function dataDir() {
-  return path.join(agenthqHome(), "data");
+  return path.join(jumpyGoatHqHome(), "data");
 }
 
 export function settingsDir() {
-  return agenthqHome();
+  return jumpyGoatHqHome();
 }
 
 export function settingsPath() {
@@ -54,7 +54,7 @@ export function settingsPath() {
 }
 
 export function workspacesDir() {
-  return path.join(agenthqHome(), "workspaces");
+  return path.join(jumpyGoatHqHome(), "workspaces");
 }
 
 export function workspaceDir(name) {
@@ -62,35 +62,40 @@ export function workspaceDir(name) {
 }
 
 export function tracesDir() {
-  return path.join(agenthqHome(), "traces");
+  return path.join(jumpyGoatHqHome(), "traces");
 }
 
 export function dbPath() {
-  const configured = process.env.AGENTHQ_DB_PATH?.trim();
-  if (!configured) return path.join(dataDir(), "agenthq.sqlite");
-  return path.isAbsolute(configured) ? configured : path.join(agenthqHome(), configured);
+  const configured = process.env.JUMPYGOATHQ_DB_PATH?.trim();
+  if (!configured) return path.join(dataDir(), "jumpygoat-hq.sqlite");
+  return path.isAbsolute(configured) ? configured : path.join(jumpyGoatHqHome(), configured);
 }
 
 export function automationPath(name) {
   return path.join(automationsDir(), `${name}.md`);
 }
 
-export function projectsDir() {
-  return path.join(agenthqHome(), "projects");
+export function boardsDir() {
+  return path.join(jumpyGoatHqHome(), "boards");
 }
 
-export function projectDir(name) {
-  return path.join(projectsDir(), name);
+export function boardDir(name) {
+  return path.join(boardsDir(), name);
 }
 
-export function projectPath(name) {
-  return path.join(projectDir(name), "PROJECT.md");
+export function boardPath(name) {
+  return path.join(boardDir(name), "BOARD.md");
 }
 
-export function tasksDir(project) {
-  return path.join(projectDir(project), "tasks");
+export function tasksDir(board) {
+  return path.join(boardDir(board), "tasks");
 }
 
-export function taskPath(project, id) {
-  return path.join(tasksDir(project), `${id}.md`);
+export function taskPath(board, id) {
+  return path.join(tasksDir(board), `${id}.md`);
 }
+
+// Legacy aliases kept only so older internal imports fail softly during the pre-release rename.
+export const projectsDir = boardsDir;
+export const projectDir = boardDir;
+export const projectPath = boardPath;
