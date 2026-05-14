@@ -1,16 +1,10 @@
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { ulid } from "ulid";
-import type { Automation } from "./automation.js";
-import { loadAgent } from "./agent.js";
-import { extractConnectorActionsFromTrace, processLegacyConnectorActions, resolveConnectorPlan } from "./connectors/index.js";
-import { dbPath, finishRun, insertRun, openDb } from "./db.js";
+import { executeInvocation } from "./execute.js";
+import { invocationFromTask } from "./invocation.js";
 import { agentPath, projectsDir, taskPath, tasksDir } from "./paths.js";
-import { runPiAutomation } from "./pi.js";
-import { createRunLog, errorText, outputText, pushTraceLine, traceText } from "./run-log.js";
 import { loadProject, loadTask, updateTask, type AgentTask, type Project } from "./task.js";
-import { loadSettings, resolveModelRequest } from "../../shared/settings.js";
-import { extractUsageFromTraceText } from "./usage.js";
 
 export type DispatchResult = {
   attempted: number;
@@ -90,15 +84,7 @@ async function listDispatchableTasks(): Promise<Array<{ project: Project; task: 
 }
 
 async function dispatchOne(project: Project, task: AgentTask, runId: string): Promise<number | null> {
-  const agent = await loadAgent(task.assignee);
-  const automation = taskAutomation(project, task);
-  const settings = loadSettings();
-  const modelResolution = resolveModelRequest(agent.model, settings);
-  const model = modelResolution.resolvedModel;
-  const db = openDb();
   const startedAt = new Date().toISOString();
-  const log = createRunLog();
-  const connectorPlan = resolveConnectorPlan({ automation, agent, runId });
   let claimed = false;
 
   try {
@@ -112,113 +98,18 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
     }), { expectedStatus: "ready" });
     claimed = true;
 
-    pushTraceLine(log, {
-      type: "agenthq_run_meta",
-      run_id: runId,
-      automation: automation.name,
-      agent: automation.agent,
-      agent_file: agentPath(automation.agent),
-      agent_context_files: agent.contextFiles.map((file) => file.path),
-      model: model ?? null,
-      requested_model: modelResolution.requestedModel ?? null,
-      resolved_model: modelResolution.resolvedModel ?? null,
-      model_profile: modelResolution.profileKey ?? null,
-      model_resolution_warning: modelResolution.warning ?? null,
-      schedule: "task-dispatch",
-      project: task.project,
-      task_id: task.id,
-      started_at: startedAt,
-    });
-
-    insertRun(db, { runId, automation, agent, model: modelResolution.requestedModel, modelResolution, startedAt, project: task.project, taskId: task.id });
-    console.log(`agenthq task run ${runId}`);
-    console.log(`task: ${task.project}/${task.id}`);
-    console.log(`db: ${dbPath()}`);
-
-    const result = await runPiAutomation({ automation, agent, log, runId, model, connectorPlan });
-    const finishedAt = new Date().toISOString();
-    const durationMs = Date.now() - Date.parse(startedAt);
-    const status = result.exitCode === 0 ? "ok" : "error";
-    const traceConnectorActions = extractConnectorActionsFromTrace(traceText(log));
-    const handledIntents = new Set(traceConnectorActions.map((action) => action.intent));
-    const legacyConnectorActions = await processLegacyConnectorActions({
-      automation,
-      agent,
-      outputText: outputText(log),
-      runSucceeded: status === "ok",
-      alreadyHandledIntents: handledIntents,
-    });
-    const connectorActions = [...traceConnectorActions, ...legacyConnectorActions];
-    if (connectorActions.length > 0) pushTraceLine(log, { type: "agenthq_connector_actions", actions: connectorActions });
-
-    pushTraceLine(log, {
-      type: "agenthq_summary",
-      run_id: runId,
-      automation: automation.name,
-      agent: automation.agent,
-      model: model ?? null,
-      requested_model: modelResolution.requestedModel ?? null,
-      resolved_model: modelResolution.resolvedModel ?? null,
-      model_profile: modelResolution.profileKey ?? null,
-      project: task.project,
-      task_id: task.id,
-      status,
-      exit_code: result.exitCode,
-      signal: result.signal,
-      duration_ms: durationMs,
-      finished_at: finishedAt,
-    });
-
-    const usage = extractUsageFromTraceText(traceText(log));
-
-    finishRun(db, {
-      runId,
-      status,
-      finishedAt,
-      durationMs,
-      exitCode: result.exitCode,
-      signal: result.signal,
-      outputText: outputText(log),
-      traceText: traceText(log),
-      errorText: errorText(log),
-      connectorActionsJson: JSON.stringify(connectorActions),
-      usage,
-    });
-
+    const result = await executeInvocation(invocationFromTask(project, task), { runId, label: "agenthq task run" });
     await updateTask(task.project, task.id, (current) => ({
       ...current,
-      status: status === "ok" ? "review" : "failed",
+      status: result.status === "ok" ? "review" : "failed",
       run_id: runId,
-      updated_at: finishedAt,
-      body: status === "ok" ? current.body : appendDispatchNote(current.body, `Run ${runId} failed with exit ${result.exitCode ?? "unknown"}.`),
+      updated_at: result.finishedAt,
+      body: result.status === "ok" ? current.body : appendDispatchNote(current.body, `Run ${runId} failed with exit ${result.exitCode ?? "unknown"}.`),
     }));
     return result.exitCode;
   } catch (error) {
     const message = error instanceof Error ? error.stack || error.message : String(error);
     const finishedAt = new Date().toISOString();
-    pushTraceLine(log, { type: "agenthq_error", message });
-    log.errorLines.push(message);
-
-    try {
-      const usage = extractUsageFromTraceText(traceText(log));
-
-      finishRun(db, {
-        runId,
-        status: "error",
-        finishedAt,
-        durationMs: Date.now() - Date.parse(startedAt),
-        exitCode: 1,
-        signal: null,
-        outputText: outputText(log),
-        traceText: traceText(log),
-        errorText: errorText(log),
-        connectorActionsJson: JSON.stringify(extractConnectorActionsFromTrace(traceText(log))),
-        usage,
-      });
-    } catch {
-      // If the row was never inserted, preserving the task failure note is enough.
-    }
-
     if (claimed && existsSync(taskPath(task.project, task.id))) {
       await updateTask(task.project, task.id, (current) => ({
         ...current,
@@ -229,22 +120,7 @@ async function dispatchOne(project: Project, task: AgentTask, runId: string): Pr
       }));
     }
     throw error;
-  } finally {
-    db.close();
   }
-}
-
-function taskAutomation(project: Project, task: AgentTask): Automation {
-  return {
-    name: `task-${task.project}-${task.id}`,
-    agent: task.assignee,
-    schedule: "manual",
-    prompt: taskPrompt(project, task),
-  } as Automation;
-}
-
-function taskPrompt(project: Project, task: AgentTask): string {
-  return `You are executing an AgentHQ assigned task.\n\nProject: ${project.name} (${project.id})\nTask: ${task.title} (${task.project}/${task.id})\nPriority: ${task.priority}\nStatus at dispatch: ${task.status}\n\n# Project context\n${project.description || "No description."}\n\n${project.body || "No project body."}\n\n# Task body\n${task.body || "No task body."}\n\n# Completion instructions\n- Do the requested work using the repository/workspace available to Pi.\n- Keep changes focused on this task.\n- When finished, summarize what changed and any verification performed.\n- Do not edit the task markdown status yourself; the AgentHQ dispatcher records run status after Pi exits.\n`;
 }
 
 function appendDispatchNote(body: string, note: string): string {

@@ -214,7 +214,6 @@ Cron entries export the current `HOME` and `PATH` so Pi can find its stored auth
 - `workspace/automations/*.md` — scheduled/manual prompt definitions, local/gitignored by default
 - `workspace/projects/<project>/PROJECT.md` and `tasks/*.md` — project/task kanban source of truth, active state local/gitignored by default
 - `workspace/settings.yml` — optional instance-local model profile settings, gitignored by default
-- `workspace/skills/README.md` — legacy pointer; active runtime configuration is agents
 - `packages/web/` — minimal raw HTML viewer over files, crontab, and SQLite
 - `workspace/workspaces/<automation>/` — per-automation Pi working dir, gitignored
 - `workspace/traces/` — optional trace artifacts, gitignored
@@ -232,8 +231,9 @@ Current table:
 runs(
   id text primary key,
   automation text,
+  source_type text,
+  source_id text,
   agent text,
-  skill text, -- legacy/backfill column
   project text,
   task_id text,
   model text,

@@ -4,33 +4,36 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Agent } from "./agent.js";
-import type { Automation } from "./automation.js";
 import { connectorPlanEnv, connectorToolNames, type ConnectorPlan } from "./connectors/index.js";
+import type { Invocation } from "./invocation.js";
 import { workspaceDir } from "./paths.js";
 import type { RunLog } from "./run-log.js";
 import { pushOutputFromPiEvent, pushTraceLine } from "./run-log.js";
 
-export async function runPiAutomation(args: {
-  automation: Automation;
+export async function runPiInvocation(args: {
+  invocation: Invocation;
   agent: Agent;
   log: RunLog;
   runId: string;
   model?: string;
   connectorPlan?: ConnectorPlan;
 }): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; agentFile: string }> {
-  const { automation, agent, log, runId, model, connectorPlan } = args;
+  const { invocation, agent, log, runId, model, connectorPlan } = args;
   if (!existsSync(agent.path)) throw new Error(`Agent not found: ${agent.path}`);
 
-  const cwd = workspaceDir(automation.name);
+  const cwd = workspaceDir(invocation.workspaceKey);
   await mkdir(cwd, { recursive: true });
   const agentFile = await writeGeneratedAgentFile(cwd, runId, agent);
 
-  const piArgs = ["--mode", "json", "--no-session", "--skill", agentFile];
+  // Pi's CLI calls this generated instruction file a "skill". AgentHQ keeps raw Pi
+  // skill/context discovery disabled so scheduled/task runs are framed only by the
+  // AgentHQ agent bundle plus explicitly enabled connectors.
+  const piArgs = ["--mode", "json", "--no-session", "--no-skills", "--no-context-files", "--skill", agentFile];
   if (model) piArgs.push("--model", model);
   if (connectorPlan && connectorPlan.tools.length > 0) {
     piArgs.push("--extension", connectorExtensionPath());
   }
-  piArgs.push(automation.prompt);
+  piArgs.push(invocation.prompt);
 
   if (connectorPlan && connectorPlan.tools.length > 0) {
     pushTraceLine(log, {
@@ -44,7 +47,7 @@ export async function runPiAutomation(args: {
   pushTraceLine(log, {
     type: "agenthq_pi_start",
     command: "pi",
-    args: piArgs.map((arg) => (arg === automation.prompt ? "<prompt>" : arg)),
+    args: piArgs.map((arg) => (arg === invocation.prompt ? "<prompt>" : arg)),
     cwd,
   });
 

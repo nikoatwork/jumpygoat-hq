@@ -290,7 +290,7 @@ Preferred personal setup:
 
 | Phase | Ships |
 |---|---|
-| **now** | Agent entity refactor; docs/UI/runtime converge on `agent` not `skill` |
+| **now** | Agent entity refactor; docs/UI/runtime converge on `agent` as the product primitive |
 | **next** | Shared domain services and path policy for safe mutations |
 | **then** | File-backed projects/tasks and heartbeat dispatcher |
 | **then** | Read-only schedule/calendar observability |

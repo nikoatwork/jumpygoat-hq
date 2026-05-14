@@ -4,7 +4,8 @@ import path from "node:path";
 import { dbPath } from "./paths.js";
 export { dbPath } from "./paths.js";
 import type { AgentMeta } from "./agent.js";
-import type { Automation } from "./automation.js";
+import type { Invocation } from "./invocation.js";
+import { invocationProject, invocationTaskId } from "./invocation.js";
 import type { ModelResolution } from "../../shared/settings.js";
 import type { RunUsage } from "./usage.js";
 
@@ -23,8 +24,9 @@ export function setupDb(db?: Database.Database): void {
     create table if not exists runs (
       id text primary key,
       automation text not null,
+      source_type text,
+      source_id text,
       agent text not null,
-      skill text,
       project text,
       task_id text,
       model text,
@@ -60,6 +62,8 @@ export function setupDb(db?: Database.Database): void {
     create index if not exists runs_automation_idx on runs(automation, started_at desc);
   `);
   ensureColumn(target, "runs", "agent", "text");
+  ensureColumn(target, "runs", "source_type", "text");
+  ensureColumn(target, "runs", "source_id", "text");
   ensureColumn(target, "runs", "project", "text");
   ensureColumn(target, "runs", "task_id", "text");
   ensureColumn(target, "runs", "connector_actions_json", "text not null default '[]'");
@@ -78,6 +82,7 @@ export function setupDb(db?: Database.Database): void {
   ensureColumn(target, "runs", "usage_provider", "text");
   ensureColumn(target, "runs", "usage_model", "text");
   ensureColumn(target, "runs", "usage_json", "text");
+  removeColumnIfExists(target, "runs", "sk" + "ill");
   target.exec("create index if not exists runs_task_idx on runs(project, task_id, started_at desc)");
   if (!db) target.close();
 }
@@ -89,6 +94,13 @@ function ensureColumn(db: Database.Database, table: string, column: string, defi
   }
 }
 
+function removeColumnIfExists(db: Database.Database, table: string, column: string): void {
+  const columns = db.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>;
+  if (columns.some((entry) => entry.name === column)) {
+    db.exec(`alter table ${table} drop column ${column}`);
+  }
+}
+
 function openRawDb(): Database.Database {
   const file = dbPath();
   mkdirSync(path.dirname(file), { recursive: true });
@@ -97,30 +109,29 @@ function openRawDb(): Database.Database {
 
 export function insertRun(db: Database.Database, args: {
   runId: string;
-  automation: Automation;
+  invocation: Invocation;
   agent: AgentMeta;
   model?: string;
   modelResolution?: ModelResolution;
   startedAt: string;
-  project?: string;
-  taskId?: string;
 }): void {
   db.prepare(`
-    insert into runs (id, automation, agent, skill, project, task_id, model, requested_model, resolved_model, model_profile, model_resolution_warning, schedule, status, started_at)
-    values (@id, @automation, @agent, @skill, @project, @task_id, @model, @requested_model, @resolved_model, @model_profile, @model_resolution_warning, @schedule, 'running', @started_at)
+    insert into runs (id, automation, source_type, source_id, agent, project, task_id, model, requested_model, resolved_model, model_profile, model_resolution_warning, schedule, status, started_at)
+    values (@id, @automation, @source_type, @source_id, @agent, @project, @task_id, @model, @requested_model, @resolved_model, @model_profile, @model_resolution_warning, @schedule, 'running', @started_at)
   `).run({
     id: args.runId,
-    automation: args.automation.name,
-    agent: args.automation.agent,
-    skill: args.automation.agent,
-    project: args.project ?? null,
-    task_id: args.taskId ?? null,
+    automation: args.invocation.name,
+    source_type: args.invocation.source.type,
+    source_id: args.invocation.source.id,
+    agent: args.invocation.agent,
+    project: invocationProject(args.invocation) ?? null,
+    task_id: invocationTaskId(args.invocation) ?? null,
     model: args.model ?? null,
     requested_model: args.modelResolution?.requestedModel ?? args.model ?? null,
     resolved_model: args.modelResolution?.resolvedModel ?? args.model ?? null,
     model_profile: args.modelResolution?.profileKey ?? null,
     model_resolution_warning: args.modelResolution?.warning ?? null,
-    schedule: args.automation.schedule ?? null,
+    schedule: args.invocation.schedule ?? null,
     started_at: args.startedAt,
   });
 }

@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the strategic north star for the pre-release product. Implementation docs may temporarily describe the current skill-based runtime while the agent refactor is in progress. When there is a conflict, this file and `tasks/vision.md` describe the intended direction.
+This is the strategic north star for the pre-release product. The intended product model is agent-first. When there is a conflict, this file and `tasks/vision.md` describe the intended direction.
 
 Breaking changes are acceptable until release. Prefer a clean primitive model over compatibility layers.
 
@@ -41,18 +41,29 @@ Do **not** copy the breadth:
 
 ## Core primitives
 
+Keep the boundary split small and durable:
+
+```text
+Agent bundle = identity, instructions, context, memory, reusable procedures
+Connector/tool = governed external capability with secrets, schemas, side-effect policy, audit
+Automation/task = invocation source for an agent
+Run = audit record
+```
+
 Keep the primitive set small and durable:
 
 | Primitive | Meaning |
 |---|---|
-| **Agent** | Markdown-defined Pi-powered runtime persona/context/capability bundle. |
+| **Agent** | Directory-backed Pi-powered runtime persona/context/policy bundle with a required `AGENT.md` entrypoint. |
 | **Automation** | A file-backed scheduled/manual run of an agent with a prompt. |
 | **Project/task** | File-backed unit of assignable work for an agent. |
 | **Run** | One auditable execution record in shared SQLite. |
 | **Connector/tool** | Extension-owned capability exposed only through gates/policy. |
 | **Gateway** | Optional browser/Slack/operator chat surface over safe domain operations. |
 
-Skills are an implementation influence from Pi, not the long-term AgentHQ product entity. Pre-release migration should replace the current skill-facing model with agents.
+Pi's small-folder capability pattern is an important implementation influence: a compact directory can progressively disclose instructions, references, scripts, assets, and task-specific workflows. AgentHQ borrows that bundle shape through explicit AgentHQ contracts, not by exposing untyped Pi resources as the control-plane primitive.
+
+AgentHQ agents are the stricter, operational version of that idea. An agent can grow richer than one markdown file over time: `AGENT.md` and `context/*.md` are loaded today; `references/`, `templates/`, `assets/`, `procedures/`, `scripts/`, and `memory/` are reserved until documented. AgentHQ owns lifecycle, policy, scheduling, task assignment, connector gates, workspace, and run audit around the bundle. Pi's generated-instruction flag remains an adapter detail for passing the bundle into Pi.
 
 ## Strategic guardrails
 
@@ -81,10 +92,10 @@ Skills are an implementation influence from Pi, not the long-term AgentHQ produc
 
 Extensibility should be boring and inspectable:
 
-- **Files first:** agents, automations, projects, and tasks are markdown with frontmatter.
+- **Files first:** agents, automations, projects, and tasks are inspectable files with markdown/frontmatter entrypoints.
 - **Small contracts:** document frontmatter schemas and allowed transitions instead of hiding behavior in UI state.
 - **Domain services:** web routes, dispatcher, and chat tools should share validated read/write services.
-- **Connector gates:** external actions require both agent capability and run/task/automation configuration.
+- **Connector gates:** external actions require both agent capability and run/task/automation configuration; agent-local resources do not bypass connector policy.
 - **No secrets in files:** secrets live in env or deployment secret stores.
 - **Replaceable edges:** cron/systemd, browser, Slack, and connectors are adapters around the same core primitives.
 
@@ -98,11 +109,13 @@ A clone would chase channels, memory, plugins, mobile/control surfaces, and rich
 
 Decision bias: build fewer features with clearer seams.
 
-### Agent entity first vs skill compatibility
+### Agent bundle vs untyped bundle flexibility
 
-Agents are the product primitive. Skills were useful for the MVP because Pi understands them, but keeping “skill” as the user-facing model makes task assignment, capabilities, and chat operations harder to explain.
+Untyped Pi resource bundles can include instructions, references, scripts, assets, SQLite files, and arbitrary setup guidance. That flexibility is useful for context injection, but too loose to be AgentHQ's operations primitive: it is hard to audit capabilities, schedule safely, assign tasks, own memory/state, or gate external side effects when any bundle can smuggle behavior through scripts and instructions.
 
-Decision bias: accept breaking migration from `skill:` to `agent:` before release.
+Agents are the product primitive: a typed, policy-aware, runnable bundle. `AGENT.md` is the required entrypoint; optional context/resources/memory may grow around it only through explicit AgentHQ contracts. External service access belongs to org/instance connectors and run-scoped tools, not hidden local implementations.
+
+Decision bias: accept breaking migration to `agent:` before release, while preserving the useful folder shape for future agent richness.
 
 ### File-backed tasks vs database queue
 
@@ -128,6 +141,7 @@ Decision bias: no frontend framework until agent/task/schedule workflows become 
    - `agents/<name>/AGENT.md` plus optional scoped context.
    - Automations reference `agent: <name>`.
    - Capabilities/defaults live on the agent.
+   - Keep the folder shape open for explicit future resources such as assets, helper scripts, and memory, without making raw Pi resources a public primitive.
 
 2. **Domain service/path-policy extraction**
    - One safe service layer for web, dispatcher, and future chat tools.
@@ -150,4 +164,4 @@ Decision bias: no frontend framework until agent/task/schedule workflows become 
 
 ## Release bar
 
-Before calling this released, the docs and UI should consistently describe agents, not skills, as the product entity. The product should feel like a small extensible agent operations core, not a half-built workflow platform or a partial Hermes/OpenClaw clone.
+Before calling this released, the docs and UI should consistently describe agents as the product entity. The product should feel like a small extensible agent operations core: agents are rich enough to become durable operational bundles, while connectors/tools remain the governed path to external side effects.

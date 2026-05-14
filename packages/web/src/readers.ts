@@ -65,8 +65,9 @@ export type SchedulePageView = {
 export type RunRow = {
   id: string;
   automation: string;
+  source_type?: string | null;
+  source_id?: string | null;
   agent?: string | null;
-  skill?: string | null;
   model: string | null;
   requested_model?: string | null;
   resolved_model?: string | null;
@@ -437,7 +438,7 @@ export function getRun(id: string): RunRow | null {
 }
 
 export function runAgentName(run: RunRow): string {
-  return String(run.agent || run.skill || "");
+  return String(run.agent || "");
 }
 
 function hasAnyUsage(run: RunRow): boolean {

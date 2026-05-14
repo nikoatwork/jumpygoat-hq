@@ -19,7 +19,7 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 - `POST /automations/:name/delete` — confirmed delete for `agenthqHome()/automations/<name>.md`
 - `POST /automations/:name/run` — blocking `pnpm runner <name>`, then redirects to `/runs`
 - `GET /agents` — available agents + view/edit/delete forms
-- `GET /agents/new` — create agent form with a minimal template
+- `GET /agents/new` — create agent form with a bundle-oriented `AGENT.md` template for identity, policy, connector gates, and output expectations
 - `POST /agents` — validate and create `agenthqHome()/agents/<name>/AGENT.md`
 - `GET /agents/:name` — raw agent detail view
 - `GET /agents/:name/edit` — raw `AGENT.md` editor
@@ -48,12 +48,14 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 
 ## UI conventions
 
+The web UI uses a persistent sidebar information hierarchy: Overview; Work (Tasks, Projects); Automations (All automations, Schedule); Agents; Activity (Runs); and Settings in the sidebar footer. Schedule is visually grouped under Automations because it is a timeline view of automation markdown schedules, not a separate source object.
+
 The web UI has a deliberately small, server-rendered design system:
 
 - Do not add frontend dependencies, React, Tailwind, CSS-in-JS, component libraries, bundlers, client-side routing, or a build step for styling.
 - Keep common CSS in `public/styles.css` using semantic classes over broad utility sprawl.
 - Use shared helpers from `src/html.ts` for repeated patterns: `pageHeader`, `section`, `toolbar`, `inlineActions`, `notice`, `badge`, `emptyState`, `table`, and `metaTable`.
-- Prefer canonical classes for route markup: `.page-header`, `.page-actions`, `.section`, `.toolbar`, `.inline-actions`, `.empty-state`, `.notice`, `.badge`, `.form-stack`, `.form-grid`, `.table-wrap`, and `.meta-table`.
+- Prefer canonical classes for route markup: `.app-shell`, `.sidebar`, `.sidebar-nav`, `.nav-link`, `.page-header`, `.page-actions`, `.section`, `.toolbar`, `.inline-actions`, `.empty-state`, `.notice`, `.badge`, `.form-stack`, `.form-grid`, `.table-wrap`, and `.meta-table`.
 - Keep true page-specific layout CSS page-specific. Current examples include `.kanban-*`, `.agenda-*`, `.trace-*`, and `.schedule-*` rules.
 
 Common route patterns:
@@ -79,7 +81,7 @@ Run `pnpm check:design` for the lightweight design-system guardrails. Run `pnpm 
 - Names are restricted to lowercase letters, numbers, and hyphens to prevent path traversal and stay compatible with runner/cron scripts.
 - Automations validate required agent, schedule, prompt, and optional model before writing. Optional model values can be semantic profile keys from `/settings` or direct Pi selectors.
 - `/schedule` is read-only: automation markdown schedules are the source of truth; installed AgentHQ crontab blocks are displayed only as status/evidence, including orphan or malformed blocks.
-- Agents are edited as raw markdown and delete is blocked while any automation references the agent.
+- Agents are edited as raw markdown and delete is blocked while any automation references the agent. The UI intentionally exposes only `AGENT.md`; optional `context/*.md` files and reserved resource directories remain file-authored until richer contracts exist.
 - Projects and tasks are markdown source of truth under `agenthqHome()/projects`; kanban drag/drop posts to the same status route as non-JS buttons.
 - `/settings` writes only `agenthqHome()/settings.yml`, validates before replacing the previous file, and must not collect secrets/API keys; Pi/provider auth remains outside the web UI.
 - Mutations use POST with redirect-after-post on success.

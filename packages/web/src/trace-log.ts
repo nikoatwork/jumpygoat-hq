@@ -28,7 +28,7 @@ export function formatTraceLog(traceText: string): TraceLogEntry[] {
     const type = stringValue(event.type);
     switch (type) {
       case "agenthq_run_meta":
-        entries.push({ category: "run", label: "Run metadata", detail: joinDetails([pair("run", event.run_id), pair("automation", event.automation), pair("agent", event.agent ?? event.skill), pair("requested", event.requested_model ?? event.model), pair("resolved", event.resolved_model), pair("profile", event.model_profile), pair("schedule", event.schedule)]) });
+        entries.push({ category: "run", label: "Run metadata", detail: joinDetails([pair("run", event.run_id), pair("source", event.source_id ?? event.automation), pair("type", event.source_type), pair("agent", event.agent), pair("requested", event.requested_model ?? event.model), pair("resolved", event.resolved_model), pair("profile", event.model_profile), pair("schedule", event.schedule)]) });
         break;
       case "agenthq_pi_start":
         entries.push({ category: "pi", label: "Pi started", detail: joinDetails([pair("command", event.command), pair("cwd", event.cwd), pair("args", Array.isArray(event.args) ? event.args.join(" ") : undefined)]) });

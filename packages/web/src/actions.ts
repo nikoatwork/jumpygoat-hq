@@ -325,7 +325,7 @@ export async function readSettingsRaw(): Promise<SettingsFormValues> {
 }
 
 export function defaultAgentContent(name: string): string {
-  return `---\nname: ${name || "new-agent"}\ndescription: Describe this agent's role.\nallowedIntents: []\n---\n\n## Instructions\n\nDescribe what this agent does, how it should decide, and when it may use connectors.\n`;
+  return `---\nname: ${name || "new-agent"}\ndescription: Describe this agent's operational role.\nallowedIntents: []\n---\n\n## Identity\n\nDescribe who this agent is responsible for being and what outcomes it owns.\n\n## Operating policy\n\nDescribe how the agent should decide, what context it should trust, and what it must not do.\n\n## Connector policy\n\nExternal services and side effects must use AgentHQ connectors enabled by allowedIntents plus invocation config. Do not put secrets in this file.\n\n## Output expectations\n\nDescribe the final response format for automations and assigned tasks.\n`;
 }
 
 export function defaultProjectBody(name: string): string {

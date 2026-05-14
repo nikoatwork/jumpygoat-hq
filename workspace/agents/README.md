@@ -2,12 +2,25 @@
 
 Local active agents live here by default. Set `AGENTHQ_HOME=/path/to/agenthq-home` to use an external workspace; then active agents live in `$AGENTHQ_HOME/agents/`.
 
-Each agent is a directory with an `AGENT.md` file and optional scoped markdown context:
+Each agent is an AgentHQ bundle: identity, instructions, scoped context, defaults, and capability policy. Runtime loading is deliberately minimal today:
 
 ```text
-workspace/agents/<name>/AGENT.md
-workspace/agents/<name>/context/*.md
+workspace/agents/<name>/AGENT.md          # required; loaded every run
+workspace/agents/<name>/context/*.md      # optional; loaded alphabetically
 ```
+
+Reserved directories may be used for organization, but AgentHQ does **not** load or execute them yet:
+
+```text
+workspace/agents/<name>/references/       # reserved future reference docs
+workspace/agents/<name>/templates/        # reserved future templates
+workspace/agents/<name>/assets/           # reserved future static assets
+workspace/agents/<name>/procedures/       # reserved future reusable procedures
+workspace/agents/<name>/scripts/          # reserved future gated helper scripts
+workspace/agents/<name>/memory/           # reserved future curated memory/state
+```
+
+Do not put secrets in agent folders. External services, side effects, tool schemas, and audit records belong to connectors/tools gated by `allowedIntents` plus run config.
 
 Automations reference agents by name:
 
@@ -22,7 +35,7 @@ Prompt for this run.
 
 ## AGENT.md format
 
-`AGENT.md` is a Pi instruction file with YAML frontmatter plus markdown instructions:
+`AGENT.md` is the bundle entrypoint: a Pi instruction file with YAML frontmatter plus markdown instructions. Use it for identity, operating policy, output expectations, model defaults, and connector capability policy:
 
 ```markdown
 ---
@@ -44,11 +57,13 @@ notify:
 
 ## Instructions
 
-Tell Pi how this agent should work.
+Tell Pi who this agent is, how it should work, what it should not do, and when it may use connector tools.
 ```
 
-Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, and `notify.email`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides defaults; automation frontmatter may override run-specific values when needed.
+Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, and `notify.email`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides non-secret defaults; automation/task invocation frontmatter may override run-specific non-secret values when needed.
 
-Context files under `context/*.md` are loaded alphabetically and appended to the generated Pi instruction file for each run. Keep context markdown deterministic and non-secret unless your `AGENTHQ_HOME` is private.
+Context files under `context/*.md` are loaded alphabetically by filename and appended to the generated Pi instruction file for each run. Recommended naming: `00-overview.md`, `10-playbook.md`, `20-style.md`. Keep context markdown deterministic and non-secret unless your `AGENTHQ_HOME` is private.
+
+Future loaded resources must use explicit AgentHQ rules for naming, ordering, size limits, and execution/audit behavior. Until those contracts exist, `references/`, `templates/`, `assets/`, `procedures/`, `scripts/`, and `memory/` are non-loaded authoring space only.
 
 This directory is mutable operator state. Agent directories are gitignored; only this README is committed.

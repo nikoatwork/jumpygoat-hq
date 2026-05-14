@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("dashboard renders core navigation and run summary", async ({ page }) => {
+test("overview renders core sidebar navigation and run summary", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Automations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "All automations" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Agents" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Schedule" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Runs" })).toBeVisible();
@@ -43,5 +43,5 @@ test("runs page renders either empty state or run table", async ({ page }) => {
   await page.goto("/runs");
 
   await expect(page.getByRole("heading", { name: "Runs" })).toBeVisible();
-  await expect(page.locator("body")).toContainText(/No runs found|Automation/);
+  await expect(page.locator("body")).toContainText(/No runs found|Source/);
 });

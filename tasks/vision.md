@@ -10,17 +10,26 @@ agents as markdown → schedules/tasks/operator commands → Pi runs → auditab
 
 Pi is the harness. agenthq owns the product primitives around Pi: files, scheduling, task dispatch, connector gates, safe operator surfaces, and observability.
 
+```text
+Agent bundle = identity, instructions, context, memory, reusable procedures
+Connector/tool = governed external capability with secrets, schemas, side-effect policy, audit
+Automation/task = invocation source for an agent
+Run = audit record
+```
+
 ## The product primitive
 
 An **agent** is the user-facing runtime entity.
 
-An agent bundles:
+An agent is a directory-backed operational bundle with a required `AGENT.md` entrypoint. Today it bundles:
 
 - instructions/persona/context;
 - optional scoped markdown context;
 - default model/config;
 - allowed intents/capabilities;
 - connector/tool policy.
+
+The shape intentionally borrows Pi's useful progressive-disclosure pattern for instructions, references, scripts, assets, and workflows. AgentHQ gets that adaptability through explicit contracts without making untyped Pi resources the control-plane primitive. Today only `AGENT.md` and `context/*.md` are loaded. Future agent contracts may add explicit references, templates, assets, procedures, helper scripts, or memory/state, but lifecycle, task assignment, connector policy, workspaces, and run audit remain AgentHQ-owned.
 
 An **automation** or **task** runs an agent with a prompt.
 
@@ -46,6 +55,7 @@ Edit the file → edit the behavior. Files remain the source of truth.
 - Shared SQLite run history for auditability.
 - Raw HTML operator UI until richer UI is clearly needed.
 - Connector/domain tool system for safe extensibility.
+- Rich agent bundles with strict lifecycle, policy, and audit semantics.
 
 ## What this is not
 
@@ -63,6 +73,8 @@ A small set of strong primitives can replace a meaningful slice of recurring ope
 > a capable agent harness + a file-defined agent + scheduled/assigned work + auditable runs + gated extensions
 
 The agent decides the steps. Pi provides the loop/tools. agenthq provides the durable product surface around it.
+
+External service access should come through AgentHQ connectors/tools, not hidden agent-local service code. Agent-local resources can improve context, memory, formatting, or deterministic helper behavior; connectors own credentials, side effects, tool schemas, and audit records.
 
 ## Extensibility stance
 
@@ -91,7 +103,7 @@ Single-operator first:
 
 ## Near-term sequence
 
-1. Replace skill-facing concepts with **agents**.
+1. Keep **agents** as the product primitive while preserving a useful folder shape for future agent richness.
 2. Keep automations as file-backed scheduled/manual agent runs.
 3. Add safe domain services/path policy for all mutations.
 4. Add file-backed projects/tasks and a heartbeat dispatcher.

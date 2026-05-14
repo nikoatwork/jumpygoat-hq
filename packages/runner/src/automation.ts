@@ -46,7 +46,7 @@ const AutomationFrontmatter = ConnectorOverridesSchema.extend({
   agent: z.string().min(1),
   schedule: z.string().optional(),
   model: z.string().optional(),
-});
+}).strict();
 
 export type Automation = z.infer<typeof AutomationFrontmatter> & {
   name: string;

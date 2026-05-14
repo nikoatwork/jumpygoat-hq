@@ -17,9 +17,6 @@ automations/*
 agents/*
 !agents/
 !agents/README.md
-skills/*
-!skills/
-!skills/README.md
 
 # Local task queues/history. Keep canonical changelog in git.
 tasks/todo/
@@ -37,9 +34,6 @@ workspace/automations/*
 workspace/agents/*
 !workspace/agents/
 !workspace/agents/README.md
-workspace/skills/*
-!workspace/skills/
-!workspace/skills/README.md
 workspace/projects/*
 !workspace/projects/
 !workspace/projects/README.md

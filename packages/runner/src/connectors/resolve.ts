@@ -1,5 +1,6 @@
 import type { AgentMeta } from "../agent.js";
-import type { Automation, ConnectorOverrides } from "../automation.js";
+import type { ConnectorOverrides } from "../automation.js";
+import type { Invocation } from "../invocation.js";
 import type { ConnectorIntent, ConnectorPlan, ConnectorProvider, ConnectorToolName, ResolvedConnectorTool } from "./types.js";
 import { INTENT_TO_TOOL_NAME } from "./types.js";
 
@@ -10,25 +11,32 @@ const INTENT_PROVIDER: Record<ConnectorIntent, ConnectorProvider> = {
   "notify.email": "resend",
 };
 
+type ConnectorInvocation = Pick<Invocation, "name"> & ConnectorOverrides;
+
 export function resolveConnectorPlan(args: {
-  automation: Automation;
+  invocation: ConnectorInvocation;
+  agent: AgentMeta;
+  runId: string;
+} | {
+  automation: ConnectorInvocation;
   agent: AgentMeta;
   runId: string;
 }): ConnectorPlan {
+  const invocation = "invocation" in args ? args.invocation : args.automation;
   const tools: ResolvedConnectorTool[] = [];
   for (const intent of Object.keys(INTENT_PROVIDER) as ConnectorIntent[]) {
-    if (!isConnectorIntentEnabled(args.agent, args.automation, intent)) continue;
+    if (!isConnectorIntentEnabled(args.agent, invocation, intent)) continue;
     if (!args.agent.allowedIntents.includes(intent)) continue;
     tools.push({ intent, toolName: INTENT_TO_TOOL_NAME[intent], connector: INTENT_PROVIDER[intent] });
   }
 
   return {
     runId: args.runId,
-    automationName: args.automation.name,
+    automationName: invocation.name,
     agentName: args.agent.name,
     tools,
-    firecrawl: resolveFirecrawlRuntimeConfig(args.agent, args.automation),
-    resend: resolveResendRuntimeConfig(args.agent, args.automation),
+    firecrawl: resolveFirecrawlRuntimeConfig(args.agent, invocation),
+    resend: resolveResendRuntimeConfig(args.agent, invocation),
   };
 }
 

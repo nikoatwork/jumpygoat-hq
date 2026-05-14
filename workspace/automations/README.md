@@ -8,7 +8,7 @@ Each automation is one markdown file:
 workspace/automations/<automation-name>.md
 ```
 
-Automation frontmatter owns schedule and run-specific overrides. It must reference an agent:
+Automation frontmatter owns the invocation source: schedule, prompt, agent reference, and run-specific non-secret overrides. It must reference an agent:
 
 ```markdown
 ---
@@ -20,6 +20,6 @@ model: gpt-5.5 # optional; overrides the agent default model
 Prompt for this run.
 ```
 
-Connector defaults belong on the agent. Add connector blocks here only for per-run overrides, for example a different notification recipient.
+Connector defaults belong on the agent. Add connector blocks here only for per-run non-secret overrides, for example a different notification recipient. Secrets, provider schemas, side-effect behavior, and connector audit records belong to connectors/tools, not automation files.
 
 This directory is mutable operator state. Automation files are gitignored; only this README is committed.

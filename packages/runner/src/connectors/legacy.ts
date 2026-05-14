@@ -1,5 +1,5 @@
 import type { AgentMeta } from "../agent.js";
-import type { Automation, ConnectorOverrides } from "../automation.js";
+import type { ConnectorOverrides } from "../automation.js";
 import { sendResendEmail } from "./resend/index.js";
 import type { ConnectorActionRecord, ConnectorIntent } from "./types.js";
 
@@ -23,12 +23,19 @@ type EmailConfig = {
 };
 
 export async function processLegacyConnectorActions(args: {
-  automation: Automation;
+  invocation: ConnectorOverrides;
+  agent: AgentMeta;
+  outputText: string;
+  runSucceeded: boolean;
+  alreadyHandledIntents?: Set<ConnectorIntent | string>;
+} | {
+  automation: ConnectorOverrides;
   agent: AgentMeta;
   outputText: string;
   runSucceeded: boolean;
   alreadyHandledIntents?: Set<ConnectorIntent | string>;
 }): Promise<ConnectorActionRecord[]> {
+  const invocation = "invocation" in args ? args.invocation : args.automation;
   const parsed = parseNotificationAction(args.outputText);
   if (parsed.kind === "none") return [];
 
@@ -47,7 +54,7 @@ export async function processLegacyConnectorActions(args: {
     return [{ intent: action.type, status: "skipped_not_allowed" }];
   }
 
-  const config = resolveEmailConfig(args.agent, args.automation);
+  const config = resolveEmailConfig(args.agent, invocation);
   if (!config.enabled) return [{ intent: action.type, connector: config.connector, status: "skipped_disabled" }];
   if (!config.to) return [{ intent: action.type, connector: config.connector, status: "failed_missing_config", error: "Missing notify.email.to or AGENTHQ_NOTIFY_EMAIL_TO." }];
   if (!config.from) return [{ intent: action.type, connector: config.connector, to: config.to, status: "failed_missing_config", error: "Missing notify.email.from or AGENTHQ_NOTIFY_EMAIL_FROM." }];

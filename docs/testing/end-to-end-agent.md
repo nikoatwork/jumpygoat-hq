@@ -44,14 +44,15 @@ fi
 Use the web UI or write files directly:
 
 ```txt
-workspace/agents/<agent>/AGENT.md
-workspace/agents/<agent>/context/*.md
-workspace/automations/<automation>.md
+workspace/agents/<agent>/AGENT.md              # required agent bundle entrypoint
+workspace/agents/<agent>/context/*.md          # optional scoped context loaded alphabetically
+workspace/agents/<agent>/{references,templates,assets,procedures,scripts,memory}/ # reserved, not loaded
+workspace/automations/<automation>.md          # invocation source
 workspace/projects/<project>/PROJECT.md
-workspace/projects/<project>/tasks/<task-id>.md
+workspace/projects/<project>/tasks/<task-id>.md # task invocation source
 ```
 
-For connector tests, ensure `.env.local` has required secrets, e.g. `FIRECRAWL_API_KEY`, `RESEND_API_KEY`, and `AGENTHQ_NOTIFY_EMAIL_FROM`.
+For connector tests, ensure `.env.local` has required secrets, e.g. `FIRECRAWL_API_KEY`, `RESEND_API_KEY`, and `AGENTHQ_NOTIFY_EMAIL_FROM`. Do not place secrets in `AGENT.md`, context files, or reserved agent resource directories.
 
 ## 4. Dry-check config before spending/sending
 

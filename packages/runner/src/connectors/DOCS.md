@@ -1,6 +1,8 @@
 # Runner connector contract
 
-Connectors are Pi extension tools assembled by the runner for one automation run. Pi must see connector results and failures while it reasons, so in-run tools are the default connector mode.
+Connectors are Pi extension tools assembled by the runner for one automation or task invocation. Pi must see connector results and failures while it reasons, so in-run tools are the default connector mode.
+
+AgentHQ boundary: agent bundles own identity, instructions, context, and capability policy; connectors/tools own governed external capability. That means connectors are responsible for secrets, provider schemas, Pi-safe tool names, side-effect policy, bounded results, and connector audit records. Agent-local resources, procedures, or scripts must not become an ungated bypass for external services.
 
 ## Boundaries
 
@@ -13,7 +15,7 @@ Connectors are Pi extension tools assembled by the runner for one automation run
 
 A connector tool is registered only when both gates pass:
 
-1. Agent or automation frontmatter enables the provider-backed intent.
+1. Agent defaults or invocation frontmatter enables the provider-backed intent.
 2. The agent frontmatter `allowedIntents` includes the same provider-neutral intent.
 
 Intent to tool mapping:
@@ -49,8 +51,9 @@ Legacy fenced `agenthq-action` email blocks are still parsed after the run for m
 ## Adding a connector
 
 1. Add provider-neutral intent and Pi-safe tool name in `types.ts`.
-2. Extend agent/automation parsing and `resolveConnectorPlan` gating.
+2. Extend agent/invocation parsing and `resolveConnectorPlan` gating.
 3. Add a provider folder with an `index.ts` barrel and a tool factory.
 4. Register the new tool factory from `pi-extension.ts`.
-5. Return bounded tool content and compact `connectorSummary` details.
-6. Add mocked connector tests and update this doc plus automation/agent docs.
+5. Keep credentials in environment/deployment secrets; never require secrets in markdown.
+6. Return bounded tool content and compact `connectorSummary` details for audit.
+7. Add mocked connector tests and update this doc plus automation/agent docs.

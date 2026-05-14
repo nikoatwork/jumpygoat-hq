@@ -251,7 +251,7 @@ async function dashboard(): Promise<string> {
   const runs = listRuns(10);
   const failures = runs.filter((r) => r.status !== "ok").slice(0, 5);
   return layout("Dashboard", `
-    ${pageHeader("Dashboard", { meta: `Workspace: <code>${escapeHtml(agenthqHome())}</code>${process.env.AGENTHQ_HOME ? ` (AGENTHQ_HOME=${escapeHtml(process.env.AGENTHQ_HOME)})` : " (default local workspace)"}<br>DB: <code>${escapeHtml(dbPath())}</code>` })}
+    ${pageHeader("Overview", { meta: `Workspace: <code>${escapeHtml(agenthqHome())}</code>${process.env.AGENTHQ_HOME ? ` (AGENTHQ_HOME=${escapeHtml(process.env.AGENTHQ_HOME)})` : " (default local workspace)"}<br>DB: <code>${escapeHtml(dbPath())}</code>` })}
     ${section("Workspace summary", `<ul>
       <li>Automations: ${automations.length}</li>
       <li>Agents: ${agents.length}</li>
@@ -280,7 +280,7 @@ async function automationsPage(url: URL): Promise<string> {
     raw(inlineActions(`<form method="post" action="/automations/${encodeURIComponent(a.name)}/run"><button type="submit">${icon("play")}Run now</button></form><a href="/automations/${encodeURIComponent(a.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAutomationForm(a.name)}</details>`)),
   ]);
   return layout("Automations", `
-    ${pageHeader("Automations", { actions: `<a href="/automations/new" class="button-link">${icon("plus")}Create automation</a>` })}
+    ${pageHeader("Automations", { description: "Reusable prompts that can run manually or on a schedule.", actions: `<a href="/automations/new" class="button-link">${icon("plus")}Create automation</a>` })}
     ${message}
     ${section("Automation files", table(["Name", "Agent", "Schedule", "Model", "Cron installed", "Prompt", "Action"], rows, { empty: "No automations found." }))}
   `);
@@ -323,7 +323,7 @@ async function schedulePage(): Promise<string> {
   const orphanRows = view.orphanCronBlocks.map((block) => [raw(`<code>${escapeHtml(block.name)}</code>`), block.line || "no command line found", block.warning || "No matching automation file."]);
 
   return layout("Schedule", `
-    ${pageHeader("Schedule", { description: `Read-only agenda for scheduled agent runs from ${escapeHtml(formatDateTime(view.from))} through ${escapeHtml(formatDateTime(view.until))}. Source of truth: automation markdown schedules. Crontab blocks are install status/evidence only.` })}
+    ${pageHeader("Schedule", { description: `Timeline view of scheduled automations from ${escapeHtml(formatDateTime(view.from))} through ${escapeHtml(formatDateTime(view.until))}. Source of truth: automation markdown schedules. Crontab blocks are install status/evidence only.` })}
     ${warningsList(view.warnings)}
     ${section("Upcoming agenda", agenda)}
     ${section("Scheduled run summary", table(["Automation", "Agent", "Schedule", "Model", "Cron", "Next run", "Count", "Warnings"], rows, { empty: "No automations found." }))}
@@ -430,8 +430,7 @@ async function projectsPage(url: URL): Promise<string> {
     <td class="actions"><a href="/projects/${encodeURIComponent(project.id)}/edit">${icon("pen")}Edit</a><a href="/tasks?project=${encodeURIComponent(project.id)}">Kanban</a><a href="/tasks/new?project=${encodeURIComponent(project.id)}">${icon("plus")}Task</a></td>
   </tr>`).join("");
   return layout("Projects", `
-    <h2>Projects</h2>
-    <p><a href="/projects/new" class="button-link">${icon("plus")}Create project</a> <a href="/tasks" class="button-link">Tasks kanban</a></p>
+    ${pageHeader("Projects", { description: "Project folders group related one-off tasks and shared context.", actions: `<a href="/projects/new" class="button-link">${icon("plus")}Create project</a><a href="/tasks" class="button-link">Tasks kanban</a>` })}
     ${message}
     ${projects.length === 0 ? "<p>No projects found. Create one to start assigning tasks.</p>" : `<table><tr><th>Id</th><th>Name</th><th>Description</th><th>Default agent</th><th>Tasks</th><th>Action</th></tr>${rows}</table>`}
   `);
@@ -468,8 +467,7 @@ async function kanbanPage(url: URL): Promise<string> {
     return `<section class="kanban-column" data-status="${escapeHtml(statusName)}"><div class="kanban-column-header"><h3>${escapeHtml(statusName)} <span class="muted">${columnTasks.length}</span></h3><a class="button-link kanban-new-task" href="${escapeHtml(newTaskHref)}">+ new task</a></div><div class="kanban-dropzone">${cards || "<p class=\"muted\">No tasks.</p>"}</div></section>`;
   }).join("");
   return layout("Tasks", `
-    <h2>Tasks${project ? ` for <code>${escapeHtml(project)}</code>` : ""}</h2>
-    <p><a href="/tasks/new${project ? `?project=${encodeURIComponent(project)}` : ""}" class="button-link">${icon("plus")}Create task</a> <a href="/projects" class="button-link">Projects</a></p>
+    ${pageHeader(`Tasks${project ? ` for ${project}` : ""}`, { description: "One-off prompts assigned to agents, claimed by the task heartbeat dispatcher when ready.", actions: `<a href="/tasks/new${project ? `?project=${encodeURIComponent(project)}` : ""}" class="button-link">${icon("plus")}Create task</a><a href="/projects" class="button-link">Projects</a>` })}
     ${pageMessage(url, ["created", "updated"])}
     <div class="kanban-board" data-kanban>${columns}</div>
     <script src="/kanban.js" defer></script>
@@ -653,7 +651,7 @@ async function agentsPage(url: URL): Promise<string> {
     raw(inlineActions(`<a href="/agents/${encodeURIComponent(s.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(s.name)}</details>`)),
   ]);
   return layout("Agents", `
-    ${pageHeader("Agents", { actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
+    ${pageHeader("Agents", { description: "Reusable AgentHQ bundles: identity, instructions, scoped context, model defaults, connector policy, and reserved future resources/memory.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
     ${message}
     ${section("Agent files", table(["Name", "Description", "Path", "Action"], rows, { empty: "No agents found." }))}
   `);
@@ -671,7 +669,7 @@ function agentFormPage(title: string, values: AgentFormValues, errors: string[],
   const action = editingName ? `/agents/${encodeURIComponent(editingName)}` : "/agents";
   const nameAttrs = editingName ? "readonly" : "required";
   return layout(title, `
-    ${pageHeader(title, { description: "Advanced: agents are Pi instructions/system-prompt-like files. Edit raw AGENT.md carefully." })}
+    ${pageHeader(title, { description: "Advanced: AGENT.md is the bundle entrypoint for identity, instructions, policy, and connector gates. Optional context/*.md files are loaded by the runner; reserved resource directories are not yet loaded." })}
     ${errorsList(errors)}
     <form method="post" action="${action}" class="form-stack">
       <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
@@ -684,7 +682,7 @@ function agentFormPage(title: string, values: AgentFormValues, errors: string[],
 function runsPage(url: URL): string {
   const runs = listRuns(100);
   const message = url.searchParams.get("ran") ? notice(`Finished run request for: ${url.searchParams.get("ran")}`, "success") : "";
-  return layout("Runs", `${pageHeader("Runs")}${message}${section("History", runsTable(runs))}`);
+  return layout("Runs", `${pageHeader("Runs", { description: "Activity history for automation and task invocations." })}${message}${section("History", runsTable(runs))}`);
 }
 
 function runDetailPage(id: string): string {
@@ -693,7 +691,7 @@ function runDetailPage(id: string): string {
   return layout(`Run ${id}`, `
     ${pageHeader(`Run ${run.id}`)}
     ${section("Details", metaTable([
-      ["Automation", run.automation],
+      ["Source", raw(runSource(run))],
       ["Agent", runAgentName(run)],
       ["Project/task", raw(run.project && run.task_id ? `<a href="/projects/${encodeURIComponent(run.project)}/tasks/${encodeURIComponent(run.task_id)}"><code>${escapeHtml(run.project)}/${escapeHtml(run.task_id)}</code></a>` : "")],
       ["Status", raw(status(run.status))],
@@ -723,7 +721,7 @@ function traceLog(entries: TraceLogEntry[]): string {
 function runsTable(runs: ReturnType<typeof listRuns>, empty = "No runs found."): string {
   const rows = runs.map((r) => [
     raw(runLink(r)),
-    r.automation,
+    raw(runSource(r)),
     runAgentName(r),
     raw(r.project && r.task_id ? `<a href="/projects/${encodeURIComponent(r.project)}/tasks/${encodeURIComponent(r.task_id)}"><code>${escapeHtml(r.project)}/${escapeHtml(r.task_id)}</code></a>` : ""),
     raw(status(r.status)),
@@ -733,7 +731,14 @@ function runsTable(runs: ReturnType<typeof listRuns>, empty = "No runs found."):
     duration(r.duration_ms),
     r.exit_code ?? "",
   ]);
-  return table(["Run", "Automation", "Agent", "Task", "Status", "Model", "Connector", "Started", "Duration", "Exit"], rows, { empty });
+  return table(["Run", "Source", "Agent", "Task", "Status", "Model", "Connector", "Started", "Duration", "Exit"], rows, { empty });
+}
+
+function runSource(run: Pick<ReturnType<typeof listRuns>[number], "automation" | "source_type" | "source_id">): string {
+  const type = run.source_type || "automation";
+  const id = run.source_id || run.automation;
+  if (type === "automation") return `<a href="/automations/${encodeURIComponent(id)}"><code>${escapeHtml(id)}</code></a>`;
+  return `${escapeHtml(type)} <code>${escapeHtml(id)}</code>`;
 }
 
 function clamp(value: string): string {

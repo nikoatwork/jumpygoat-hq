@@ -34,6 +34,7 @@ function classAttr(base: string, extra?: string): string {
 }
 
 export function layout(title: string, body: string): string {
+  const active = activeNavKey(title);
   return `<!doctype html>
 <html>
 <head>
@@ -43,14 +44,60 @@ export function layout(title: string, body: string): string {
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>jumpyGoat</h1>
-  <nav><a href="/">${icon("grid")}Dashboard</a><a href="/automations">${icon("gear")}Automations</a><a href="/schedule">${icon("calendar")}Schedule</a><a href="/agents">${icon("book")}Agents</a><a href="/projects">Projects</a><a href="/tasks">Tasks</a><a href="/runs">${icon("clock")}Runs</a><a href="/settings">Settings</a></nav>
-  <hr>
-  <main>
-    ${body}
-  </main>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand-link" href="/" aria-label="jumpyGoat overview"><h1>jumpyGoat</h1></a>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        ${navLink("overview", "/", `${icon("grid")}Overview`, active)}
+        <div class="nav-group" aria-label="Work">
+          <p class="nav-group-label">Work</p>
+          ${navLink("tasks", "/tasks", `${icon("list")}Tasks`, active)}
+          ${navLink("projects", "/projects", `${icon("folder")}Projects`, active)}
+        </div>
+        <div class="nav-group" aria-label="Automations">
+          <p class="nav-group-label">Automations</p>
+          ${navLink("automations", "/automations", `${icon("gear")}All automations`, active)}
+          ${navLink("schedule", "/schedule", `${icon("calendar")}Schedule`, active, "nested")}
+        </div>
+        <div class="nav-group" aria-label="Agents">
+          <p class="nav-group-label">Agents</p>
+          ${navLink("agents", "/agents", `${icon("book")}Agents`, active)}
+        </div>
+        <div class="nav-group" aria-label="Activity">
+          <p class="nav-group-label">Activity</p>
+          ${navLink("runs", "/runs", `${icon("clock")}Runs`, active)}
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        ${navLink("settings", "/settings", `${icon("wrench")}Settings`, active)}
+      </div>
+    </aside>
+    <div class="content-shell">
+      <main>
+        ${body}
+      </main>
+    </div>
+  </div>
 </body>
 </html>`;
+}
+
+function navLink(key: string, href: string, label: string, active: string, extraClass = ""): string {
+  const current = key === active;
+  const classes = ["nav-link", extraClass, current ? "active" : ""].filter(Boolean).join(" ");
+  return `<a class="${escapeHtml(classes)}" href="${escapeHtml(href)}"${current ? " aria-current=\"page\"" : ""}>${label}</a>`;
+}
+
+function activeNavKey(title: string): string {
+  const normalized = title.toLowerCase();
+  if (normalized.includes("automation")) return "automations";
+  if (normalized.includes("schedule")) return "schedule";
+  if (normalized.includes("agent")) return "agents";
+  if (normalized.includes("project")) return "projects";
+  if (normalized.includes("task")) return "tasks";
+  if (normalized.includes("run")) return "runs";
+  if (normalized.includes("settings")) return "settings";
+  return "overview";
 }
 
 export function pageHeader(title: string, options: { description?: string; actions?: string; meta?: string } = {}): string {
