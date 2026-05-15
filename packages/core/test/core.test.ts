@@ -30,7 +30,7 @@ try {
 
   assert.equal(
     automationMarkdown({ name: "daily", agent: "helper", schedule: "manual", prompt: "Say hi." }),
-    '---\nagent: "helper"\nschedule: "manual"\n---\n\nSay hi.\n',
+    "---\nagent: helper\nschedule: manual\n---\nSay hi.\n",
   );
 
   await createAutomation({ name: "daily", agent: "helper", schedule: "manual", prompt: "Say hi." });

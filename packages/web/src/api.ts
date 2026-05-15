@@ -68,7 +68,7 @@ export async function apiRoute(method: string, url: URL, body: RequestBody = {})
     if (agentMatch) {
       const name = decodeURIComponent(agentMatch[1]!);
       if (method === "GET") return json({ agent: await getAgent(name, { includeRaw: url.searchParams.get("raw") === "1" }) });
-      if (method === "PUT") return json({ agent: await updateAgent(name, agentUpdateInput(name, readObject(body))) });
+      if (method === "PUT") return json(await upsertAgentResponse(name, agentUpdateInput(name, readObject(body))));
       if (method === "DELETE") {
         await deleteAgent(name);
         return json({ ok: true });
@@ -87,11 +87,17 @@ export async function apiRoute(method: string, url: URL, body: RequestBody = {})
       return json({ run: await runAutomationNow(name) }, 202);
     }
 
+    const automationStatusMatch = path.match(/^\/api\/automations\/([a-z0-9-]+)\/status$/);
+    if (automationStatusMatch && method === "GET") {
+      const name = decodeURIComponent(automationStatusMatch[1]!);
+      return json({ status: await automationStatusResponse(name, optionalNumber(url.searchParams.get("limit"))) });
+    }
+
     const automationMatch = path.match(/^\/api\/automations\/([a-z0-9-]+)$/);
     if (automationMatch) {
       const name = decodeURIComponent(automationMatch[1]!);
       if (method === "GET") return json({ automation: await getAutomation(name, { includeRaw: url.searchParams.get("raw") === "1" }) });
-      if (method === "PUT") return json({ automation: await updateAutomation(name, automationInput(readObject(body), name)) });
+      if (method === "PUT") return json(await upsertAutomationResponse(name, automationInput(readObject(body), name)));
       if (method === "DELETE") {
         await deleteAutomation(name);
         return json({ ok: true });
@@ -147,6 +153,10 @@ export async function apiRoute(method: string, url: URL, body: RequestBody = {})
     if (path === "/api/settings") {
       if (method === "GET") return json({ settings: await getSettings() });
       if (method === "PUT") return json({ settings: await updateSettings({ content: stringValue(readObject(body).content, "content") }) });
+    }
+
+    if (path === "/api/setup/automation" && method === "POST") {
+      return json(await setupAutomationResponse(readObject(body)));
     }
 
     if (path === "/api/cron" && method === "GET") return json({ cron: await getCronStatus() });
@@ -222,6 +232,160 @@ function auditApiSideEffect(method: string, path: string, details?: Record<strin
   console.log(`[api:audit] ${new Date().toISOString()} ${method} ${path}${safeDetails}`);
 }
 
+async function upsertAgentResponse(name: string, input: AgentCreateInput): Promise<Record<string, unknown>> {
+  const exists = await agentExists(name);
+  const agent = exists ? await updateAgent(name, input) : await createAgent(input);
+  return { agent, created: !exists, updated: exists, path: agent.path, etag: agent.etag };
+}
+
+async function upsertAutomationResponse(name: string, input: AutomationCreateInput): Promise<Record<string, unknown>> {
+  const exists = await automationExists(name);
+  const automation = exists ? await updateAutomation(name, input) : await createAutomation(input);
+  return { automation, created: !exists, updated: exists, path: automation.path, etag: automation.etag };
+}
+
+async function setupAutomationResponse(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const agentObject = requiredRecord(input.agent, "agent");
+  const automationObject = requiredRecord(input.automation, "automation");
+  const agent = agentInput(agentObject);
+  const automationName = stringValue(automationObject.name, "automation.name");
+  const automation = automationInput({ agent: agent.name, ...automationObject }, automationName);
+  const warnings: string[] = [];
+
+  const agentResult = await upsertAgentResponse(agent.name, agent);
+  const automationResult = await upsertAutomationResponse(automationName, automation);
+
+  let cron: unknown;
+  if (input.installCron === true) {
+    auditApiSideEffect("POST", "/api/setup/automation", { action: "installCron", automation: automationName });
+    try {
+      cron = await installAutomationCron(automationName);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      warnings.push(`Cron install failed: ${message}`);
+      cron = { ok: false, error: message };
+    }
+  }
+
+  let run: unknown;
+  if (input.runNow === true) {
+    auditApiSideEffect("POST", "/api/setup/automation", { action: "runNow", automation: automationName });
+    try {
+      run = await runAutomationNow(automationName);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      warnings.push(`Run now failed: ${message}`);
+      run = { ok: false, error: message };
+    }
+  }
+
+  return { agent: agentResult, automation: automationResult, cron, run, warnings };
+}
+
+async function automationStatusResponse(name: string, limit = 10): Promise<Record<string, unknown>> {
+  const automation = await getAutomation(name);
+  const cronStatus = await getCronStatus();
+  const cron = cronStatus.automations.find((block) => block.name === name) || null;
+  const runs = await listRuns({ automation: name, limit });
+  const warnings: string[] = [];
+
+  if (automation.schedule === "manual" && cron) warnings.push("Manual automation has an installed cron block.");
+  if (automation.schedule !== "manual" && !cron) warnings.push("Cron schedule is not installed in the user crontab.");
+  if (cron?.warning) warnings.push(`Cron block warning: ${cron.warning}`);
+  if (runs.some((run) => run.status !== "ok" && run.status !== "running")) warnings.push("Recent runs include failures.");
+
+  return {
+    automation: {
+      name: automation.name,
+      agent: automation.agent,
+      schedule: automation.schedule,
+      model: automation.model,
+      path: automation.path,
+      etag: automation.etag,
+    },
+    cron: cron ? { installed: true, block: cron.block, line: cron.line, warning: cron.warning } : { installed: false },
+    connectors: connectorSummary(automation.web, automation.notify),
+    recentRuns: runs.map(summarizeRun),
+    warnings,
+  };
+}
+
+async function agentExists(name: string): Promise<boolean> {
+  try {
+    await getAgent(name);
+    return true;
+  } catch (error) {
+    if (error instanceof CoreError && error.code === "NOT_FOUND") return false;
+    throw error;
+  }
+}
+
+async function automationExists(name: string): Promise<boolean> {
+  try {
+    await getAutomation(name);
+    return true;
+  } catch (error) {
+    if (error instanceof CoreError && error.code === "NOT_FOUND") return false;
+    throw error;
+  }
+}
+
+function connectorSummary(web: unknown, notify: unknown): Record<string, unknown> {
+  const summary: Record<string, unknown> = {};
+  const webConfig = optionalRecord(web);
+  const notifyConfig = optionalRecord(notify);
+  if (webConfig) summary.web = Object.fromEntries(Object.entries(webConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
+  if (notifyConfig) summary.notify = Object.fromEntries(Object.entries(notifyConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
+  return summary;
+}
+
+function summarizeConnectorConfig(config: unknown): Record<string, unknown> {
+  const record = optionalRecord(config);
+  if (!record) return { configured: true };
+  return {
+    configured: true,
+    enabled: record.enabled,
+    connector: record.connector,
+  };
+}
+
+function summarizeRun(run: Awaited<ReturnType<typeof listRuns>>[number]): Record<string, unknown> {
+  return {
+    id: run.id,
+    status: run.status,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
+    durationMs: run.durationMs,
+    exitCode: run.exitCode,
+    signal: run.signal,
+    outputPreview: preview(run.outputText),
+    errorPreview: preview(run.errorText),
+    connectorActions: summarizeConnectorActions(run.connectorActionsJson),
+  };
+}
+
+function summarizeConnectorActions(value: string | null | undefined): Record<string, unknown> {
+  if (!value) return { count: 0 };
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return { count: 0 };
+    return {
+      count: parsed.length,
+      actions: parsed.map((action) => {
+        const record = optionalRecord(action);
+        if (!record) return { status: "unknown" };
+        return { intent: record.intent, connector: record.connector, status: record.status };
+      }),
+    };
+  } catch {
+    return { count: 0, warning: "Could not parse connector actions." };
+  }
+}
+
+function preview(value: string | null | undefined, max = 240): string {
+  return (value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
 function errorJson(error: unknown): ResponseData {
   if (error instanceof CoreError) {
     return json({ code: error.code, message: error.message, ...(error.fields.length ? { fields: error.fields } : {}) }, error.status);
@@ -250,10 +414,14 @@ function agentUpdateInput(name: string, input: Record<string, unknown>): AgentCr
 function automationInput(input: Record<string, unknown>, fallbackName?: string): AutomationCreateInput {
   return {
     name: stringValue(input.name ?? fallbackName, "name"),
-    agent: stringValue(input.agent, "agent"),
-    schedule: stringValue(input.schedule ?? "manual", "schedule"),
+    agent: optionalString(input.agent),
+    schedule: optionalString(input.schedule),
     model: optionalString(input.model),
-    prompt: stringValue(input.prompt, "prompt"),
+    prompt: typeof input.prompt === "string" ? input.prompt : undefined,
+    web: input.web,
+    notify: input.notify,
+    frontmatter: optionalRecord(input.frontmatter),
+    rawMarkdown: typeof input.rawMarkdown === "string" ? input.rawMarkdown : undefined,
   };
 }
 
@@ -300,4 +468,14 @@ function optionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? number : undefined;
+}
+
+function optionalRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function requiredRecord(value: unknown, field: string): Record<string, unknown> {
+  const record = optionalRecord(value);
+  if (!record) throw new CoreError({ code: "VALIDATION_FAILED", message: `${field} is required.`, fields: [{ field, message: `${field} is required.` }] });
+  return record;
 }

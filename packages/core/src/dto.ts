@@ -20,6 +20,8 @@ export type AutomationDto = RawMarkdownResource & {
   agent: string;
   schedule: string;
   model: string;
+  web?: unknown;
+  notify?: unknown;
   prompt: string;
   promptPreview: string;
 };

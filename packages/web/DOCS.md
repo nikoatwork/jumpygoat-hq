@@ -122,7 +122,115 @@ ssh -L 3000:127.0.0.1:3000 user@vps
 jumpygoathq instances add tunnel --api-url http://127.0.0.1:3000 --token "$JUMPYGOATHQ_API_TOKEN"
 ```
 
-Side-effecting API calls such as run-now and cron install/uninstall emit an `[api:audit]` line to server stdout.
+### Agent + automation setup API
+
+Common three-call flow:
+
+```bash
+# 1. Create or update the agent bundle.
+curl -sS -X PUT "$HQ/api/agents/news-reporter" \
+  -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @- <<'JSON'
+{
+  "content": "---\nname: news-reporter\ndescription: Finds notable product news and emails a concise digest.\nallowedIntents: [web.search, web.scrape, notify.email]\n---\n\n## Identity\n\nReport concise, sourced product news.\n"
+}
+JSON
+
+# 2. Create or update the automation, preserving connector frontmatter.
+curl -sS -X PUT "$HQ/api/automations/daily-product-news" \
+  -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @- <<'JSON'
+{
+  "agent": "news-reporter",
+  "schedule": "0 8 * * *",
+  "prompt": "Search for notable product/AI developer-tool news from the last day and email a concise digest.",
+  "web": {
+    "search": { "enabled": true, "connector": "firecrawl", "limit": 5 },
+    "scrape": { "enabled": true, "connector": "firecrawl", "maxOutputChars": 12000 }
+  },
+  "notify": {
+    "email": {
+      "enabled": true,
+      "connector": "resend",
+      "to": "ops@example.com",
+      "from": "jumpyGoatHq <agent@example.com>",
+      "subjectPrefix": "[daily-news]"
+    }
+  }
+}
+JSON
+
+# 3. Run once now.
+curl -sS -X POST "$HQ/api/automations/daily-product-news/runs" \
+  -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN"
+```
+
+`PUT /api/agents/:name` and `PUT /api/automations/:name` are idempotent upserts. Their responses include `created`, `updated`, `path`, `etag`, and the resource DTO. Validation failures return the deterministic error shape above.
+
+One-shot setup combines the same operations:
+
+```bash
+curl -sS -X POST "$HQ/api/setup/automation" \
+  -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @- <<'JSON'
+{
+  "agent": {
+    "name": "news-reporter",
+    "content": "---\nname: news-reporter\ndescription: Finds notable product news and emails a concise digest.\nallowedIntents: [web.search, web.scrape, notify.email]\n---\n\n## Identity\n\nReport concise, sourced product news.\n"
+  },
+  "automation": {
+    "name": "daily-product-news",
+    "schedule": "0 8 * * *",
+    "prompt": "Search for notable product/AI developer-tool news from the last day and email a concise digest.",
+    "web": {
+      "search": { "enabled": true, "connector": "firecrawl", "limit": 5 },
+      "scrape": { "enabled": true, "connector": "firecrawl", "maxOutputChars": 12000 }
+    },
+    "notify": {
+      "email": {
+        "enabled": true,
+        "connector": "resend",
+        "to": "ops@example.com",
+        "from": "jumpyGoatHq <agent@example.com>",
+        "subjectPrefix": "[daily-news]"
+      }
+    }
+  },
+  "installCron": true,
+  "runNow": true
+}
+JSON
+```
+
+The setup response is `{ agent, automation, cron, run, warnings }`. Agent and automation writes fail normally on validation errors. Cron install and run-now failures are returned as warnings so callers can inspect the partially completed setup.
+
+Status inspection:
+
+```bash
+curl -sS "$HQ/api/automations/daily-product-news/status?limit=5" \
+  -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN"
+```
+
+`GET /api/automations/:name/status` returns automation metadata, installed-cron evidence, connector summaries, recent run summaries, and warnings. Large run trace text is intentionally omitted; use `GET /api/runs/:id` for full run details.
+
+Cron helpers:
+
+```bash
+curl -sS -X PUT "$HQ/api/cron/automations/daily-product-news" -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN"
+curl -sS -X DELETE "$HQ/api/cron/automations/daily-product-news" -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN"
+curl -sS "$HQ/api/cron" -H "Authorization: Bearer $JUMPYGOATHQ_API_TOKEN"
+```
+
+Side-effecting API calls such as run-now, setup with `installCron`/`runNow`, and cron install/uninstall emit an `[api:audit]` line to server stdout.
+
+### API troubleshooting
+
+- **Tailscale/default instance:** if remote calls hang or fail, verify the server is reachable from the client (`curl $HQ/api`), the server is bound to the expected interface, and `JUMPYGOATHQ_API_TOKEN` matches the CLI/API token. Prefer a named CLI instance for repeat use.
+- **Cron PATH:** installed cron blocks export the current `HOME`, `PATH`, `JUMPYGOATHQ_HOME`, and `JUMPYGOATHQ_DB_PATH` where present. If cron runs fail, inspect `jumpyGoatHqHome()/data/cron-<automation>.log` and ensure `pnpm` is on the PATH captured during install.
+- **Email `from`:** Resend notifications require `notify.email.from` or `JUMPYGOATHQ_NOTIFY_EMAIL_FROM`; the sender must be valid for the configured Resend account/domain. `notify.email.to` can be supplied in automation frontmatter or `JUMPYGOATHQ_NOTIFY_EMAIL_TO`.
 
 ## Binding
 

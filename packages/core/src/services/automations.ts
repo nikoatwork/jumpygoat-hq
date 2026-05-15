@@ -10,13 +10,26 @@ import { assertAutomationName, isSafeName } from "../names.js";
 
 export type AutomationCreateInput = {
   name: string;
+  agent?: string;
+  schedule?: string;
+  model?: string;
+  prompt?: string;
+  web?: unknown;
+  notify?: unknown;
+  frontmatter?: Record<string, unknown>;
+  rawMarkdown?: string;
+};
+
+export type AutomationUpdateInput = RevisionPrecondition & AutomationCreateInput;
+
+type ResolvedAutomationInput = {
+  name: string;
   agent: string;
   schedule: string;
   model?: string;
   prompt: string;
+  frontmatter: Record<string, unknown>;
 };
-
-export type AutomationUpdateInput = RevisionPrecondition & AutomationCreateInput;
 
 export type RunAutomationInput = {
   wait?: boolean;
@@ -49,17 +62,20 @@ export async function getAutomation(name: string, options: ListOptions = {}): Pr
 }
 
 export async function createAutomation(input: AutomationCreateInput): Promise<AutomationDto> {
-  await validateAutomationInput(input, "create");
-  await writeAtomic(automationPath(input.name), automationMarkdown(input));
-  return getAutomation(input.name, { includeRaw: true });
+  const resolved = await resolveAutomationInput(input);
+  await validateResolvedAutomationInput(resolved, "create");
+  await writeAtomic(automationPath(resolved.name), automationMarkdown(resolved));
+  return getAutomation(resolved.name, { includeRaw: true });
 }
 
 export async function updateAutomation(name: string, input: AutomationUpdateInput): Promise<AutomationDto> {
   assertAutomationName(name);
-  if (name !== input.name) throw conflictError("Renaming automations is not supported. Create a new automation instead.");
-  await validateAutomationInput(input, "update");
+  if (input.name && name !== input.name) throw conflictError("Renaming automations is not supported. Create a new automation instead.");
+  const existing = existsSync(automationPath(name)) ? await readAutomationFrontmatter(name) : undefined;
+  const resolved = await resolveAutomationInput({ ...input, name: input.name || name }, existing);
+  await validateResolvedAutomationInput(resolved, "update");
   await assertRevision(automationPath(name), input.ifMatch);
-  await writeAtomic(automationPath(name), automationMarkdown(input));
+  await writeAtomic(automationPath(name), automationMarkdown(resolved));
   return getAutomation(name, { includeRaw: true });
 }
 
@@ -93,6 +109,8 @@ async function readAutomationFile(name: string, options: ListOptions): Promise<A
       agent: String(parsed.data.agent || ""),
       schedule: String(parsed.data.schedule || "manual"),
       model: parsed.data.model ? String(parsed.data.model) : "",
+      web: parsed.data.web,
+      notify: parsed.data.notify,
       prompt: parsed.content.trim(),
       promptPreview: parsed.content.trim().replace(/\s+/g, " ").slice(0, 160),
       ...(options.includeRaw ? { rawMarkdown: raw } : {}),
@@ -112,12 +130,90 @@ async function readAutomationFile(name: string, options: ListOptions): Promise<A
 }
 
 export async function validateAutomationInput(input: AutomationCreateInput, mode: "create" | "update"): Promise<void> {
+  const existing = mode === "update" && isSafeName(input.name) && existsSync(automationPath(input.name)) ? await readAutomationFrontmatter(input.name) : undefined;
+  const resolved = await resolveAutomationInput(input, existing);
+  await validateResolvedAutomationInput(resolved, mode);
+}
+
+export function automationMarkdown(input: ResolvedAutomationInput | AutomationCreateInput): string {
+  if ("frontmatter" in input && input.frontmatter && typeof input.agent === "string" && typeof input.schedule === "string") {
+    return matter.stringify((input.prompt || "").trim() + "\n", input.frontmatter);
+  }
+  const createInput = input as AutomationCreateInput;
+  const frontmatter = supportedAutomationFrontmatter({
+    ...(isRecord(createInput.frontmatter) ? createInput.frontmatter : {}),
+    agent: createInput.agent,
+    schedule: createInput.schedule ?? "manual",
+    model: createInput.model,
+    web: createInput.web,
+    notify: createInput.notify,
+  });
+  return matter.stringify((createInput.prompt || "").trim() + "\n", frontmatter);
+}
+
+async function readAutomationFrontmatter(name: string): Promise<{ data: Record<string, unknown>; prompt: string }> {
+  const raw = await readFile(automationPath(name), "utf8");
+  const parsed = matter(raw);
+  return { data: parsed.data, prompt: parsed.content.trim() };
+}
+
+async function resolveAutomationInput(input: AutomationCreateInput, existing?: { data: Record<string, unknown>; prompt: string }): Promise<ResolvedAutomationInput> {
+  let data: Record<string, unknown> = { ...(existing?.data || {}) };
+  let prompt = input.prompt ?? existing?.prompt ?? "";
+
+  if (typeof input.rawMarkdown === "string") {
+    try {
+      const parsed = matter(input.rawMarkdown);
+      data = { ...parsed.data };
+      prompt = parsed.content.trim();
+    } catch (error) {
+      throw validationError("Automation validation failed.", [{ field: "rawMarkdown", message: `Automation markdown/frontmatter could not be parsed: ${error instanceof Error ? error.message : String(error)}` }]);
+    }
+  }
+
+  if (isRecord(input.frontmatter)) data = { ...data, ...input.frontmatter };
+  if (input.agent !== undefined) data.agent = input.agent;
+  if (input.schedule !== undefined) data.schedule = input.schedule || "manual";
+  if (data.schedule === undefined) data.schedule = "manual";
+  if (input.model !== undefined) {
+    if (input.model) data.model = input.model;
+    else delete data.model;
+  }
+  if (input.web !== undefined) data.web = input.web;
+  if (input.notify !== undefined) data.notify = input.notify;
+
+  const frontmatter = supportedAutomationFrontmatter(data);
+  return {
+    name: input.name,
+    agent: typeof frontmatter.agent === "string" ? frontmatter.agent : "",
+    schedule: typeof frontmatter.schedule === "string" ? frontmatter.schedule : "",
+    model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
+    prompt,
+    frontmatter,
+  };
+}
+
+function supportedAutomationFrontmatter(data: Record<string, unknown>): Record<string, unknown> {
+  const frontmatter: Record<string, unknown> = {
+    agent: data.agent,
+    schedule: data.schedule ?? "manual",
+  };
+  if (data.model !== undefined && data.model !== "") frontmatter.model = data.model;
+  if (data.web !== undefined) frontmatter.web = data.web;
+  if (data.notify !== undefined) frontmatter.notify = data.notify;
+  return frontmatter;
+}
+
+async function validateResolvedAutomationInput(input: ResolvedAutomationInput, mode: "create" | "update"): Promise<void> {
   const fields = [];
   if (!isSafeName(input.name)) fields.push({ field: "name", message: "Name must use lowercase letters, numbers, and hyphens only." });
   if (!input.agent) fields.push({ field: "agent", message: "Agent is required." });
   if (!input.prompt) fields.push({ field: "prompt", message: "Prompt is required." });
   if (!isValidSchedule(input.schedule)) fields.push({ field: "schedule", message: "Schedule must be 'manual' or a valid 5-field cron expression." });
   if ((input.model || "").length > 200) fields.push({ field: "model", message: "Model must be 200 characters or fewer." });
+  if (input.frontmatter.model !== undefined && typeof input.frontmatter.model !== "string") fields.push({ field: "model", message: "Model must be a string." });
+  if (input.frontmatter.web !== undefined && !isRecord(input.frontmatter.web)) fields.push({ field: "web", message: "Web connector config must be an object." });
+  if (input.frontmatter.notify !== undefined && !isRecord(input.frontmatter.notify)) fields.push({ field: "notify", message: "Notify connector config must be an object." });
   if (input.agent && !existsSync(agentPath(input.agent))) fields.push({ field: "agent", message: `Agent does not exist: ${input.agent}` });
 
   if (isSafeName(input.name)) {
@@ -129,16 +225,13 @@ export async function validateAutomationInput(input: AutomationCreateInput, mode
   if (fields.length) throw validationError("Automation validation failed.", fields);
 }
 
-export function automationMarkdown(input: AutomationCreateInput): string {
-  const lines = ["---", `agent: ${JSON.stringify(input.agent)}`, `schedule: ${JSON.stringify(input.schedule || "manual")}`];
-  if (input.model) lines.push(`model: ${JSON.stringify(input.model)}`);
-  lines.push("---", "", input.prompt.trim(), "");
-  return lines.join("\n");
-}
-
 function isValidSchedule(value: string): boolean {
   if (value === "manual") return true;
   const parts = value.trim().split(/\s+/);
   if (parts.length !== 5) return false;
   return parts.every((part) => /^[\d*,/\-]+$/.test(part));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

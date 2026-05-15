@@ -1,13 +1,20 @@
 #!/usr/bin/env tsx
 import { buildTaskHeartbeatCronBlock, DEFAULT_TASK_HEARTBEAT_LIMIT, DEFAULT_TASK_HEARTBEAT_SCHEDULE, readCrontab, removeTaskHeartbeatBlock, writeCrontab } from "./cron-utils.js";
 
-const options = parseArgs(process.argv.slice(2));
-const current = readCrontab();
-const withoutOld = removeTaskHeartbeatBlock(current);
-const block = buildTaskHeartbeatCronBlock(options);
-const next = [withoutOld, block].filter(Boolean).join("\n\n") + "\n";
-writeCrontab(next);
-console.log(`Installed task heartbeat cron: schedule=${options.schedule || process.env.JUMPYGOATHQ_TASK_HEARTBEAT_CRON || DEFAULT_TASK_HEARTBEAT_SCHEDULE} limit=${options.limit ?? process.env.JUMPYGOATHQ_TASK_DISPATCH_LIMIT ?? DEFAULT_TASK_HEARTBEAT_LIMIT}`);
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  const current = readCrontab();
+  const withoutOld = removeTaskHeartbeatBlock(current);
+  const block = buildTaskHeartbeatCronBlock(options);
+  const next = [withoutOld, block].filter(Boolean).join("\n\n") + "\n";
+  writeCrontab(next);
+  console.log(`Installed task heartbeat cron: schedule=${options.schedule || process.env.JUMPYGOATHQ_TASK_HEARTBEAT_CRON || DEFAULT_TASK_HEARTBEAT_SCHEDULE} limit=${options.limit ?? process.env.JUMPYGOATHQ_TASK_DISPATCH_LIMIT ?? DEFAULT_TASK_HEARTBEAT_LIMIT}`);
+}
+
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
 
 function parseArgs(argv: string[]): { schedule?: string; limit?: number } {
   const parsed: { schedule?: string; limit?: number } = {};
