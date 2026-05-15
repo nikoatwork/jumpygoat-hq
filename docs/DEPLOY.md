@@ -1,32 +1,63 @@
 # Deploy jumpyGoatHq on your own server
 
-This guide runs the jumpyGoatHq web UI as a `systemd` service and installs scheduled automations with cron.
+This guide runs the jumpyGoatHq web UI as a `systemd` service and optionally installs scheduled automations/task dispatch with cron.
 
 jumpyGoatHq currently has no built-in auth. Keep the web UI bound to `127.0.0.1` and use an SSH tunnel, Tailscale, or a trusted authenticated reverse proxy.
 
-## Assumptions
+## Deployment model
+
+Use one deploy parent that contains both the updateable source checkout and the private mutable instance data:
+
+```txt
+/root/jumpygoat-hq-deploy/
+  jumpygoat-hq/           # core git checkout; safe to git pull/rebuild
+  jumpygoat-hq-instance/  # private mutable instance data; back this up
+  bin/                    # optional operator helper scripts
+  ops/                    # optional local install notes, work logs, archives
+```
+
+The important separation is:
+
+- **Core**: `/root/jumpygoat-hq-deploy/jumpygoat-hq` — source code and dependencies. Disposable/updateable.
+- **Instance**: `/root/jumpygoat-hq-deploy/jumpygoat-hq-instance` — agents, automations, boards, data, traces, settings. Precious/back up.
+- **Supervisor**: systemd/cron run commands from the core checkout with `JUMPYGOATHQ_HOME` pointing at the instance.
 
 Examples below use:
 
-- repo path: `/root/jumpygoat-hq`
-- mutable workspace: `/var/lib/jumpygoat-hq`
+- deploy parent: `/root/jumpygoat-hq-deploy`
+- core checkout: `/root/jumpygoat-hq-deploy/jumpygoat-hq`
+- instance root: `/root/jumpygoat-hq-deploy/jumpygoat-hq-instance`
 - Unix user: `root`
 - web address on the server: `127.0.0.1:3000`
 
-Adjust paths/usernames if you deploy under a different user such as `jumpyGoatHq`.
+Adjust paths/usernames if you deploy under a different user such as `jumpygoat`.
 
 ## 1. Prepare the server checkout
 
-SSH to the server as the user that will run jumpyGoatHq, create an external mutable workspace, then install dependencies, initialize SQLite, and build:
+SSH to the server as the user that will run jumpyGoatHq, create the deploy parent, clone the repo, create the instance directories, then install dependencies, initialize SQLite, and build.
+
+Fresh clone:
 
 ```bash
-mkdir -p /var/lib/jumpygoat-hq/{agents,automations,boards,data,workspaces,traces}
-cd /root/jumpygoat-hq
+mkdir -p /root/jumpygoat-hq-deploy/{bin,ops}
+cd /root/jumpygoat-hq-deploy
 
+git clone <repo-url> jumpygoat-hq
+mkdir -p jumpygoat-hq-instance/{agents,automations,boards,data,workspaces,traces}
+
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 pnpm install
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm setup:db
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm setup:db
 pnpm build
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm run doctor
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm run doctor
+```
+
+If you already have a checkout, move or clone it into the same shape, then create the instance directory beside it:
+
+```bash
+mkdir -p /root/jumpygoat-hq-deploy/{bin,ops,jumpygoat-hq-instance/{agents,automations,boards,data,workspaces,traces}}
+# optional compatibility symlink for old habits/scripts:
+ln -sfn /root/jumpygoat-hq-deploy/jumpygoat-hq /root/jumpygoat-hq
 ```
 
 `JUMPYGOATHQ_HOME` is the mutable instance root. Runtime files live directly under `$JUMPYGOATHQ_HOME/{agents,automations,boards,data,workspaces,traces}` plus optional `$JUMPYGOATHQ_HOME/settings.yml` while source code stays in the repo checkout.
@@ -39,14 +70,46 @@ pi /login
 pi --mode json --no-session "hello"
 ```
 
-If you use API keys or connector secrets, create `.env.local` from the example:
+If you use API keys or connector secrets, create `.env.local` in the core checkout from the example:
 
 ```bash
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 cp .env.example .env.local
 nano .env.local
 ```
 
-## 2. Find your pnpm path
+## 2. Optional: add a local `jghq` helper
+
+A helper avoids repeating the long `JUMPYGOATHQ_HOME=...` prefix:
+
+```bash
+cat >/root/jumpygoat-hq-deploy/bin/jghq <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEPLOY_ROOT=/root/jumpygoat-hq-deploy
+CORE="$DEPLOY_ROOT/jumpygoat-hq"
+INSTANCE="$DEPLOY_ROOT/jumpygoat-hq-instance"
+
+cd "$CORE"
+export JUMPYGOATHQ_HOME="$INSTANCE"
+
+exec pnpm "$@"
+EOF
+chmod +x /root/jumpygoat-hq-deploy/bin/jghq
+```
+
+Use it on the server like:
+
+```bash
+/root/jumpygoat-hq-deploy/bin/jghq run doctor
+/root/jumpygoat-hq-deploy/bin/jghq web
+/root/jumpygoat-hq-deploy/bin/jghq runner <automation-name>
+/root/jumpygoat-hq-deploy/bin/jghq install:cron <automation-name>
+/root/jumpygoat-hq-deploy/bin/jghq dispatch:tasks
+```
+
+## 3. Find your pnpm path
 
 systemd needs a stable executable path. On this project’s Pi-managed Node install it is commonly:
 
@@ -62,7 +125,7 @@ command -v pnpm
 
 Use that path in `ExecStart=` below.
 
-## 3. Create the systemd service
+## 4. Create the systemd service
 
 Create `/etc/systemd/system/jumpygoat-hq-web.service`:
 
@@ -75,13 +138,13 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/jumpygoat-hq
-EnvironmentFile=-/root/jumpygoat-hq/.env.local
+WorkingDirectory=/root/jumpygoat-hq-deploy/jumpygoat-hq
+EnvironmentFile=-/root/jumpygoat-hq-deploy/jumpygoat-hq/.env.local
 Environment=HOME=/root
 Environment=PATH=/root/.local/share/pi-node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=HOST=127.0.0.1
 Environment=PORT=3000
-Environment=JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq
+Environment=JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance
 ExecStart=/root/.local/share/pi-node/current/bin/pnpm web
 Restart=always
 RestartSec=5
@@ -101,7 +164,7 @@ systemctl enable --now jumpygoat-hq-web
 systemctl status jumpygoat-hq-web
 ```
 
-## 4. View the web UI safely
+## 5. View the web UI safely
 
 Because the service binds to localhost, tunnel it from your laptop:
 
@@ -117,7 +180,7 @@ http://127.0.0.1:3000
 
 Use `/settings` to edit instance-local semantic model profiles. The file is `$JUMPYGOATHQ_HOME/settings.yml`; it should contain only non-secret model policy labels/selectors. Pi provider auth, API keys, and custom provider config stay in Pi config or environment.
 
-## 5. Logs and service operations
+## 6. Logs and service operations
 
 Watch logs:
 
@@ -128,7 +191,7 @@ journalctl -u jumpygoat-hq-web -f
 Restart after code or config changes:
 
 ```bash
-cd /root/jumpygoat-hq
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 pnpm build
 systemctl restart jumpygoat-hq-web
 ```
@@ -140,61 +203,94 @@ systemctl stop jumpygoat-hq-web
 systemctl start jumpygoat-hq-web
 ```
 
-## 6. Install scheduled automations
+## 7. Install scheduled automations
 
 The public repo ships with no active automations. Create `$JUMPYGOATHQ_HOME/agents/<name>/AGENT.md` and `$JUMPYGOATHQ_HOME/automations/<name>.md` first (or use the web UI), then install scheduled automation runs separately into cron:
 
 ```bash
-cd /root/jumpygoat-hq
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm install:cron <automation-name>
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm list:cron
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm install:cron <automation-name>
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm list:cron
+```
+
+With the optional helper:
+
+```bash
+/root/jumpygoat-hq-deploy/bin/jghq install:cron <automation-name>
+/root/jumpygoat-hq-deploy/bin/jghq list:cron
 ```
 
 Remove a scheduled automation:
 
 ```bash
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm uninstall:cron <automation-name>
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm uninstall:cron <automation-name>
 ```
 
-Cron logs are written under `$JUMPYGOATHQ_HOME/data/`, for example `/var/lib/jumpygoat-hq/data/cron-<automation-name>.log`. The generated cron block preserves `JUMPYGOATHQ_HOME` from install time.
+Cron logs are written under `$JUMPYGOATHQ_HOME/data/`, for example `/root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/cron-<automation-name>.log`. The generated cron block preserves `JUMPYGOATHQ_HOME` from install time.
 
 Install cron as the same Unix user that ran `pi /login`, so Pi can reuse its stored auth.
 
-## 7. Install task dispatcher heartbeat
+## 8. Install task dispatcher heartbeat
 
 Boards and tasks live under `$JUMPYGOATHQ_HOME/boards`. The dispatcher assumes one local heartbeat process/timer and claims one `ready` assigned task per run by default:
 
 ```bash
-cd /root/jumpygoat-hq
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm dispatch:tasks
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm dispatch:tasks
 ```
 
 Cron example, every five minutes:
 
 ```cron
-*/5 * * * * cd /root/jumpygoat-hq && JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq /root/.local/share/pi-node/current/bin/pnpm dispatch:tasks >> /var/lib/jumpygoat-hq/data/task-dispatch.log 2>&1
+*/5 * * * * cd /root/jumpygoat-hq-deploy/jumpygoat-hq && JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance /root/.local/share/pi-node/current/bin/pnpm dispatch:tasks >> /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/task-dispatch.log 2>&1
 ```
 
 For systemd timers, use the same `WorkingDirectory`, `EnvironmentFile`, `HOME`, `PATH`, and `JUMPYGOATHQ_HOME` pattern as the web service, with `ExecStart=<pnpm-path> dispatch:tasks`.
 
-## 8. Updating an existing deployment
+## 9. Updating an existing deployment
+
+The core checkout is safe to update. The instance directory is not touched by `git pull` and should be backed up separately.
+
+For the full update checklist, API verification, remote CLI verification, cron notes, and troubleshooting, see [`UPDATE.md`](UPDATE.md).
+
+Quick update:
 
 ```bash
-cd /root/jumpygoat-hq
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 git pull
 pnpm install
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm setup:db
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm setup:db
 pnpm build
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm run doctor
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm run doctor
 systemctl restart jumpygoat-hq-web
 ```
 
-If automation schedules changed, reinstall the affected cron entries:
+## 10. Back up instance data
+
+Back up the instance directory, not `node_modules` or build output:
 
 ```bash
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm install:cron <automation-name>
-JUMPYGOATHQ_HOME=/var/lib/jumpygoat-hq pnpm list:cron
+tar -czf /root/jumpygoat-hq-deploy/ops/jumpygoat-hq-instance-$(date +%F).tgz \
+  -C /root/jumpygoat-hq-deploy jumpygoat-hq-instance
 ```
+
+Restore by placing the directory back at `/root/jumpygoat-hq-deploy/jumpygoat-hq-instance`, then running:
+
+```bash
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
+JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm setup:db
+systemctl restart jumpygoat-hq-web
+```
+
+## 11. Record local install details
+
+For long-lived VPS installs, keep an operator note outside the core checkout, for example:
+
+```txt
+/root/jumpygoat-hq-deploy/ops/INSTALLATION_AND_NEXT_STEPS.md
+```
+
+A template is available at [`docs/deploy/INSTALLATION_RECORD.template.md`](deploy/INSTALLATION_RECORD.template.md). Copy it into your deploy `ops/` directory and fill in the server-specific values.
 
 ## Notes
 

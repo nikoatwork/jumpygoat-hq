@@ -63,7 +63,7 @@ cp .env.example .env.local
 # edit .env.local if needed
 ```
 
-This repo ships as a template with no active agents, automations, tasks, or SQLite data. By default mutable instance state lives under local `workspace/` and is gitignored. Set `JUMPYGOATHQ_HOME=/path/to/jumpygoat-hq-home` to place that state somewhere else for deployment.
+This repo ships as a template with no active agents, automations, tasks, or SQLite data. By default mutable instance state lives under local `workspace/` and is gitignored. Set `JUMPYGOATHQ_HOME=/path/to/jumpygoat-hq-home` to place that state somewhere else for deployment. For a VPS/systemd install, see [`docs/DEPLOY.md`](docs/DEPLOY.md); for existing server updates/rebuilds, see [`docs/UPDATE.md`](docs/UPDATE.md).
 
 ## Create your first agent and automation
 
