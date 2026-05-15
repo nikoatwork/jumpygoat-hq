@@ -57,13 +57,14 @@ jumpygoathq --instance tailnet tasks list
 ## Commands
 
 ```bash
-jumpygoathq agents list|view|create|update|delete
-jumpygoathq automations list|view|create|update|delete|run
+jumpygoathq agents list|view|create|update|apply|delete
+jumpygoathq automations list|view|create|update|apply|status|delete|run
 jumpygoathq boards list|view|create|update|delete
 jumpygoathq tasks list|view|create|update|delete|status
 jumpygoathq runs list|view
 jumpygoathq settings view|update
 jumpygoathq cron status|install-automation|uninstall-automation|install-task-heartbeat|uninstall-task-heartbeat
+jumpygoathq setup automation
 jumpygoathq instances add|list|use|show|remove
 ```
 
@@ -71,22 +72,69 @@ Use `--json` for machine-readable output.
 
 ## Setup/status workflow
 
-The JSON API now supports idempotent setup primitives:
-
-- `PUT /api/agents/:name` — create or update an agent bundle.
-- `PUT /api/automations/:name` — create or update an automation, preserving connector frontmatter such as Firecrawl `web.*` and Resend `notify.email` blocks.
-- `POST /api/setup/automation` — one-shot agent + automation setup with optional cron install and run-now.
-- `GET /api/automations/:name/status?limit=5` — automation metadata, cron evidence, connector summaries, and recent runs.
-
-Dedicated CLI wrappers are tracked in `tasks/todo/tasks-cli-api-agent-automation-setup.md` task 6.0 (`agents apply`, `automations apply`, `setup automation`, and `automations status`). Until those commands land, use `packages/web/DOCS.md` curl examples for one-shot setup/status, or use the existing CRUD commands for local manual flows:
+Idempotent apply commands are thin wrappers over the same local core services or remote JSON API:
 
 ```bash
-jumpygoathq agents create news-reporter --file ./AGENT.md
-jumpygoathq automations create daily-product-news --agent news-reporter --schedule "0 8 * * *" --prompt "Search and summarize product news."
-jumpygoathq automations run daily-product-news
-jumpygoathq cron install-automation daily-product-news
-jumpygoathq cron status --json
+jumpygoathq agents apply news-reporter --file ./AGENT.md
+jumpygoathq automations apply daily-product-news \
+  --agent news-reporter \
+  --schedule "0 8 * * *" \
+  --prompt-file ./prompt.md \
+  --install-cron
+jumpygoathq automations status daily-product-news --limit 5 --json
 ```
+
+`automations apply` also accepts `--prompt "..."`, `--stdin`, or `--file automation.md|json|yaml`. Markdown files are sent as raw automation markdown; JSON/YAML files can include connector config such as Firecrawl `web.*` and Resend `notify.email` blocks.
+
+One-shot setup accepts JSON or YAML:
+
+```bash
+jumpygoathq setup automation --file ./setup.yaml --install-cron --run-now --json
+```
+
+Example `setup.yaml`:
+
+```yaml
+agent:
+  name: news-reporter
+  content: |
+    ---
+    name: news-reporter
+    description: Finds notable product news and emails a concise digest.
+    allowedIntents: [web.search, web.scrape, notify.email]
+    ---
+
+    ## Identity
+
+    Report concise, sourced product news.
+automation:
+  name: daily-product-news
+  schedule: "0 8 * * *"
+  prompt: Search for notable product/AI developer-tool news from the last day and email a concise digest.
+  web:
+    search:
+      enabled: true
+      connector: firecrawl
+      limit: 5
+    scrape:
+      enabled: true
+      connector: firecrawl
+      maxOutputChars: 12000
+  notify:
+    email:
+      enabled: true
+      connector: resend
+      to: ops@example.com
+      from: jumpyGoatHq <agent@example.com>
+      subjectPrefix: "[daily-news]"
+```
+
+The backing API primitives are:
+
+- `PUT /api/agents/:name` — create or update an agent bundle.
+- `PUT /api/automations/:name` — create or update an automation, preserving connector frontmatter.
+- `POST /api/setup/automation` — one-shot agent + automation setup with optional cron install and run-now.
+- `GET /api/automations/:name/status?limit=5` — automation metadata, cron evidence, connector summaries, and recent runs.
 
 Remote troubleshooting:
 

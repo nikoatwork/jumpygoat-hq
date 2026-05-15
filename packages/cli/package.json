@@ -12,7 +12,8 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@jumpygoat-hq/core": "workspace:*"
+    "@jumpygoat-hq/core": "workspace:*",
+    "js-yaml": "^4.1.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

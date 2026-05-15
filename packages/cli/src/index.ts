@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -76,6 +77,8 @@ type Parsed = {
   positionals: string[];
 };
 
+const require = createRequire(import.meta.url);
+const yaml = require("js-yaml") as { load(text: string): unknown };
 const CONFIG_PATH = process.env.JUMPYGOATHQ_CLI_CONFIG || path.join(os.homedir(), ".config", "jumpygoathq", "config.json");
 const VALUE_FLAGS = new Set([
   "agent",
@@ -95,6 +98,7 @@ const VALUE_FLAGS = new Set([
   "name",
   "priority",
   "prompt",
+  "prompt-file",
   "schedule",
   "status",
   "title",
@@ -130,6 +134,9 @@ async function main(): Promise<void> {
     case "automations":
     case "automation":
       await handleAutomations(client, action, rest, parsed);
+      return;
+    case "setup":
+      await handleSetup(client, action, rest, parsed);
       return;
     case "boards":
     case "board":
@@ -226,6 +233,10 @@ async function handleAgents(client: Client, action: string, rest: string[], pars
     const input = { name: required(name, "agent name"), content: await contentFromFlags(parsed, "content", "file") };
     return output(await call(client, () => updateAgent(input.name, input), "PUT", `/api/agents/${input.name}`, input), parsed.globals);
   }
+  if (action === "apply" || action === "upsert") {
+    const input = { name: required(name, "agent name"), content: await contentFromFlags(parsed, "content", "file") };
+    return output(await call(client, () => upsertAgentLocal(input), "PUT", `/api/agents/${input.name}`, input), parsed.globals);
+  }
   if (isDelete(action)) return output(await call(client, () => deleteAgent(required(name, "agent name")).then(ok), "DELETE", `/api/agents/${required(name, "agent name")}`), parsed.globals);
   throw new Error(`Unknown agents action: ${action}`);
 }
@@ -241,6 +252,20 @@ async function handleAutomations(client: Client, action: string, rest: string[],
   if (action === "update" || action === "edit") {
     const input = automationInput(parsed, required(name, "automation name"));
     return output(await call(client, () => updateAutomation(input.name, input), "PUT", `/api/automations/${input.name}`, input), parsed.globals);
+  }
+  if (action === "apply" || action === "upsert") {
+    const input = automationInput(parsed, required(name, "automation name"), { allowFile: true });
+    const result = await call(client, () => upsertAutomationLocal(input), "PUT", `/api/automations/${input.name}`, input);
+    const warnings: string[] = [];
+    let cron: unknown;
+    let run: unknown;
+    if (boolFlag(parsed, "install-cron")) cron = await safeCall(warnings, "Cron install", () => call(client, () => installAutomationCron(input.name), "PUT", `/api/cron/automations/${input.name}`, {}));
+    if (boolFlag(parsed, "run-now")) run = await safeCall(warnings, "Run now", () => call(client, () => runAutomationNow(input.name), "POST", `/api/automations/${input.name}/runs`, {}));
+    return output({ automation: result, cron, run, warnings }, parsed.globals);
+  }
+  if (action === "status") {
+    const limit = optionalNumberFlag(parsed, "limit");
+    return output(await call(client, () => automationStatusLocal(required(name, "automation name"), limit), "GET", `/api/automations/${required(name, "automation name")}/status${queryString({ limit })}`), parsed.globals);
   }
   if (action === "run") return output(await call(client, () => runAutomationNow(required(name, "automation name")), "POST", `/api/automations/${required(name, "automation name")}/runs`, {}), parsed.globals);
   if (isDelete(action)) return output(await call(client, () => deleteAutomation(required(name, "automation name")).then(ok), "DELETE", `/api/automations/${required(name, "automation name")}`), parsed.globals);
@@ -307,6 +332,14 @@ async function handleSettings(client: Client, action: string, _rest: string[], p
   throw new Error(`Unknown settings action: ${action}`);
 }
 
+async function handleSetup(client: Client, action: string, _rest: string[], parsed: Parsed): Promise<void> {
+  if (action !== "automation") throw new Error(`Unknown setup action: ${action}`);
+  const input = await setupAutomationInput(parsed);
+  if (boolFlag(parsed, "install-cron")) input.installCron = true;
+  if (boolFlag(parsed, "run-now")) input.runNow = true;
+  return output(await call(client, () => setupAutomationLocal(input), "POST", "/api/setup/automation", input), parsed.globals);
+}
+
 async function handleCron(client: Client, action: string, rest: string[], parsed: Parsed): Promise<void> {
   if (action === "status" || action === "view" || action === "get") return output(await call(client, () => getCronStatus(), "GET", "/api/cron"), parsed.globals);
   if (action === "install-automation") {
@@ -325,6 +358,81 @@ async function handleCron(client: Client, action: string, rest: string[], parsed
   throw new Error(`Unknown cron action: ${action}`);
 }
 
+async function upsertAgentLocal(input: AgentCreateInput): Promise<Record<string, unknown>> {
+  const exists = await agentExistsLocal(input.name);
+  const agent = exists ? await updateAgent(input.name, input) : await createAgent(input);
+  return { agent, created: !exists, updated: exists, path: agent.path, etag: agent.etag };
+}
+
+async function upsertAutomationLocal(input: AutomationCreateInput): Promise<Record<string, unknown>> {
+  const exists = await automationExistsLocal(input.name);
+  const automation = exists ? await updateAutomation(input.name, input) : await createAutomation(input);
+  return { automation, created: !exists, updated: exists, path: automation.path, etag: automation.etag };
+}
+
+async function setupAutomationLocal(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const agentObject = requiredRecord(input.agent, "agent");
+  const automationObject = requiredRecord(input.automation, "automation");
+  const agent = { name: stringValue(agentObject.name, "agent.name"), content: stringValue(agentObject.content ?? agentObject.rawMarkdown, "agent.content") };
+  const automationName = stringValue(automationObject.name, "automation.name");
+  const automation = { ...automationObject, name: automationName, agent: typeof automationObject.agent === "string" ? automationObject.agent : agent.name } as AutomationCreateInput;
+  const warnings: string[] = [];
+  const agentResult = await upsertAgentLocal(agent);
+  const automationResult = await upsertAutomationLocal(automation);
+  const cron = input.installCron === true ? await safeCall(warnings, "Cron install", () => installAutomationCron(automationName)) : undefined;
+  const run = input.runNow === true ? await safeCall(warnings, "Run now", () => runAutomationNow(automationName)) : undefined;
+  return { agent: agentResult, automation: automationResult, cron, run, warnings };
+}
+
+async function automationStatusLocal(name: string, limit = 10): Promise<Record<string, unknown>> {
+  const automation = await getAutomation(name);
+  const cronStatus = await getCronStatus();
+  const cron = cronStatus.automations.find((block) => block.name === name) || null;
+  const runs = await listRuns({ automation: name, limit });
+  const warnings: string[] = [];
+  if (automation.schedule === "manual" && cron) warnings.push("Manual automation has an installed cron block.");
+  if (automation.schedule !== "manual" && !cron) warnings.push("Cron schedule is not installed in the user crontab.");
+  if (cron?.warning) warnings.push(`Cron block warning: ${cron.warning}`);
+  if (runs.some((run) => run.status !== "ok" && run.status !== "running")) warnings.push("Recent runs include failures.");
+  return {
+    automation: { name: automation.name, agent: automation.agent, schedule: automation.schedule, model: automation.model, path: automation.path, etag: automation.etag },
+    cron: cron ? { installed: true, block: cron.block, line: cron.line, warning: cron.warning } : { installed: false },
+    connectors: connectorSummary(automation.web, automation.notify),
+    recentRuns: runs.map((run) => ({ id: run.id, status: run.status, startedAt: run.startedAt, finishedAt: run.finishedAt, durationMs: run.durationMs, exitCode: run.exitCode, signal: run.signal, outputPreview: preview(run.outputText), errorPreview: preview(run.errorText), connectorActions: summarizeConnectorActions(run.connectorActionsJson) })),
+    warnings,
+  };
+}
+
+async function agentExistsLocal(name: string): Promise<boolean> {
+  try {
+    await getAgent(name);
+    return true;
+  } catch (error) {
+    if (error instanceof CoreError && error.code === "NOT_FOUND") return false;
+    throw error;
+  }
+}
+
+async function automationExistsLocal(name: string): Promise<boolean> {
+  try {
+    await getAutomation(name);
+    return true;
+  } catch (error) {
+    if (error instanceof CoreError && error.code === "NOT_FOUND") return false;
+    throw error;
+  }
+}
+
+async function safeCall<T>(warnings: string[], label: string, fn: () => Promise<T>): Promise<T | { ok: false; error: string }> {
+  try {
+    return await fn();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    warnings.push(`${label} failed: ${message}`);
+    return { ok: false, error: message };
+  }
+}
+
 async function call<T>(client: Client, local: () => Promise<T>, method: string, apiPath: string, body?: unknown): Promise<unknown> {
   if (client.mode === "local") return await local();
   return await remoteRequest(client, method, apiPath, body);
@@ -332,15 +440,21 @@ async function call<T>(client: Client, local: () => Promise<T>, method: string, 
 
 async function remoteRequest(client: Client, method: string, apiPath: string, body?: unknown): Promise<unknown> {
   const base = required(client.apiUrl, "api url").replace(/\/+$/, "");
-  const response = await fetch(`${base}${apiPath}`, {
-    method,
-    headers: {
-      accept: "application/json",
-      ...(body !== undefined ? { "content-type": "application/json" } : {}),
-      ...(client.token ? { authorization: `Bearer ${client.token}` } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${base}${apiPath}`, {
+      method,
+      headers: {
+        accept: "application/json",
+        ...(body !== undefined ? { "content-type": "application/json" } : {}),
+        ...(client.token ? { authorization: `Bearer ${client.token}` } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not reach jumpyGoatHq instance at ${base}: ${message}. Run \`jumpygoathq instances list\` and \`jumpygoathq instances use <name>\`, or pass --api-url.`);
+  }
   const text = await response.text();
   const parsed = text ? parseJson(text) : null;
   if (!response.ok) {
@@ -438,14 +552,45 @@ function listSummary(label: string, ...fields: string[]): (value: any) => string
   };
 }
 
-function automationInput(parsed: Parsed, name: string): AutomationCreateInput {
+function automationInput(parsed: Parsed, name: string, options: { allowFile?: boolean } = {}): AutomationCreateInput {
+  const file = options.allowFile ? optionalStringFlag(parsed, "file") : undefined;
+  if (file) {
+    const content = readFileSync(file, "utf8");
+    if (file.endsWith(".json") || file.endsWith(".yaml") || file.endsWith(".yml")) {
+      const parsedFile = parseDataFile(content, file);
+      const object = requiredRecord(parsedFile, "automation file");
+      return { ...object, name: stringValue(object.name ?? name, "name") } as AutomationCreateInput;
+    }
+    return { name, rawMarkdown: content };
+  }
   return {
     name,
     agent: required(stringFlag(parsed, "agent"), "--agent"),
     schedule: stringFlag(parsed, "schedule") || "manual",
     model: optionalStringFlag(parsed, "model"),
-    prompt: stringFlag(parsed, "prompt") || readStdinSyncIfRequested(parsed) || required(undefined, "--prompt"),
+    prompt: stringFlag(parsed, "prompt") || promptFile(parsed) || readStdinSyncIfRequested(parsed) || required(undefined, "--prompt"),
   };
+}
+
+async function setupAutomationInput(parsed: Parsed): Promise<Record<string, unknown>> {
+  const file = required(optionalStringFlag(parsed, "file"), "--file");
+  const value = parseDataFile(await readFile(file, "utf8"), file);
+  return requiredRecord(value, "setup file");
+}
+
+function parseDataFile(content: string, file: string): unknown {
+  if (file.endsWith(".json")) return parseJson(content);
+  if (file.endsWith(".yaml") || file.endsWith(".yml")) return yaml.load(content);
+  try {
+    return parseJson(content);
+  } catch {
+    return yaml.load(content);
+  }
+}
+
+function promptFile(parsed: Parsed): string | undefined {
+  const file = optionalStringFlag(parsed, "prompt-file");
+  return file ? readFileSync(file, "utf8") : undefined;
 }
 
 function boardInput(parsed: Parsed, id: string): BoardCreateInput {
@@ -523,6 +668,7 @@ function defaultAction(resource?: string): string {
   if (!resource) return "help";
   if (["runs", "agents", "automations", "boards", "tasks", "instances"].includes(resource)) return "list";
   if (resource === "cron") return "status";
+  if (resource === "setup") return "automation";
   return "view";
 }
 
@@ -549,6 +695,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
+function requiredRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!isRecord(value)) throw new Error(`${field} must be an object.`);
+  return value;
+}
+
+function stringValue(value: unknown, field: string): string {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`${field} is required.`);
+  return value;
+}
+
+function connectorSummary(web: unknown, notify: unknown): Record<string, unknown> {
+  const summary: Record<string, unknown> = {};
+  if (isRecord(web)) summary.web = Object.fromEntries(Object.entries(web).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
+  if (isRecord(notify)) summary.notify = Object.fromEntries(Object.entries(notify).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
+  return summary;
+}
+
+function summarizeConnectorConfig(config: unknown): Record<string, unknown> {
+  if (!isRecord(config)) return { configured: true };
+  return { configured: true, enabled: config.enabled, connector: config.connector };
+}
+
+function summarizeConnectorActions(value: string | null | undefined): Record<string, unknown> {
+  if (!value) return { count: 0 };
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return { count: 0 };
+    return {
+      count: parsed.length,
+      actions: parsed.map((action) => isRecord(action) ? { intent: action.intent, connector: action.connector, status: action.status } : { status: "unknown" }),
+    };
+  } catch {
+    return { count: 0, warning: "Could not parse connector actions." };
+  }
+}
+
+function preview(value: string | null | undefined, max = 240): string {
+  return (value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
 function print(value: string): void {
   process.stdout.write(value + "\n");
 }
@@ -570,18 +756,21 @@ Usage:
 
 Resources:
   instances     add/list/use/show/remove named remote instances
-  agents        list/view/create/update/delete
-  automations   list/view/create/update/delete/run
+  agents        list/view/create/update/apply/delete
+  automations   list/view/create/update/apply/status/delete/run
   boards        list/view/create/update/delete
   tasks         list/view/create/update/delete/status
   runs          list/view
   settings      view/update
   cron          status/install-automation/uninstall-automation/install-task-heartbeat/uninstall-task-heartbeat
+  setup         automation
 
 Examples:
   jumpygoathq agents list
-  jumpygoathq agents create helper --file ./AGENT.md
-  jumpygoathq automations create daily --agent helper --schedule manual --prompt "Say hi"
+  jumpygoathq agents apply helper --file ./AGENT.md
+  jumpygoathq automations apply daily --agent helper --schedule manual --prompt "Say hi" --install-cron --run-now
+  jumpygoathq setup automation --file ./setup.json --install-cron --run-now
+  jumpygoathq automations status daily --limit 5
   jumpygoathq --api-url https://hq.example.com agents list
   jumpygoathq instances add home --api-url https://hq.example.com --token TOKEN
   jumpygoathq --instance home runs list --limit 10
