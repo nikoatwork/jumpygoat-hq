@@ -2,6 +2,10 @@
 
 This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
 
+## 2026-05-15
+
+- feat: redesigned the Agents page roster as profile-style team cards with deterministic emoji avatars, compact workload stats, and no explainer section — completed in `tasks/done/2026-05-15_tasks-agent-roster-profile-cards.md`.
+
 ## 2026-05-14
 
 - feat: added shared core CRUD services, `/api/...` JSON routes with token support, and a local/remote `jumpygoathq` CLI with named instance profiles — completed in `tasks/done/2026-05-14_tasks-cli-api-unified-crud.md`.

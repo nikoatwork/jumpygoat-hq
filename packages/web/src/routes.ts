@@ -729,6 +729,27 @@ function weekdayName(value: string): string {
   return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Number(value)] || "Monday";
 }
 
+function agentAvatar(agent: { name: string; description: string }): string {
+  const text = `${agent.name} ${agent.description}`.toLowerCase();
+  const matches: Array<[string[], string]> = [
+    [["research", "analyst", "audit", "seo", "market"], "🔎"],
+    [["code", "engineer", "build", "frontend", "backend", "dev"], "🛠️"],
+    [["write", "editor", "copy", "content", "docs"], "✍️"],
+    [["ops", "operator", "run", "automation", "schedule"], "🧭"],
+    [["support", "help", "triage", "qa", "review"], "🤝"],
+    [["design", "ux", "ui", "brand", "visual"], "🎨"],
+    [["data", "metrics", "report", "finance"], "📊"],
+    [["security", "policy", "safe", "compliance"], "🛡️"],
+  ];
+  for (const [keywords, emoji] of matches) {
+    if (keywords.some((keyword) => text.includes(keyword))) return emoji;
+  }
+  const fallback = ["🐐", "🦉", "🦊", "🐝", "🦾", "🚀", "⚡", "🧩"];
+  let sum = 0;
+  for (const char of agent.name) sum += char.charCodeAt(0);
+  return fallback[sum % fallback.length];
+}
+
 async function agentsPage(url: URL): Promise<string> {
   const [agents, automations, tasks] = await Promise.all([listAgents(), listAutomations(), listTasks()]);
   const message = pageMessage(url, ["created", "updated", "deleted"]);
@@ -736,31 +757,33 @@ async function agentsPage(url: URL): Promise<string> {
     const assignedAutomations = automations.filter((automation) => automation.agent === agent.name).length;
     const assignedTasks = tasks.filter((task) => task.assignee === agent.name).length;
     const description = agent.description || "No plain-language description yet. Add one so it is clear when to choose this agent.";
+    const href = `/agents/${encodeURIComponent(agent.name)}`;
     return `<article class="agent-card">
-      <header>
-        <div><h3><a href="/agents/${encodeURIComponent(agent.name)}">${escapeHtml(agent.name)}</a></h3><p>${escapeHtml(description)}</p></div>
+      <header class="agent-profile-header">
+        <div class="agent-avatar" aria-hidden="true">${escapeHtml(agentAvatar(agent))}</div>
+        <div class="agent-identity">
+          <p class="agent-kicker">Agent profile</p>
+          <h3><a href="${href}">${escapeHtml(agent.name)}</a></h3>
+        </div>
         ${agent.warning ? badge("Needs review", "warning") : ""}
       </header>
+      <p class="agent-bio">${escapeHtml(description)}</p>
       ${agent.warning ? `<p class="error">${escapeHtml(agent.warning)}</p>` : ""}
-      <ul class="agent-facts">
-        <li><strong>${assignedAutomations}</strong> automation${assignedAutomations === 1 ? "" : "s"} choose this helper</li>
-        <li><strong>${assignedTasks}</strong> open task${assignedTasks === 1 ? "" : "s"} assigned here</li>
-        <li><strong>${agent.contextCount}</strong> extra context note${agent.contextCount === 1 ? "" : "s"}</li>
-      </ul>
-      ${inlineActions(`<a href="/agents/${encodeURIComponent(agent.name)}">View details</a><a href="/agents/${encodeURIComponent(agent.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(agent.name)}</details>`)}
+      <div class="agent-stats" aria-label="Agent workload">
+        <div><strong>${assignedAutomations}</strong><span>Automation${assignedAutomations === 1 ? "" : "s"}</span></div>
+        <div><strong>${assignedTasks}</strong><span>Open task${assignedTasks === 1 ? "" : "s"}</span></div>
+        <div><strong>${agent.contextCount}</strong><span>Context note${agent.contextCount === 1 ? "" : "s"}</span></div>
+      </div>
+      <div class="agent-card-actions">
+        <a href="${href}" class="button-link">View profile</a>
+        <a href="/agents/${encodeURIComponent(agent.name)}/edit">${icon("pen")}Edit</a>
+        <details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(agent.name)}</details>
+      </div>
     </article>`;
   }).join("");
   return layout("Agents", `
-    ${pageHeader("Agents", { description: "Your roster of reusable AI helpers. Start here when you want to decide who should do a job, not when you want to inspect logs.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
+    ${pageHeader("Agents", { description: "Your roster of reusable AI helpers. Choose the teammate for the job, tune their role, and see where they are assigned.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
     ${message}
-    ${section("How to think about agents", `
-      <div class="concept-grid">
-        ${conceptCard("Role", "What kind of helper is this?", "An agent is a reusable identity: purpose, tone, default model choice, and the instructions it should follow.", "/agents/new", "Create one")}
-        ${conceptCard("Context", "What should it know?", "Add focused background notes for the agent instead of pasting the same context into every task.", "/agents", "Review roster")}
-        ${conceptCard("Boundaries", "What is it allowed to do?", "External capabilities are governed by connector policy, so tools are explicit instead of hidden in the agent.", "/automations", "Assign work")}
-        ${conceptCard("Work", "Where does it get jobs?", "Automations and tasks point at an agent. Runs are just the receipts after work happens.", "/runs", "See receipts")}
-      </div>
-    `)}
     ${section("Agent roster", agents.length ? `<div class="agent-grid">${cards}</div>` : emptyState("No agents yet. Create your first agent to define the helper you want.", `<a href="/agents/new">Create agent</a>`))}
   `);
 }
