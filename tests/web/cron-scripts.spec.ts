@@ -54,7 +54,10 @@ test("automation cron install and uninstall scripts execute under tsx", async ()
     expect(installed).toContain("MAILTO=ops@example.com");
     expect(installed).toContain("# jumpygoathq:start daily");
     expect(installed).toContain("*/15 * * * *");
-    expect(installed).toContain("pnpm runner daily");
+    expect(installed).toContain("/bin/bash");
+    expect(installed).toContain("cron-daily.sh");
+    const cronScript = await readFile(path.join(tempHome, "data", "cron-daily.sh"), "utf8");
+    expect(cronScript).toContain("pnpm runner daily");
 
     await runScript("install-cron.ts", ["daily"]);
     const reinstalled = await readFile(crontabFile, "utf8");
@@ -79,7 +82,10 @@ test("task heartbeat cron install and uninstall scripts execute under tsx", asyn
     const installed = await readFile(crontabFile, "utf8");
     expect(installed).toContain("# jumpygoathq:task-heartbeat:start");
     expect(installed).toContain("*/30 * * * *");
-    expect(installed).toContain("pnpm dispatch:tasks --limit=2");
+    expect(installed).toContain("/bin/bash");
+    expect(installed).toContain("cron-task-heartbeat.sh");
+    const cronScript = await readFile(path.join(path.dirname(crontabFile), "data", "cron-task-heartbeat.sh"), "utf8");
+    expect(cronScript).toContain("pnpm dispatch:tasks --limit=2");
 
     const uninstall = await runScript("uninstall-task-heartbeat-cron.ts");
     expect(uninstall.stdout).toContain("Uninstalled task heartbeat cron.");

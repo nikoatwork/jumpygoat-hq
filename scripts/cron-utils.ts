@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { loadAutomation } from "../packages/runner/src/automation.js";
 import { dataDir, repoRoot } from "../packages/shared/paths.js";
@@ -59,7 +59,7 @@ export async function buildCronBlock(name: string): Promise<string> {
   const logDir = dataDir();
   mkdirSync(logDir, { recursive: true });
   const logFile = path.join(logDir, `cron-${name}.log`);
-  const command = buildRepoCronCommand(root, `pnpm runner ${name}`, logFile);
+  const command = buildRepoCronCommand(root, `pnpm runner ${name}`, logFile, `cron-${name}.sh`);
 
   return [
     markerStart(name),
@@ -79,7 +79,7 @@ export function buildTaskHeartbeatCronBlock(options: TaskHeartbeatOptions = {}):
   const logDir = dataDir();
   mkdirSync(logDir, { recursive: true });
   const logFile = path.join(logDir, "cron-task-heartbeat.log");
-  const command = buildRepoCronCommand(root, `pnpm dispatch:tasks --limit=${limit}`, logFile);
+  const command = buildRepoCronCommand(root, `pnpm dispatch:tasks --limit=${limit}`, logFile, "cron-task-heartbeat.sh");
 
   return [
     taskHeartbeatMarkerStart(),
@@ -192,14 +192,26 @@ function isAnyStartMarker(line: string): boolean {
   return line.startsWith("# jumpygoathq:start ") || line === taskHeartbeatMarkerStart();
 }
 
-function buildRepoCronCommand(root: string, pnpmCommand: string, logFile: string): string {
-  const home = process.env.HOME || "";
-  const pathEnv = process.env.PATH || "/usr/local/bin:/usr/bin:/bin";
-  const exports = [`HOME=${shellQuote(home)}`, `PATH=${shellQuote(pathEnv)}`];
-  if (process.env.JUMPYGOATHQ_HOME) exports.push(`JUMPYGOATHQ_HOME=${shellQuote(process.env.JUMPYGOATHQ_HOME)}`);
-  if (process.env.JUMPYGOATHQ_DB_PATH) exports.push(`JUMPYGOATHQ_DB_PATH=${shellQuote(process.env.JUMPYGOATHQ_DB_PATH)}`);
-  const inner = `export ${exports.join(" ")}; ${pnpmCommand} >> ${shellQuote(logFile)} 2>&1`;
-  return `cd ${shellQuote(root)} && /bin/bash -lc ${shellQuote(inner)}`;
+function buildRepoCronCommand(root: string, pnpmCommand: string, logFile: string, scriptName: string): string {
+  const scriptFile = path.join(dataDir(), scriptName);
+  const exports = [
+    `export HOME=${shellQuote(process.env.HOME || "")}`,
+    `export PATH=${shellQuote(process.env.PATH || "/usr/local/bin:/usr/bin:/bin")}`,
+  ];
+  if (process.env.JUMPYGOATHQ_HOME) exports.push(`export JUMPYGOATHQ_HOME=${shellQuote(process.env.JUMPYGOATHQ_HOME)}`);
+  if (process.env.JUMPYGOATHQ_DB_PATH) exports.push(`export JUMPYGOATHQ_DB_PATH=${shellQuote(process.env.JUMPYGOATHQ_DB_PATH)}`);
+  const script = [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    ...exports,
+    `cd ${shellQuote(root)}`,
+    `${pnpmCommand} >> ${shellQuote(logFile)} 2>&1`,
+    "",
+  ].join("\n");
+  mkdirSync(path.dirname(scriptFile), { recursive: true });
+  writeFileSync(scriptFile, script, "utf8");
+  chmodSync(scriptFile, 0o700);
+  return `/bin/bash ${shellQuote(scriptFile)}`;
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number, field: string): number {
