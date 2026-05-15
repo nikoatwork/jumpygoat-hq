@@ -132,8 +132,14 @@ export function emptyState(message: unknown, action = ""): string {
 
 export function table(headers: TableCell[], rows: TableCell[][], options: { className?: string; empty?: string } = {}): string {
   if (rows.length === 0) return emptyState(options.empty || "No records found.");
-  const classes = options.className ? ` class="${escapeHtml(options.className)}"` : "";
-  return `<div class="table-wrap"><table${classes}><tr>${headers.map((header) => `<th>${renderCell(header)}</th>`).join("")}</tr>${rows.map((row) => `<tr>${row.map((cell) => `<td>${renderCell(cell)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+  const classNames = ["responsive-table", options.className].filter(Boolean).join(" ");
+  const classes = ` class="${escapeHtml(classNames)}"`;
+  const labels = headers.map((header) => stripTags(renderCell(header)));
+  return `<div class="table-wrap"><table${classes}><tr>${headers.map((header) => `<th>${renderCell(header)}</th>`).join("")}</tr>${rows.map((row) => `<tr>${row.map((cell, index) => `<td data-label="${escapeHtml(labels[index] || "")}">${renderCell(cell)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+}
+
+function stripTags(value: string): string {
+  return value.replace(/<[^>]*>/g, "").trim();
 }
 
 export function metaTable(rows: Array<[TableCell, TableCell]>): string {
@@ -152,7 +158,8 @@ export function icon(name: string): string {
 
 export function status(value: string): string {
   const cls = value === "ok" ? "ok" : value === "running" ? "running" : "error";
-  return `<span class="${cls}">${escapeHtml(value)}</span>`;
+  const label = cls === "ok" ? "Ok" : cls === "running" ? "Running" : "Needs review";
+  return `<span class="status-badge status-${cls}" aria-label="Status: ${escapeHtml(label)}"><span class="status-dot" aria-hidden="true">●</span><span>${escapeHtml(value)}</span></span>`;
 }
 
 export function duration(ms: number | null): string {

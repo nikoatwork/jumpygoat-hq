@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-15
 
+- feat: completed the frontend UX audit improvement pass with product/design context, quieter OKLCH web styling, larger/labeled controls, responsive table/kanban guardrails, expanded web tests, and validation; completed in `tasks/done/2026-05-15_tasks-frontend-ux-audit.md`.
 - feat: redesigned the Agents page roster as profile-style team cards with deterministic emoji avatars, compact workload stats, and no explainer section — completed in `tasks/done/2026-05-15_tasks-agent-roster-profile-cards.md`.
 
 ## 2026-05-14

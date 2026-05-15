@@ -4,6 +4,26 @@ async function expectActiveNav(page: Page, name: string) {
   await expect(page.locator('a[aria-current="page"]')).toHaveAccessibleName(name);
 }
 
+async function expectNoUnlabeledControls(page: Page) {
+  const unlabeled = await page.locator("input:not([type='hidden']), select, textarea").evaluateAll((controls) => controls
+    .filter((control) => {
+      const element = control as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+      return !element.labels?.length && !element.getAttribute("aria-label") && !element.getAttribute("aria-labelledby");
+    })
+    .map((control) => control.outerHTML.slice(0, 120)));
+  expect(unlabeled).toEqual([]);
+}
+
+async function expectActionTargetsAtLeast(page: Page, minSize = 44) {
+  const smallTargets = await page.locator(".button-link:visible, button:visible, .nav-link:visible, summary:visible, .inline-actions a:visible, .card-actions a:visible").evaluateAll((controls, minimum) => controls
+    .map((control) => {
+      const rect = control.getBoundingClientRect();
+      return { text: (control.textContent || control.getAttribute("aria-label") || "").trim(), width: rect.width, height: rect.height };
+    })
+    .filter((target) => target.width > 0 && target.height > 0 && (target.width < Number(minimum) || target.height < Number(minimum))), minSize);
+  expect(smallTargets).toEqual([]);
+}
+
 test("overview renders core sidebar navigation and run summary", async ({ page }) => {
   await page.goto("/");
 
@@ -83,4 +103,21 @@ test("runs page renders either empty state or run table", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Runs" })).toBeVisible();
   await expectActiveNav(page, "Runs");
   await expect(page.locator("body")).toContainText(/No runs found|Source/);
+});
+
+test("core forms keep controls labeled and action targets large", async ({ page }) => {
+  for (const path of ["/", "/tasks", "/automations/new", "/agents/new", "/settings", "/runs"]) {
+    await page.goto(path);
+    await expectNoUnlabeledControls(page);
+    await expectActionTargetsAtLeast(page);
+  }
+});
+
+test("mobile pages avoid page-level horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/", "/tasks", "/automations", "/agents/new", "/settings", "/runs"]) {
+    await page.goto(path);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  }
 });

@@ -274,21 +274,21 @@ async function dashboard(): Promise<string> {
   const readyTasks = tasks.filter((task) => task.status === "ready");
   const workingTasks = tasks.filter((task) => task.status === "working-on-it");
   return layout("Dashboard", `
-    ${pageHeader("Overview", { description: "A plain-language map of your agent workspace: who can help, what work is waiting, and what happened recently." })}
-    ${section("How jumpyGoat thinks about work", `
+    ${pageHeader("Overview", { description: "Your local control desk for agent helpers, queued work, scheduled prompts, and run receipts." })}
+    ${section("Start with the job", `
       <div class="concept-grid">
-        ${conceptCard("1", "Agents are your helpers", "Create reusable teammates with a role, instructions, knowledge, and safety boundaries.", "/agents", "Meet your agents")}
-        ${conceptCard("2", "Automations are recurring asks", "Give an agent a prompt that can run manually or on a schedule, like a morning briefing.", "/automations", "Review automations")}
-        ${conceptCard("3", "Boards hold one-off tasks", "Group requests, assign them to an agent, then move them to ready when you want work to start.", "/tasks", "Open tasks")}
-        ${conceptCard("4", "Runs are the receipt", "Every finished or in-progress job leaves an activity record you can inspect when you need details.", "/runs", "See activity")}
+        ${conceptCard("1", "Choose the helper", "Agents define the role, instructions, context, model defaults, and connector policy for repeatable work.", "/agents", "Review agents")}
+        ${conceptCard("2", "Queue the work", "Boards hold one-off tasks. Assign an agent, move the task to ready, then let the dispatcher pick it up.", "/tasks", "Open task queue")}
+        ${conceptCard("3", "Schedule the repeat", "Automations are reusable prompts that run manually or from markdown schedules.", "/automations", "Review automations")}
+        ${conceptCard("4", "Inspect the receipt", "Runs preserve output, errors, model resolution, connector activity, and trace details.", "/runs", "Inspect runs")}
       </div>
     `)}
     ${section("At a glance", `
       <div class="stat-grid">
-        ${statCard("Agents", agents.length, "Reusable helpers", "/agents")}
+        ${statCard("Agents", agents.length, "Helpers available", "/agents")}
         ${statCard("Automations", automations.length, `${scheduledAutomations.length} scheduled`, "/automations")}
         ${statCard("Tasks", tasks.length, `${readyTasks.length} ready · ${workingTasks.length} in progress`, "/tasks")}
-        ${statCard("Boards", boards.length, "Task groups", "/boards")}
+        ${statCard("Boards", boards.length, "Queues with context", "/boards")}
       </div>
     `)}
     ${section("Needs attention", `
@@ -312,7 +312,7 @@ function statCard(label: string, value: number, helper: string, href: string): s
 }
 
 function overviewActivity(runs: ReturnType<typeof listRuns>): string {
-  if (!runs.length) return emptyState("No activity yet. Run an automation or move an assigned task to ready to create your first run.");
+  if (!runs.length) return emptyState("No activity yet. Run an automation or move an assigned task to ready to create your first run.", `<a class="button-link" href="/automations">Run an automation</a>`);
   return `<div class="activity-list">${runs.slice(0, 6).map((run) => `
     <article class="activity-card">
       <div><h4>${escapeHtml(readableRunTitle(run))}</h4><p class="muted">${escapeHtml(runAgentName(run) || "No agent recorded")} · ${date(run.started_at)}${duration(run.duration_ms) ? ` · ${duration(run.duration_ms)}` : ""}</p></div>
@@ -361,7 +361,7 @@ async function schedulePage(): Promise<string> {
   ]);
 
   const groups = groupOccurrencesByDate(view.occurrences);
-  const agenda = groups.length === 0 ? emptyState("No upcoming scheduled agent runs in this window.") : groups.map(([label, occurrences]) => `
+  const agenda = groups.length === 0 ? emptyState("No upcoming scheduled agent runs in this window.", `<a class="button-link" href="/automations/new">Create a scheduled automation</a>`) : groups.map(([label, occurrences]) => `
     <section class="agenda-day panel">
       <h3>${escapeHtml(label)}</h3>
       <ol class="agenda-list">
@@ -385,8 +385,8 @@ async function schedulePage(): Promise<string> {
     ${pageHeader("Schedule", { description: `Timeline view of scheduled automations from ${escapeHtml(formatDateTime(view.from))} through ${escapeHtml(formatDateTime(view.until))}. Source of truth: automation markdown schedules. Crontab blocks are install status/evidence only.` })}
     ${warningsList(view.warnings)}
     ${section("Upcoming agenda", agenda)}
-    ${section("Scheduled run summary", table(["Automation", "Agent", "Schedule", "Model", "Cron", "Next run", "Count", "Warnings"], rows, { empty: "No automations found." }))}
-    ${section("Manual automations", table(["Automation", "Agent", "Status", "Warnings"], manualRows, { empty: "No manual automations found." }))}
+    ${section("Scheduled run summary", table(["Automation", "Agent", "Authored schedule", "Model", "Cron evidence", "Next run", "Count", "Warnings"], rows, { empty: "No automations found." }))}
+    ${section("Manual automations", table(["Automation", "Agent", "Cron evidence", "Warnings"], manualRows, { empty: "No manual automations found." }))}
     ${section("Installed cron orphans", table(["Name", "Command", "Warning"], orphanRows, { empty: "No orphan jumpyGoatHq cron blocks found." }))}
     ${toolbar(`<span class="muted">Scheduled automations in window: ${scheduled.length}. Manual automations are excluded from the occurrence list.</span>`)}
   `);
@@ -420,9 +420,10 @@ async function settingsPage(url: URL): Promise<string> {
 function settingsFormPage(values: SettingsFormValues, errors: string[]): string {
   return section("Edit settings YAML", `
     ${errorsList(errors)}
+    ${notice("Settings only accept defaultModelProfile and modelProfiles. Keep provider secrets in Pi or environment variables, never in this file.", "info")}
     <form method="post" action="/settings" class="form-stack">
-      <label>settings.yml <textarea name="content" rows="18" required>${escapeHtml(values.content)}</textarea></label>
-      <p class="muted">Allowed fields: <code>defaultModelProfile</code> and <code>modelProfiles</code>. Do not put secrets or API keys here.</p>
+      <label>settings.yml <textarea name="content" rows="18" required aria-describedby="settings-help">${escapeHtml(values.content)}</textarea></label>
+      <p id="settings-help" class="muted">Example: <code>defaultModelProfile: fast</code> with <code>modelProfiles.fast.selector</code> pointing to a Pi model selector.</p>
       <p><button type="submit">${icon("checkmark")}Save settings</button></p>
     </form>
   `);
@@ -480,18 +481,18 @@ async function automationFormPage(title: string, values: AutomationFormValues, e
 async function boardsPage(url: URL): Promise<string> {
   const boards = await listBoards();
   const message = pageMessage(url, ["created", "updated"]);
-  const rows = boards.map((board) => `<tr>
-    <td><a href="/boards/${encodeURIComponent(board.id)}"><code>${escapeHtml(board.id)}</code></a>${board.warning ? `<br><b class="error">${escapeHtml(board.warning)}</b>` : ""}</td>
-    <td>${escapeHtml(board.name)}</td>
-    <td>${clamp(board.description)}</td>
-    <td>${escapeHtml(board.default_agent || "")}</td>
-    <td>${board.taskCount}</td>
-    <td class="actions"><a href="/boards/${encodeURIComponent(board.id)}/edit">${icon("pen")}Edit</a><a href="/tasks?board=${encodeURIComponent(board.id)}">Kanban</a><a href="/tasks/new?board=${encodeURIComponent(board.id)}">${icon("plus")}Task</a></td>
-  </tr>`).join("");
+  const rows = boards.map((board) => [
+    raw(`<a href="/boards/${encodeURIComponent(board.id)}"><code>${escapeHtml(board.id)}</code></a>${board.warning ? `<br><b class="error">${escapeHtml(board.warning)}</b>` : ""}`),
+    board.name,
+    raw(clamp(board.description)),
+    board.default_agent || "",
+    board.taskCount,
+    raw(inlineActions(`<a href="/boards/${encodeURIComponent(board.id)}/edit">${icon("pen")}Edit</a><a href="/tasks?board=${encodeURIComponent(board.id)}">Kanban</a><a href="/tasks/new?board=${encodeURIComponent(board.id)}">${icon("plus")}Task</a>`)),
+  ]);
   return layout("Boards", `
     ${pageHeader("Boards", { description: "Boards group related one-off tasks and shared context.", actions: `<a href="/boards/new" class="button-link">${icon("plus")}Create board</a><a href="/tasks" class="button-link">Tasks kanban</a>` })}
     ${message}
-    ${boards.length === 0 ? "<p>No boards found. Create one to start assigning tasks.</p>" : `<table><tr><th>Id</th><th>Name</th><th>Description</th><th>Default agent</th><th>Tasks</th><th>Action</th></tr>${rows}</table>`}
+    ${section("Board files", table(["Id", "Name", "Description", "Default agent", "Tasks", "Action"], rows, { empty: "No boards found. Create one to start assigning tasks." }))}
   `);
 }
 
@@ -500,19 +501,16 @@ async function boardDetailPage(id: string, url: URL): Promise<string> {
   if (!board) return layout("Board not found", `<h2>Board not found</h2><p>No board found for <code>${escapeHtml(id)}</code>.</p>`);
   const tasks = await listTasks(id);
   return layout(`Board ${id}`, `
-    <h2>Board <code>${escapeHtml(id)}</code></h2>
+    ${pageHeader(`Board ${id}`, { actions: `<a href="/boards/${encodeURIComponent(id)}/edit" class="button-link">Edit</a><a href="/tasks/new?board=${encodeURIComponent(id)}" class="button-link">Create task</a><a href="/tasks?board=${encodeURIComponent(id)}" class="button-link">Kanban</a><a href="/boards" class="button-link">Back to boards</a>` })}
     ${pageMessage(url, ["created", "updated"])}
-    <p><a href="/boards/${encodeURIComponent(id)}/edit">Edit</a> <a href="/tasks/new?board=${encodeURIComponent(id)}">Create task</a> <a href="/tasks?board=${encodeURIComponent(id)}">Kanban</a> <a href="/boards">Back to boards</a></p>
-    <table>
-      <tr><th>Name</th><td>${escapeHtml(board.name)}</td></tr>
-      <tr><th>Description</th><td>${escapeHtml(board.description)}</td></tr>
-      <tr><th>Default agent</th><td>${escapeHtml(board.default_agent || "")}</td></tr>
-      <tr><th>Path</th><td><code>${escapeHtml(board.path || "")}</code></td></tr>
-    </table>
-    <h3>Board body</h3>
-    ${board.body ? `<pre>${escapeHtml(board.body)}</pre>` : "<p class=\"muted\">No board body.</p>"}
-    <h3>Tasks</h3>
-    ${tasksTable(tasks)}
+    ${section("Details", metaTable([
+      ["Name", board.name],
+      ["Description", board.description],
+      ["Default agent", board.default_agent || ""],
+      ["Path", raw(`<code>${escapeHtml(board.path || "")}</code>`)],
+    ]))}
+    ${section("Board body", board.body ? `<pre>${escapeHtml(board.body)}</pre>` : emptyState("No board body."))}
+    ${section("Tasks", tasksTable(tasks))}
   `);
 }
 
@@ -530,14 +528,16 @@ async function kanbanPage(url: URL): Promise<string> {
     if (isCollapsed) {
       return `<a class="kanban-column kanban-column-collapsed" href="${escapeHtml(focusHref)}" data-status="${escapeHtml(statusName)}"><span>${escapeHtml(taskStatusLabel(statusName))}</span><strong>${columnTasks.length}</strong></a>`;
     }
-    return `<section class="kanban-column${focusedStatus === statusName ? " focused" : ""}" data-status="${escapeHtml(statusName)}"><div class="kanban-column-header"><h3>${escapeHtml(taskStatusLabel(statusName))} <span class="muted">${columnTasks.length}</span></h3><a class="button-link kanban-new-task" href="${escapeHtml(newTaskHref)}">+ new task</a></div><div class="kanban-dropzone">${cards || "<p class=\"muted\">No tasks.</p>"}</div></section>`;
+    return `<section class="kanban-column${focusedStatus === statusName ? " focused" : ""}" data-status="${escapeHtml(statusName)}"><div class="kanban-column-header"><h3>${escapeHtml(taskStatusLabel(statusName))} <span class="muted">${columnTasks.length}</span></h3><a class="button-link kanban-new-task" href="${escapeHtml(newTaskHref)}">+ new task</a></div><div class="kanban-dropzone">${cards || "<p class=\"muted\" data-empty-kanban>No tasks.</p>"}</div></section>`;
   }).join("");
   const focusActions = focusedStatus ? `<a href="${escapeHtml(tasksHref(board))}" class="button-link">All columns</a>` : "";
+  const statusLinks = TASK_STATUSES.map((statusName) => `<a class="button-link" href="${escapeHtml(tasksHref(board, statusName))}"${focusedStatus === statusName ? " data-current=\"true\"" : ""}>${escapeHtml(taskStatusLabel(statusName))}</a>`).join("");
   return layout("Tasks", `
     ${pageHeader(`Tasks${board ? ` for ${board}` : ""}`, { description: "One-off prompts assigned to agents. Move cards to ready when they should dispatch.", actions: `<a href="${escapeHtml(taskNewHref(undefined, board))}" class="button-link">${icon("plus")}Create task</a><a href="/boards" class="button-link">Boards</a>${focusActions}` })}
     ${pageMessage(url, ["created", "updated"])}
     ${focusedStatus ? `<p class="notice">Focused on <strong>${escapeHtml(taskStatusLabel(focusedStatus))}</strong>.</p>` : ""}
     ${notice(taskHeartbeat.installed ? `Task heartbeat cron installed: ${taskHeartbeat.line || "command missing"}${taskHeartbeat.warning ? ` (${taskHeartbeat.warning})` : ""}` : "Task heartbeat cron is not installed. Run `pnpm install:task-cron` to periodically dispatch ready assigned tasks.", taskHeartbeat.installed && !taskHeartbeat.warning ? "success" : "warning")}
+    <nav class="kanban-controls" aria-label="Task status views"><a class="button-link" href="${escapeHtml(tasksHref(board))}">All</a>${statusLinks}</nav>
     <div class="kanban-board${focusedStatus ? " focused" : ""}" data-kanban>${columns}</div>
     <script src="/kanban.js" defer></script>
   `);
@@ -569,7 +569,7 @@ async function boardFormPage(title: string, values: BoardFormValues, errors: str
   const idAttrs = editingId ? "readonly" : "required";
   const body = values.body || defaultBoardBody(values.name || values.id);
   return layout(title, `
-    <h2>${escapeHtml(title)}</h2>
+    ${pageHeader(title)}
     ${errorsList(errors)}
     <form method="post" action="${action}" class="stack">
       <label>Board id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
@@ -587,7 +587,7 @@ async function taskFormPage(title: string, values: TaskFormValues, errors: strin
   const action = editingBoard && editingId ? `/boards/${encodeURIComponent(editingBoard)}/tasks/${encodeURIComponent(editingId)}` : "/tasks";
   const idAttrs = editingId ? "readonly required" : "placeholder=\"auto-generated\"";
   return layout(title, `
-    <h2>${escapeHtml(title)}</h2>
+    ${pageHeader(title, { description: "Describe the task in markdown, assign an agent when it is ready for dispatch, and use status to control when it runs." })}
     ${errorsList(errors)}
     <form method="post" action="${action}" class="stack">
       <label>Board <select name="board" required ${editingBoard ? "readonly" : ""}>${boards.map((board) => `<option value="${escapeHtml(board.id)}" ${board.id === values.board ? "selected" : ""}>${escapeHtml(board.id)}</option>`).join("")}</select></label>
@@ -604,24 +604,21 @@ async function taskFormPage(title: string, values: TaskFormValues, errors: strin
 
 async function taskDetailPage(board: string, id: string): Promise<string> {
   const task = (await listTasks(board)).find((entry) => entry.id === id);
-  if (!task) return layout("Task not found", `<h2>Task not found</h2><p>No task found for <code>${escapeHtml(board)}/${escapeHtml(id)}</code>.</p>`);
+  if (!task) return layout("Task not found", `${pageHeader("Task not found")}<p>No task found for <code>${escapeHtml(board)}/${escapeHtml(id)}</code>.</p>`);
   return layout(`Task ${board}/${id}`, `
-    <h2>Task <code>${escapeHtml(board)}/${escapeHtml(id)}</code></h2>
-    <p><a href="/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}/edit">Edit</a> <a href="/tasks?board=${encodeURIComponent(board)}">Kanban</a> <a href="/boards/${encodeURIComponent(board)}">Board</a></p>
-    ${task.warning ? `<p class="error">${escapeHtml(task.warning)}</p>` : ""}
-    <table>
-      <tr><th>Title</th><td>${escapeHtml(task.title)}</td></tr>
-      <tr><th>Status</th><td>${escapeHtml(taskStatusLabel(task.status))}</td></tr>
-      <tr><th>Assignee</th><td>${escapeHtml(task.assignee)}</td></tr>
-      <tr><th>Priority</th><td>${escapeHtml(task.priority)}</td></tr>
-      <tr><th>Attempts</th><td>${task.attempts}</td></tr>
-      <tr><th>Latest run</th><td>${task.latestRun ? runLink(task.latestRun) : ""}</td></tr>
-      <tr><th>Path</th><td><code>${escapeHtml(task.path || "")}</code></td></tr>
-    </table>
-    <h3>Status actions</h3>
-    <div class="inline-actions">${statusActionForms(task, `/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}`)}</div>
-    <h3>Body</h3>
-    ${task.body ? `<pre>${escapeHtml(task.body)}</pre>` : "<p class=\"muted\">No task body.</p>"}
+    ${pageHeader(`Task ${board}/${id}`, { actions: `<a href="/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}/edit" class="button-link">Edit</a><a href="/tasks?board=${encodeURIComponent(board)}" class="button-link">Kanban</a><a href="/boards/${encodeURIComponent(board)}" class="button-link">Board</a>` })}
+    ${task.warning ? notice(task.warning, "error") : ""}
+    ${section("Details", metaTable([
+      ["Title", task.title],
+      ["Status", taskStatusLabel(task.status)],
+      ["Assignee", task.assignee],
+      ["Priority", task.priority],
+      ["Attempts", task.attempts],
+      ["Latest run", raw(task.latestRun ? runLink(task.latestRun) : "")],
+      ["Path", raw(`<code>${escapeHtml(task.path || "")}</code>`)],
+    ]))}
+    ${section("Status actions", `<div class="inline-actions">${statusActionForms(task, `/boards/${encodeURIComponent(board)}/tasks/${encodeURIComponent(id)}`)}</div>`)}
+    ${section("Body", task.body ? `<pre>${escapeHtml(task.body)}</pre>` : emptyState("No task body."))}
   `);
 }
 
@@ -649,7 +646,7 @@ function taskCard(task: TaskView): string {
 }
 
 function statusActionForms(task: Pick<TaskView, "board" | "id" | "status">, returnPath: string): string {
-  return TASK_STATUSES.filter((next) => next !== task.status).map((next) => `<form method="post" action="/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}/status"><input type="hidden" name="status" value="${next}"><input type="hidden" name="return" value="${escapeHtml(returnPath)}"><button type="submit">${escapeHtml(taskStatusLabel(next))}</button></form>`).join(" ");
+  return TASK_STATUSES.filter((next) => next !== task.status).map((next) => `<form method="post" action="/boards/${encodeURIComponent(task.board)}/tasks/${encodeURIComponent(task.id)}/status"><input type="hidden" name="status" value="${next}"><input type="hidden" name="return" value="${escapeHtml(returnPath)}"><button type="submit" aria-label="Move ${escapeHtml(task.id)} to ${escapeHtml(taskStatusLabel(next))}">${escapeHtml(taskStatusLabel(next))}</button></form>`).join(" ");
 }
 
 type ScheduleUi = { cadence: string; time: string; weekday: string; raw: string };
@@ -674,7 +671,7 @@ function scheduleFields(schedule: string): string {
       </div>
       <details ${ui.cadence === "custom" ? "open" : ""}>
         <summary>Advanced cron / raw value</summary>
-        <input name="schedule" value="${escapeHtml(ui.raw)}" required>
+        <label>Raw schedule <input name="schedule" value="${escapeHtml(ui.raw)}" required></label>
         <p class="muted">Use <code>manual</code> or a 5-field cron expression. Simple cadence values above are saved as cron.</p>
       </details>
     </fieldset>`;
@@ -784,7 +781,7 @@ async function agentsPage(url: URL): Promise<string> {
   return layout("Agents", `
     ${pageHeader("Agents", { description: "Your roster of reusable AI helpers. Choose the teammate for the job, tune their role, and see where they are assigned.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
     ${message}
-    ${section("Agent roster", agents.length ? `<div class="agent-grid">${cards}</div>` : emptyState("No agents yet. Create your first agent to define the helper you want.", `<a href="/agents/new">Create agent</a>`))}
+    ${section("Agent roster", agents.length ? `<div class="agent-grid">${cards}</div>` : emptyState("No agents yet. Create your first agent to define the helper you want.", `<a class="button-link" href="/agents/new">Create agent</a>`))}
   `);
 }
 
@@ -960,11 +957,11 @@ function errorsList(errors: string[]): string {
 }
 
 function deleteAutomationForm(name: string): string {
-  return `<form method="post" action="/automations/${encodeURIComponent(name)}/delete"><input name="confirm" placeholder="type ${escapeHtml(name)}"><button type="submit">${icon("trash")}Delete</button></form>`;
+  return `<form class="delete-confirm" method="post" action="/automations/${encodeURIComponent(name)}/delete"><label class="delete-confirm-label">Confirm automation name<input name="confirm" aria-label="Type ${escapeHtml(name)} to confirm deletion" autocomplete="off" placeholder="type ${escapeHtml(name)}"></label><p class="muted">This removes the automation markdown file.</p><button type="submit">${icon("trash")}Delete</button></form>`;
 }
 
 function deleteAgentForm(name: string): string {
-  return `<form method="post" action="/agents/${encodeURIComponent(name)}/delete"><input name="confirm" placeholder="type ${escapeHtml(name)}"><button type="submit">${icon("trash")}Delete</button></form>`;
+  return `<form class="delete-confirm" method="post" action="/agents/${encodeURIComponent(name)}/delete"><label class="delete-confirm-label">Confirm agent name<input name="confirm" aria-label="Type ${escapeHtml(name)} to confirm deletion" autocomplete="off" placeholder="type ${escapeHtml(name)}"></label><p class="muted">Deletion is blocked while automations reference this agent.</p><button type="submit">${icon("trash")}Delete</button></form>`;
 }
 
 function pageMessage(url: URL, keys: string[]): string {

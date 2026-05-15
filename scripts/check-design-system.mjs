@@ -86,15 +86,27 @@ function checkCssVocabulary() {
   }
 }
 
+function checkCssQualityGuards() {
+  const css = read("packages/web/public/styles.css");
+  const hexMatches = css.match(/#[0-9a-fA-F]{3,8}\b/g) || [];
+  if (hexMatches.length) fail(`packages/web/public/styles.css: hard-coded hex colors found (${[...new Set(hexMatches)].join(", ")}); use OKLCH tokens`);
+  if (/backdrop-filter\s*:/.test(css)) fail("packages/web/public/styles.css: decorative backdrop-filter is not allowed on the raw HTML console");
+  if (!css.includes("@media (prefers-reduced-motion: reduce)")) fail("packages/web/public/styles.css: missing reduced-motion media query");
+  requireRegex("packages/web/public/styles.css", /min-height:\s*2\.75rem/, "44px action target token");
+  requireText("packages/web/public/styles.css", "table.responsive-table", "responsive table rules");
+}
+
 function checkDocs() {
   requireText("packages/web/DOCS.md", "## UI conventions", "UI conventions section");
   requireText("packages/web/DOCS.md", "Do not add frontend dependencies", "no frontend dependencies guidance");
   requireText("packages/web/DOCS.md", "Use shared helpers from `src/html.ts`", "helper usage guidance");
+  requireText("packages/web/DOCS.md", "## UX acceptance checklist", "UX acceptance checklist");
 }
 
 checkNoFrontendPlatformDeps();
 checkHtmlHelpers();
 checkCssVocabulary();
+checkCssQualityGuards();
 checkDocs();
 
 if (failures.length) {

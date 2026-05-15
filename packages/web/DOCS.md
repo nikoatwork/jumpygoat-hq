@@ -69,6 +69,20 @@ badge("installed", "installed");
 
 Use `form-stack` for simple vertical forms and `form-grid` for compact field groups. Use `raw(...)` only for intentional trusted HTML fragments from route code; helper text values escape by default.
 
+## UX acceptance checklist
+
+Before shipping web UI changes:
+
+- Interactive controls that behave like actions have at least a 44px target height.
+- Every input, select, and textarea has a visible label or an explicit accessible label.
+- Destructive actions include a named confirmation field and predictable focus order.
+- Status is not communicated by color alone; use badge text or a visible marker plus text.
+- Tables either use the shared `table`/`metaTable` helpers or provide a narrow-screen alternative.
+- Kanban remains usable without drag/drop and without JavaScript-only status changes.
+- Empty states teach the next useful action.
+- Motion respects `prefers-reduced-motion`.
+- Colors come from semantic OKLCH tokens in `public/styles.css`.
+
 Reconsider a React/client-heavy migration only if the product needs a genuinely interactive operator console that cannot stay clear with server-rendered HTML plus small progressive-enhancement scripts.
 
 ## Local validation
