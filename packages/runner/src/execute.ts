@@ -4,11 +4,14 @@ import { loadAgent } from "./agent.js";
 import { extractConnectorActionsFromTrace, processLegacyConnectorActions, resolveConnectorPlan } from "./connectors/index.js";
 import { dbPath, finishRun, insertRun, openDb } from "./db.js";
 import { invocationProject, invocationTaskId, type Invocation } from "./invocation.js";
-import { agentPath } from "./paths.js";
+import { agentPath, jumpyGoatHqHome, workspaceDir } from "./paths.js";
 import { runPiInvocation } from "./pi.js";
 import { createRunLog, errorText, outputText, pushTraceLine, traceText } from "./run-log.js";
 import { loadSettings, resolveModelRequest } from "../../shared/settings.js";
+import { createLogger } from "../../shared/logger.js";
 import { extractUsageFromTraceText } from "./usage.js";
+
+const runnerLogger = createLogger({ component: "runner", file: "runner.jsonl" });
 
 export type InvocationExecutionResult = {
   runId: string;
@@ -61,6 +64,19 @@ export async function executeInvocation(invocation: Invocation, options: { runId
   console.log(`${options.label || "jumpyGoatHq run"} ${runId}`);
   if (invocation.source.type === "task") console.log(`task: ${invocation.source.id}`);
   console.log(`db: ${dbPath()}`);
+  runnerLogger.info("run_start", {
+    run_id: runId,
+    source_type: invocation.source.type,
+    source_id: invocation.source.id,
+    agent: invocation.agent,
+    requested_model: modelResolution.requestedModel ?? null,
+    resolved_model: modelResolution.resolvedModel ?? null,
+    model_profile: modelResolution.profileKey ?? null,
+    model_resolution_warning: modelResolution.warning ?? null,
+    db_path: dbPath(),
+    instance_home: jumpyGoatHqHome(),
+    workspace: workspaceDir(invocation.workspaceKey),
+  });
 
   try {
     const result = await runPiInvocation({ invocation, agent, log, runId, model, connectorPlan });
@@ -78,6 +94,24 @@ export async function executeInvocation(invocation: Invocation, options: { runId
     });
     const connectorActions = [...traceConnectorActions, ...legacyConnectorActions];
     if (connectorActions.length > 0) pushTraceLine(log, { type: "jumpygoathq_connector_actions", actions: connectorActions });
+
+    const finishDetails = {
+      run_id: runId,
+      source_type: invocation.source.type,
+      source_id: invocation.source.id,
+      agent: invocation.agent,
+      status,
+      exit_code: result.exitCode,
+      signal: result.signal,
+      duration_ms: durationMs,
+      output_chars: outputText(log).length,
+      error_chars: errorText(log).length,
+      trace_chars: traceText(log).length,
+      connector_action_count: connectorActions.length,
+      stderr_tail: errorText(log).slice(-1000) || undefined,
+    };
+    if (status === "ok") runnerLogger.info("run_finish", finishDetails);
+    else runnerLogger.error("run_finish", finishDetails);
 
     pushTraceLine(log, {
       type: "jumpygoathq_summary",
@@ -119,6 +153,20 @@ export async function executeInvocation(invocation: Invocation, options: { runId
     const durationMs = Date.now() - Date.parse(startedAt);
     pushTraceLine(log, { type: "jumpygoathq_error", message });
     log.errorLines.push(message);
+
+    runnerLogger.error("run_error", {
+      run_id: runId,
+      source_type: invocation.source.type,
+      source_id: invocation.source.id,
+      agent: invocation.agent,
+      status: "error",
+      exit_code: 1,
+      duration_ms: durationMs,
+      output_chars: outputText(log).length,
+      error_chars: errorText(log).length,
+      trace_chars: traceText(log).length,
+      message,
+    });
 
     const connectorActions = extractConnectorActionsFromTrace(traceText(log));
     if (connectorActions.length > 0) pushTraceLine(log, { type: "jumpygoathq_connector_actions", actions: connectorActions });

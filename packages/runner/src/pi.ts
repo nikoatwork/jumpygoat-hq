@@ -9,6 +9,9 @@ import type { Invocation } from "./invocation.js";
 import { workspaceDir } from "./paths.js";
 import type { RunLog } from "./run-log.js";
 import { pushOutputFromPiEvent, pushTraceLine } from "./run-log.js";
+import { createLogger } from "../../shared/logger.js";
+
+const runnerLogger = createLogger({ component: "runner", file: "runner.jsonl" });
 
 export async function runPiInvocation(args: {
   invocation: Invocation;
@@ -44,11 +47,20 @@ export async function runPiInvocation(args: {
     });
   }
 
+  const safePiArgs = piArgs.map((arg) => (arg === invocation.prompt ? "<prompt>" : arg));
   pushTraceLine(log, {
     type: "jumpygoathq_pi_start",
     command: "pi",
-    args: piArgs.map((arg) => (arg === invocation.prompt ? "<prompt>" : arg)),
+    args: safePiArgs,
     cwd,
+  });
+  runnerLogger.info("pi_start", {
+    run_id: runId,
+    command: "pi",
+    args: safePiArgs,
+    cwd,
+    agent_file: agentFile,
+    connector_tools: connectorPlan ? connectorToolNames(connectorPlan) : [],
   });
 
   return await new Promise((resolve, reject) => {
@@ -62,7 +74,17 @@ export async function runPiInvocation(args: {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-    child.on("error", reject);
+    child.on("error", (error) => {
+      runnerLogger.error("pi_spawn_error", {
+        run_id: runId,
+        command: "pi",
+        args: safePiArgs,
+        cwd,
+        message: error.message,
+        stack: error.stack,
+      });
+      reject(error);
+    });
 
     let stdoutBuffer = "";
     let stderrBuffer = "";
@@ -94,6 +116,16 @@ export async function runPiInvocation(args: {
         log.errorLines.push(stderrBuffer.trimEnd());
         pushTraceLine(log, { type: "jumpygoathq_stderr", text: stderrBuffer.trimEnd() });
       }
+      const finishDetails = {
+        run_id: runId,
+        command: "pi",
+        cwd,
+        exit_code: exitCode,
+        signal,
+        stderr_tail: log.errorLines.join("\n").slice(-1000) || undefined,
+      };
+      if (exitCode === 0) runnerLogger.info("pi_finish", finishDetails);
+      else runnerLogger.error("pi_finish", finishDetails);
       resolve({ exitCode, signal, agentFile });
     });
   });

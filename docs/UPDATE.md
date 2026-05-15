@@ -29,11 +29,13 @@ JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm run doctor
 systemctl restart jumpygoat-hq-web
 ```
 
-Check the service:
+Check the service and recent file logs:
 
 ```bash
 systemctl status jumpygoat-hq-web --no-pager
 journalctl -u jumpygoat-hq-web -n 80 --no-pager
+tail -80 /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/web.jsonl 2>/dev/null || true
+tail -80 /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/errors.jsonl 2>/dev/null || true
 ```
 
 ## Update with the optional `jghq` helper
@@ -136,6 +138,8 @@ JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm dispatch:t
 
 ## Troubleshooting
 
+Operational file logs live under `$JUMPYGOATHQ_HOME/data/logs/`: `web.jsonl`, `runner.jsonl`, and `errors.jsonl`. Use them with `journalctl` when an update appears to start but the service or runs behave differently than expected.
+
 ### `/api/...` returns 404
 
 The running server is probably old or was not rebuilt/restarted. Run the quick update again and confirm:
@@ -145,6 +149,7 @@ cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 pnpm build
 systemctl restart jumpygoat-hq-web
 journalctl -u jumpygoat-hq-web -n 80 --no-pager
+tail -80 /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/web.jsonl 2>/dev/null || true
 ```
 
 ### CLI returns unauthorized

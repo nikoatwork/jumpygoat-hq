@@ -39,7 +39,10 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@jumpygoat-hq/core";
+import { createLogger } from "../../shared/logger.js";
 import type { ResponseData } from "./routes.js";
+
+const apiAuditLogger = createLogger({ component: "api", file: "web.jsonl" });
 
 export type RequestBody = {
   form?: URLSearchParams;
@@ -228,8 +231,7 @@ function headerValue(value: string | string[] | undefined): string | undefined {
 }
 
 function auditApiSideEffect(method: string, path: string, details?: Record<string, unknown>): void {
-  const safeDetails = details ? ` ${JSON.stringify(details)}` : "";
-  console.log(`[api:audit] ${new Date().toISOString()} ${method} ${path}${safeDetails}`);
+  apiAuditLogger.info("api_side_effect", { method, path, ...(details || {}) });
 }
 
 async function upsertAgentResponse(name: string, input: AgentCreateInput): Promise<Record<string, unknown>> {

@@ -3,9 +3,12 @@ import http from "node:http";
 import { loadDotEnv } from "./env.js";
 import { route } from "./routes.js";
 import type { RequestBody } from "./api.js";
-import { dbPath } from "./paths.js";
+import { dbPath, jumpyGoatHqHome } from "./paths.js";
+import { createLogger } from "../../shared/logger.js";
 
 loadDotEnv();
+
+const webLogger = createLogger({ component: "web", file: "web.jsonl" });
 
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || "3000");
@@ -14,7 +17,14 @@ const server = http.createServer((req, res) => {
   const started = Date.now();
   void handle(req, res).finally(() => {
     const ms = Date.now() - started;
-    console.log(`${req.method || ""} ${req.url || ""} ${res.statusCode} ${ms}ms`);
+    const url = safeRequestUrl(req);
+    webLogger.info("request", {
+      method: req.method || "",
+      path: url.pathname,
+      route_type: url.pathname.startsWith("/api") ? "api" : "page",
+      status: res.statusCode,
+      duration_ms: ms,
+    });
   });
 });
 
@@ -34,6 +44,13 @@ async function responseForRequest(method: string, url: URL, req: http.IncomingMe
     return await route(method, url, body ? { ...body, headers: req.headers } : { headers: req.headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    webLogger.error("request_error", {
+      method,
+      path: url.pathname,
+      route_type: url.pathname.startsWith("/api") ? "api" : "page",
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     if (url.pathname.startsWith("/api")) {
       const syntax = error instanceof SyntaxError;
       return {
@@ -54,6 +71,10 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
 }
 
+function safeRequestUrl(req: http.IncomingMessage): URL {
+  return new URL(req.url || "/", `http://${req.headers.host || `${host}:${port}`}`);
+}
+
 async function readRequestBody(req: http.IncomingMessage): Promise<RequestBody> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -66,14 +87,37 @@ async function readRequestBody(req: http.IncomingMessage): Promise<RequestBody> 
 }
 
 server.listen(port, host, () => {
-  console.log(`jumpyGoat web listening on http://${host}:${port}`);
-  console.log(`db: ${dbPath()}`);
-  if (host === "0.0.0.0") console.warn("WARNING: bound to 0.0.0.0. Put this behind trusted auth/proxy/firewall.");
+  webLogger.info("startup", {
+    host,
+    port,
+    db_path: dbPath(),
+    instance_home: jumpyGoatHqHome(),
+    node_version: process.version,
+    pid: process.pid,
+  });
+  if (host === "0.0.0.0") webLogger.warn("public_bind", { message: "Bound to 0.0.0.0. Put this behind trusted auth/proxy/firewall." });
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    console.log(`received ${signal}, shutting down`);
-    server.close(() => process.exit(0));
+    webLogger.info("shutdown_signal", { signal, pid: process.pid });
+    server.close(() => {
+      webLogger.info("shutdown_complete", { signal, pid: process.pid });
+      process.exit(0);
+    });
   });
 }
+
+process.on("uncaughtException", (error) => {
+  webLogger.error("uncaught_exception", { message: error.message, stack: error.stack, pid: process.pid });
+  setImmediate(() => process.exit(1));
+});
+
+process.on("unhandledRejection", (reason) => {
+  webLogger.error("unhandled_rejection", {
+    message: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+    pid: process.pid,
+  });
+  setImmediate(() => process.exit(1));
+});

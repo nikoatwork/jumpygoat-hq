@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-15
 
+- feat: added dependency-free VPS operational JSONL logging for web, API audit, runner, Pi subprocesses, cron wrappers, and SSH troubleshooting docs — completed in `tasks/done/2026-05-15_tasks-lightweight-vps-logging.md`.
 - feat: added idempotent agent/automation setup APIs, one-shot automation setup, automation status, rich connector frontmatter preservation, reliable cron install scripts, CLI apply/setup/status commands, docs, and validation — completed in `tasks/done/2026-05-15_tasks-cli-api-agent-automation-setup.md`.
 - feat: completed the frontend UX audit improvement pass with product/design context, quieter OKLCH web styling, larger/labeled controls, responsive table/kanban guardrails, expanded web tests, and validation; completed in `tasks/done/2026-05-15_tasks-frontend-ux-audit.md`.
 - feat: redesigned the Agents page roster as profile-style team cards with deterministic emoji avatars, compact workload stats, and no explainer section — completed in `tasks/done/2026-05-15_tasks-agent-roster-profile-cards.md`.

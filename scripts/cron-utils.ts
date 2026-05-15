@@ -202,10 +202,15 @@ function buildRepoCronCommand(root: string, pnpmCommand: string, logFile: string
   if (process.env.JUMPYGOATHQ_DB_PATH) exports.push(`export JUMPYGOATHQ_DB_PATH=${shellQuote(process.env.JUMPYGOATHQ_DB_PATH)}`);
   const script = [
     "#!/usr/bin/env bash",
-    "set -euo pipefail",
+    "set -uo pipefail",
     ...exports,
+    `LOG_FILE=${shellQuote(logFile)}`,
     `cd ${shellQuote(root)}`,
-    `${pnpmCommand} >> ${shellQuote(logFile)} 2>&1`,
+    `echo "[jumpygoathq:cron] start ts=$(date -Is) cwd=$(pwd) home=\${JUMPYGOATHQ_HOME:-} command=${escapeCronLogValue(pnpmCommand)}" >> "$LOG_FILE"`,
+    `${pnpmCommand} >> "$LOG_FILE" 2>&1`,
+    "status=$?",
+    `echo "[jumpygoathq:cron] end ts=$(date -Is) exit_code=$status" >> "$LOG_FILE"`,
+    "exit $status",
     "",
   ].join("\n");
   mkdirSync(path.dirname(scriptFile), { recursive: true });
@@ -227,4 +232,8 @@ function assertPositiveInteger(value: number, field: string): void {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function escapeCronLogValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\$/g, "\\$").replace(/`/g, "\\`").replace(/\"/g, "\\\"").replace(/[\r\n]/g, " ");
 }

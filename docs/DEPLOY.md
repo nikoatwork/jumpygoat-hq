@@ -182,18 +182,54 @@ Use `/settings` to edit instance-local semantic model profiles. The file is `$JU
 
 ## 6. Logs and service operations
 
-Watch logs:
+jumpyGoatHq writes dependency-free JSONL operational logs under the instance home:
+
+```txt
+/root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/web.jsonl
+/root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/runner.jsonl
+/root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/errors.jsonl
+```
+
+The logs are append-only breadcrumbs for SSH debugging. They intentionally avoid request bodies, prompts, auth headers, API keys, and full Pi traces. Detailed run output/error/trace still lives in the SQLite `runs` table and on the web run detail page.
+
+Watch the systemd journal and file logs:
 
 ```bash
 journalctl -u jumpygoat-hq-web -f
+
+tail -f /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/web.jsonl
+tail -f /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/runner.jsonl
+tail -f /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/errors.jsonl
 ```
 
-Restart after code or config changes:
+Useful SSH checks without extra dependencies:
 
 ```bash
+# recent web errors
+grep '"level":"error"' /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/web.jsonl | tail -20
+
+# recent runner starts/finishes
+grep '"event":"run_' /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/runner.jsonl | tail -40
+
+# optional, if jq is installed
+jq -r '[.ts,.level,.component,.event,.run_id,.status,.message] | @tsv' /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/errors.jsonl | tail -20
+```
+
+You can set `JUMPYGOATHQ_LOG_LEVEL=debug` for more verbosity or `JUMPYGOATHQ_LOG_DIR=/some/path` to move file logs. For v1 there is no automatic rotation; periodically archive or truncate old files if your VPS disk is small.
+
+Restart after code or config changes, keeping before/after evidence:
+
+```bash
+journalctl -u jumpygoat-hq-web -n 80 --no-pager
+tail -80 /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/errors.jsonl 2>/dev/null || true
+
 cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 pnpm build
 systemctl restart jumpygoat-hq-web
+
+systemctl status jumpygoat-hq-web --no-pager
+journalctl -u jumpygoat-hq-web -n 80 --no-pager
+tail -80 /root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/logs/web.jsonl 2>/dev/null || true
 ```
 
 Stop/start manually:
@@ -202,6 +238,16 @@ Stop/start manually:
 systemctl stop jumpygoat-hq-web
 systemctl start jumpygoat-hq-web
 ```
+
+First checks by symptom:
+
+- **Web down:** `systemctl status jumpygoat-hq-web --no-pager`, then `journalctl -u jumpygoat-hq-web -n 120 --no-pager`, then `tail -80 .../data/logs/errors.jsonl`.
+- **Automation failed:** find the run id in `runner.jsonl`, inspect the run detail page or SQLite `runs` row, then check `stderr_tail` and `exit_code` in the log line.
+- **Cron not firing:** run `pnpm list:cron`, check `crontab -l`, then inspect `$JUMPYGOATHQ_HOME/data/cron-<automation-name>.log` for the timestamped start/end wrapper lines.
+- **Pi auth missing:** SSH as the same Unix user used by systemd/cron, run `pi /login`, then `pi --mode json --no-session "hello"`.
+- **DB setup/migration issue:** rerun `JUMPYGOATHQ_HOME=... pnpm setup:db`, then check the DB path in `web.jsonl`/`runner.jsonl`.
+- **Disk full:** run `df -h` and archive/truncate old `data/logs/*.jsonl`, cron logs, or old traces.
+- **Permission denied:** verify the systemd `User=`, instance ownership, `.env.local` readability, and write access to `$JUMPYGOATHQ_HOME/data`.
 
 ## 7. Install scheduled automations
 
@@ -226,7 +272,7 @@ Remove a scheduled automation:
 JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm uninstall:cron <automation-name>
 ```
 
-Cron logs are written under `$JUMPYGOATHQ_HOME/data/`, for example `/root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/cron-<automation-name>.log`. The generated cron block preserves `JUMPYGOATHQ_HOME` from install time.
+Cron logs are written under `$JUMPYGOATHQ_HOME/data/`, for example `/root/jumpygoat-hq-deploy/jumpygoat-hq-instance/data/cron-<automation-name>.log`. The generated cron wrapper preserves `HOME`, `PATH`, `JUMPYGOATHQ_HOME`, and `JUMPYGOATHQ_DB_PATH` from install time and writes timestamped start/end lines with the exit code around each command.
 
 Install cron as the same Unix user that ran `pi /login`, so Pi can reuse its stored auth.
 
