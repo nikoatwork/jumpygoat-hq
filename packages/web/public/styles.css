@@ -439,7 +439,7 @@ td.actions details form { margin: 0; }
 }
 .concept-grid { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
 .stat-grid { grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
-.agent-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); }
+.agent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .concept-card, .stat-card, .agent-card, .activity-card {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-sm);
@@ -707,6 +707,10 @@ td.actions details form { margin: 0; }
 .kanban-card.dragging { opacity: 0.5; }
 
 /* Responsive rules */
+@media (max-width: 1100px) {
+  .agent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -738,4 +742,8 @@ td.actions details form { margin: 0; }
   .activity-card-actions { justify-content: flex-start; }
   .page-header { display: block; }
   .page-actions, .section-actions { justify-content: flex-start; margin-top: var(--space-3); }
+}
+
+@media (max-width: 640px) {
+  .agent-grid { grid-template-columns: 1fr; }
 }
