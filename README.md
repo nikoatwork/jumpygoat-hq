@@ -1,22 +1,46 @@
 # jumpyGoatHq
 
-Minimal open-source, file-native control plane for Pi-powered agents.
+**A tiny, file-native control plane for Pi-powered agents.**
 
-Pre-release note: **agents** are now the user-facing runtime primitive. Breaking changes are acceptable until release. See `docs/vision/strategy/agent.md` and `tasks/vision.md` for the north star, `tasks/spec.md` for the target spec, and `docs/ARCHITECTURE.md` for architecture.
-
-## What this is
-
-Target shape:
+Define agents in markdown, give them scheduled automations or one-off tasks, run them through [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), and keep an auditable local history of what happened.
 
 ```txt
-agents as markdown → schedules/tasks/operator commands → Pi runs → auditable SQLite history
+agents as markdown → schedules/tasks/operator commands → Pi runs → SQLite run history
 ```
 
-jumpyGoatHq aims to be the smallest useful Hermes/OpenClaw-like agent operations layer: strong primitives, limited features, open-source extension seams.
+jumpyGoatHq is for people who want recurring AI work to feel inspectable and self-hostable, without adopting a workflow builder, hosted agent platform, or custom LLM loop.
 
-No workflow builder. No broad personal-assistant clone. No custom agent loop. Pi is the harness.
+> Pre-release: agents are the user-facing runtime primitive. Breaking changes are still allowed when they make the primitives clearer.
 
-## Setup
+## Why use it?
+
+- **Make reusable agents, not one-off prompts.** Each agent is a small bundle: `AGENT.md` plus optional `context/*.md`.
+- **Run work from files.** Automations, boards, and tasks are markdown files you can inspect, diff, back up, and edit directly.
+- **Use Pi for the hard part.** Pi remains the harness and tool loop; jumpyGoatHq adds scheduling, task dispatch, connector gates, and observability around it.
+- **Know what happened.** Every automation or task produces a SQLite run record with status, output, trace text, model audit fields, and usage when Pi reports it.
+- **Stay local-first.** The default web UI binds to `127.0.0.1`, mutable workspace data is gitignored, and deployment state can live under `JUMPYGOATHQ_HOME`.
+
+## Screenshots
+
+![Overview dashboard showing agent workspace stats and recent activity](docs/assets/screenshots/readme-overview.png)
+
+| Reusable agents | File-backed task board |
+|---|---|
+| ![Agent roster page](docs/assets/screenshots/readme-agents.png) | ![Kanban task board page](docs/assets/screenshots/readme-tasks.png) |
+
+![Run detail page with status, model audit, timeline, and output](docs/assets/screenshots/readme-run-detail.png)
+
+## Core primitives
+
+| Primitive | What it means | Stored as |
+|---|---|---|
+| **Agent** | Reusable Pi runtime persona/instructions/context/policy bundle | `workspace/agents/<agent>/AGENT.md` |
+| **Automation** | Manual or scheduled prompt for one agent | `workspace/automations/<automation>.md` |
+| **Board/task** | Markdown kanban and assignable one-off work | `workspace/boards/<board>/...` |
+| **Run** | Auditable execution receipt | `workspace/data/jumpygoat-hq.sqlite` |
+| **Connector/tool** | Gated external capability such as web search or email | connector config + env secrets |
+
+## Quick start
 
 ```bash
 pnpm install
@@ -24,9 +48,7 @@ pnpm build
 pnpm run doctor
 ```
 
-This public repo is a template: it ships with no active agents, automations, tasks, or SQLite data. By default mutable instance state lives under local `workspace/` and is gitignored: `workspace/agents/`, `workspace/automations/`, `workspace/boards/`, `workspace/data/`, `workspace/traces/`, and `workspace/workspaces/`. Set `JUMPYGOATHQ_HOME=/path/to/jumpygoat-hq-home` to place that state on an external volume for deployment.
-
-Pi must also be installed and authenticated/configured. Preferred personal setup is to log into Pi as the same Unix user that will run cron:
+Install and authenticate Pi as the same Unix user that will run jumpyGoatHq or cron:
 
 ```bash
 npm install -g @earendil-works/pi-coding-agent
@@ -34,71 +56,95 @@ pi /login
 pi --mode json --no-session "hello"
 ```
 
-`.env.local` is optional and gitignored. Use it only for local secrets, environment overrides, or provider keys:
+Optional local environment overrides and secrets go in `.env.local`:
 
 ```bash
 cp .env.example .env.local
 # edit .env.local if needed
 ```
 
-## Resend email notifications
+This repo ships as a template with no active agents, automations, tasks, or SQLite data. By default mutable instance state lives under local `workspace/` and is gitignored. Set `JUMPYGOATHQ_HOME=/path/to/jumpygoat-hq-home` to place that state somewhere else for deployment.
 
-Notifications are opt-in and agent-decided. The runner sends email only when all are true:
+## Create your first agent and automation
 
-- the agent declares `allowedIntents: [notify.email]`
-- the agent or automation enables `notify.email`
-- Pi output includes a valid `jumpygoathq-action` block requesting `notify.email`
-- Resend sender/recipient/API key config is present
-
-No Resend CLI is required; jumpyGoatHq calls the Resend HTTP API from the runner.
-
-Configure secrets and optional defaults in `.env.local` or the cron environment:
-
-```bash
-RESEND_API_KEY=re_...
-JUMPYGOATHQ_NOTIFY_EMAIL_TO=you@example.com
-JUMPYGOATHQ_NOTIFY_EMAIL_FROM="jumpyGoatHq <agent@yourdomain.com>"
-JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX="[jumpyGoatHq] "
-```
-
-Agent connector defaults live in `AGENT.md`; automation frontmatter may override run-specific non-secret config:
-
-```yaml
-notify:
-  email:
-    enabled: true
-    connector: resend
-    to: you@example.com
-    from: "jumpyGoatHq <agent@yourdomain.com>"
-    subjectPrefix: "[jumpyGoatHq] "
-```
-
-For real delivery, verify the `from` domain/address in Resend. Cron jobs must have the same `.env.local` file or exported env vars available.
-
-## Create a local automation
-
-Create `workspace/agents/<name>/AGENT.md`, then create an automation that references it:
+Create `workspace/agents/daily-review/AGENT.md`:
 
 ```md
 ---
-agent: your-agent
+name: daily-review
+description: Reviews current work and produces a concise daily brief.
+model: fast
+allowedIntents: []
+---
+
+You are the daily review agent. Be concise. Identify blockers, due items, and recommended next actions.
+```
+
+Create `workspace/automations/daily-review.md`:
+
+```md
+---
+agent: daily-review
 schedule: "manual"
 ---
 
-Your prompt for Pi.
+Review the workspace notes and open tasks. Tell me what needs attention today.
 ```
 
-Run it manually:
+Run it:
 
 ```bash
-pnpm runner <automation-name>
+pnpm runner daily-review
 ```
 
-Run history is created locally under `workspace/data/jumpygoat-hq.sqlite` and is gitignored. Override the mutable root with `JUMPYGOATHQ_HOME`; override only the DB path with `JUMPYGOATHQ_DB_PATH` when needed. Relative `JUMPYGOATHQ_DB_PATH` values resolve under `JUMPYGOATHQ_HOME`.
+Open the web UI:
 
-## Semantic model profiles
+```bash
+pnpm web
+# http://127.0.0.1:3000
+```
 
-Agents and automations may use either a direct Pi model selector or an instance-local profile key such as `fast` or `super-smart` in their optional `model` field. Configure profiles in `jumpyGoatHqHome()/settings.yml` (default local path: `workspace/settings.yml`) or through `/settings` in the web UI:
+The UI is intentionally raw server-rendered HTML. It shows agents, automations, boards/tasks, a kanban board, scheduled run agenda, cron evidence, runs, run details, settings, and a simple “Run now” button.
+
+## Scheduled automations
+
+Automation schedules are either `manual` or 5-field cron expressions in automation frontmatter:
+
+```yaml
+schedule: "0 9 * * *"
+```
+
+Install, inspect, or remove local cron entries:
+
+```bash
+pnpm install:cron <automation-name>
+pnpm list:cron
+pnpm uninstall:cron <automation-name>
+```
+
+Cron logs go to `workspace/data/cron-<automation>.log` or `$JUMPYGOATHQ_HOME/data/cron-<automation>.log`.
+
+## Assigned task dispatch
+
+Create boards/tasks in the web UI or under `workspace/boards/`. Tasks with `status: ready` and a valid `assignee` can be claimed by the dispatcher:
+
+```bash
+pnpm dispatch:tasks           # claims one ready task
+pnpm dispatch:tasks --limit=3 # optional small local batch
+```
+
+Install an explicit task heartbeat cron when you want periodic dispatch:
+
+```bash
+pnpm install:task-cron
+pnpm install:task-cron -- --schedule="*/30 * * * *" --limit=2
+pnpm list:task-cron
+pnpm uninstall:task-cron
+```
+
+## Model profiles
+
+Agents and automations can use either direct Pi model selectors or local semantic profile keys such as `fast` or `super-smart`. Configure profiles in `workspace/settings.yml` or through `/settings`:
 
 ```yaml
 defaultModelProfile: fast
@@ -109,34 +155,22 @@ modelProfiles:
     label: "Super smart"
 ```
 
-Effective model order is automation override, then agent default, then `defaultModelProfile`, then Pi's own default. jumpyGoatHq resolves profile keys before invoking Pi and stores requested/resolved model plus best-effort Pi-emitted usage on run history. Pi remains responsible for provider auth, API keys, custom providers, and whether a concrete selector exists; do not put secrets in `settings.yml`.
+jumpyGoatHq resolves profile keys before invoking Pi and stores requested/resolved model metadata on each run. Pi still owns provider auth, API keys, custom providers, and concrete model availability. Do not put secrets in `settings.yml`.
 
-## Check the environment
+## Optional email notifications
 
-```bash
-pnpm run doctor
-```
-
-This checks Node, pnpm, Pi, cron, SQLite, and whether Pi auth appears to exist for the current Unix user.
-
-## Run the web viewer
+Email notifications are opt-in and gated. The runner sends email only when the agent allows `notify.email`, the agent or automation enables the email connector, Pi requests the action, and Resend config is present.
 
 ```bash
-pnpm web
-# open http://127.0.0.1:3000
+RESEND_API_KEY=re_...
+JUMPYGOATHQ_NOTIFY_EMAIL_TO=you@example.com
+JUMPYGOATHQ_NOTIFY_EMAIL_FROM="jumpyGoatHq <agent@yourdomain.com>"
+JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX="[jumpyGoatHq] "
 ```
 
-Configuration:
+For real delivery, verify the `from` domain/address in Resend and make the same env available to cron.
 
-```bash
-HOST=127.0.0.1 PORT=3000 pnpm web
-```
-
-Default bind is `127.0.0.1` for safety. For Coolify/reverse proxy use, set `HOST=0.0.0.0` only behind trusted auth/proxy/firewall.
-
-The web UI is intentionally raw server-rendered HTML. It shows automations, agents, boards/tasks, a kanban board, installed cron entries, runs, run details, and a simple “Run now” button.
-
-## Local validation for coding agents
+## Local validation
 
 Use these from the repo root while developing:
 
@@ -146,133 +180,26 @@ pnpm validate:backend   # creates/runs one temporary Pi-backed smoke automation
 pnpm validate           # web smoke, then backend smoke
 ```
 
-Frontend validation starts the local web server on `127.0.0.1:3123` by default. Install Playwright browsers locally if needed:
+Common fixes:
 
-```bash
-pnpm exec playwright install chromium
-```
+- Port in use: `PLAYWRIGHT_PORT=3124 pnpm validate:web`
+- Browser missing: `pnpm exec playwright install chromium`
+- Pi auth/provider missing: `pi /login` and `pnpm run doctor`
 
-Backend validation runs exactly one automation and prints the runner stdout/stderr plus the latest run summary, output tail, error tail, and trace tail. By default it creates a temporary gitignored `jumpygoathq-smoke` agent/automation if needed, runs it, and removes the fixture. It requires local Pi auth/provider setup and may call OpenAI Codex. Override the automation only when intentional:
+## More docs
 
-```bash
-JUMPYGOATHQ_SMOKE_AUTOMATION=<automation-name> pnpm validate:backend
-```
+- Product north star: [`docs/vision/strategy/agent.md`](docs/vision/strategy/agent.md)
+- Target spec: [`tasks/spec.md`](tasks/spec.md)
+- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Web UI package notes: [`packages/web/DOCS.md`](packages/web/DOCS.md)
+- End-to-end agent testing: [`docs/testing/end-to-end-agent.md`](docs/testing/end-to-end-agent.md)
 
-Common failures:
+## What this is not
 
-- Port in use: set `PLAYWRIGHT_PORT=3124 pnpm validate:web`.
-- Browser missing: run `pnpm exec playwright install chromium`.
-- DB missing: `pnpm validate:backend` runs `pnpm setup:db`; run it manually if you need to inspect setup output.
-- Pi auth/provider missing: run `pi /login` and `pnpm run doctor`.
+- Not a workflow builder or DAG editor.
+- Not a broad personal-assistant clone.
+- Not a hosted SaaS or multi-user RBAC product.
+- Not a custom LLM/tool loop.
+- Not a generic repo-wide chat surface.
 
-## Dispatch assigned tasks
-
-Create boards and tasks under `workspace/boards/` or through the web UI. Tasks with `status: ready` and a valid `assignee` are claimed by the heartbeat dispatcher:
-
-```bash
-pnpm dispatch:tasks           # claims one ready task
-pnpm dispatch:tasks --limit=3 # optional small local batch
-```
-
-The dispatcher records a normal SQLite run row with legacy-compatible `project` and `task_id` metadata, transitions successful runs to `done`, and moves failed runs back to `not-yet` with dispatch notes. It uses each task's `assignee` agent; there is no single heartbeat agent.
-
-Install/update the instance-level task heartbeat cron explicitly when you want periodic dispatch (default hourly, one task per tick):
-
-```bash
-pnpm install:task-cron
-pnpm install:task-cron -- --schedule="*/30 * * * *" --limit=2
-pnpm list:task-cron
-pnpm uninstall:task-cron
-```
-
-The task heartbeat cron is separate from per-automation cron entries and uses a distinct `jumpygoathq:task-heartbeat` crontab block.
-
-## Install as a cron job
-
-Automation schedules are 5-field cron expressions in frontmatter:
-
-```yaml
-schedule: "0 9 * * *"
-```
-
-Install/update the cron entry:
-
-```bash
-pnpm install:cron <automation-name>
-```
-
-List jumpyGoatHq cron entries:
-
-```bash
-pnpm list:cron
-```
-
-Remove it:
-
-```bash
-pnpm uninstall:cron <automation-name>
-```
-
-Automation cron logs go to `workspace/data/cron-<automation>.log`; task heartbeat cron logs go to `workspace/data/cron-task-heartbeat.log`. Both paths move under `$JUMPYGOATHQ_HOME/data/` when `JUMPYGOATHQ_HOME` is set.
-
-Cron entries export the current `HOME` and `PATH` so Pi can find its stored auth and the `pi` binary. Install cron as the same Unix user that ran `pi /login`.
-
-## Data model
-
-- `AGENTS.md` — repo instructions for coding agents working on this project
-- `workspace/agents/*/AGENT.md` — jumpyGoatHq agents, local/gitignored by default
-- `workspace/agents/*/context/*.md` — optional scoped agent context
-- `workspace/automations/*.md` — scheduled/manual prompt definitions, local/gitignored by default
-- `workspace/boards/<board>/BOARD.md` and `tasks/*.md` — board/task kanban source of truth, active state local/gitignored by default
-- `workspace/settings.yml` — optional instance-local model profile settings, gitignored by default
-- `packages/web/` — minimal raw HTML viewer over files, crontab, and SQLite
-- `workspace/workspaces/<automation>/` — per-automation Pi working dir, gitignored
-- `workspace/traces/` — optional trace artifacts, gitignored
-
-Past runs are stored in SQLite:
-
-- default DB: `workspace/data/jumpygoat-hq.sqlite`
-- mutable root override: `JUMPYGOATHQ_HOME=/path/to/jumpygoat-hq-home`
-- explicit DB override: `JUMPYGOATHQ_DB_PATH` (relative paths resolve under `JUMPYGOATHQ_HOME`)
-- runtime workspace directories are gitignored
-
-Current table:
-
-```sql
-runs(
-  id text primary key,
-  automation text,
-  source_type text,
-  source_id text,
-  agent text,
-  project text,
-  task_id text,
-  model text,
-  requested_model text,
-  resolved_model text,
-  model_profile text,
-  model_resolution_warning text,
-  schedule text,
-  status text,
-  started_at text,
-  finished_at text,
-  duration_ms integer,
-  exit_code integer,
-  signal text,
-  output_text text,
-  trace_text text,
-  error_text text,
-  connector_actions_json text,
-  usage_input_tokens integer,
-  usage_output_tokens integer,
-  usage_reasoning_tokens integer,
-  usage_cache_read_tokens integer,
-  usage_cache_write_tokens integer,
-  usage_total_tokens integer,
-  usage_cost_total real,
-  usage_currency text,
-  usage_provider text,
-  usage_model text,
-  usage_json text
-)
-```
+The goal is the smallest useful open-source agent operations layer: strong primitives, limited features, and clear extension seams.
