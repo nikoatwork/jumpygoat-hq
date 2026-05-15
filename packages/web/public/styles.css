@@ -276,7 +276,8 @@ main {
 .nav-link, button, input, select, textarea, .button-link, fieldset { border-radius: var(--radius-sm); }
 .nav-link, button, .button-link,
 .inline-actions a, .card-actions a, td.actions a, td.actions summary,
-.activity-card-actions a, .concept-card a, form.stack p > a, form.form-stack p > a {
+.activity-card-actions a, .concept-card a, .agent-card-actions a, .agent-card-actions summary,
+form.stack p > a, form.form-stack p > a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -295,12 +296,27 @@ main {
 }
 .nav-link:hover, .nav-link:focus-visible, button:hover, button:focus-visible, .button-link:hover, .button-link:focus-visible,
 .inline-actions a:hover, .inline-actions a:focus-visible, .card-actions a:hover, .card-actions a:focus-visible, td.actions a:hover, td.actions a:focus-visible, td.actions summary:hover, td.actions summary:focus-visible,
-.activity-card-actions a:hover, .activity-card-actions a:focus-visible, .concept-card a:hover, .concept-card a:focus-visible, form.stack p > a:hover, form.stack p > a:focus-visible, form.form-stack p > a:hover, form.form-stack p > a:focus-visible {
+.activity-card-actions a:hover, .activity-card-actions a:focus-visible, .concept-card a:hover, .concept-card a:focus-visible, .agent-card-actions a:hover, .agent-card-actions a:focus-visible, .agent-card-actions summary:hover, .agent-card-actions summary:focus-visible,
+form.stack p > a:hover, form.stack p > a:focus-visible, form.form-stack p > a:hover, form.form-stack p > a:focus-visible {
   color: var(--text-strong);
   text-decoration: none;
   background: color-mix(in oklch, var(--surface-2) 76%, var(--accent) 24%);
   border-color: color-mix(in oklch, var(--accent) 52%, var(--line-strong));
   box-shadow: var(--focus-ring);
+}
+.button-secondary {
+  background: color-mix(in oklch, var(--surface-2) 72%, var(--surface) 28%);
+}
+.button-danger {
+  color: color-mix(in oklch, var(--danger) 78%, var(--text));
+  border-color: color-mix(in oklch, var(--danger) 38%, var(--line-strong));
+  background: color-mix(in oklch, var(--danger) 8%, var(--surface-2));
+}
+.button-danger:hover, .button-danger:focus-visible {
+  color: var(--text-strong);
+  border-color: color-mix(in oklch, var(--danger) 62%, var(--line-strong));
+  background: color-mix(in oklch, var(--danger) 18%, var(--surface-2));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger) 20%, transparent);
 }
 button {
   cursor: pointer;
@@ -567,12 +583,21 @@ td.actions details form { margin: 0; }
   align-items: center;
   margin-top: auto;
 }
+.agent-card-actions .button-link {
+  min-width: 8.25rem;
+}
 .agent-card-actions details {
   margin: 0;
   padding: 0;
   background: transparent;
   border: 0;
   box-shadow: none;
+}
+.agent-card-actions summary {
+  list-style: none;
+}
+.agent-card-actions summary::-webkit-details-marker {
+  display: none;
 }
 .agent-card-actions details[open] {
   flex-basis: 100%;

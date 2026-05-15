@@ -773,8 +773,8 @@ async function agentsPage(url: URL): Promise<string> {
       </div>
       <div class="agent-card-actions">
         <a href="${href}" class="button-link">View profile</a>
-        <a href="/agents/${encodeURIComponent(agent.name)}/edit">${icon("pen")}Edit</a>
-        <details><summary>${icon("trash")}Delete</summary>${deleteAgentForm(agent.name)}</details>
+        <a href="/agents/${encodeURIComponent(agent.name)}/edit" class="button-link button-secondary">${icon("pen")}Edit</a>
+        <details><summary class="button-link button-danger">${icon("trash")}Delete</summary>${deleteAgentForm(agent.name)}</details>
       </div>
     </article>`;
   }).join("");
