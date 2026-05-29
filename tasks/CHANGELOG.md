@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-29
 
+- docs/brand: refreshed the README positioning with the jumpyGoatHq logo/tagline, added AgentMail environment/setup references in `.env.example` and architecture docs, and captured the markdown-native agent-memory architecture research brief in `tasks/research/2026-05-21-agent-memory-architecture.md`.
 - feat: added the gated local `script.run` connector for allowlisted agent-bundled TypeScript scripts, with runner schema/resolution, Pi tool registration, path/symlink safety checks, bounded execution/output, trace summaries, core/API preservation, docs, examples, and validation (`test:connectors`, `pnpm build`, `validate:web`, `validate:backend`) — completed in `tasks/done/2026-05-29_tasks-script-run-connector.md`.
 
 ## 2026-05-15

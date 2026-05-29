@@ -85,7 +85,7 @@ A connector tool is exposed only when both gates pass:
 1. the agent frontmatter `allowedIntents` includes the provider-neutral intent; and
 2. the agent default config or automation/task override enables that intent/provider for the run.
 
-Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, and `notify.email` → `notify_email`.
+Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, `notify.email` → `notify_email`, `mail.send` → `mail_send`, and `mail.list` → `mail_list`.
 
 Example agent capability policy:
 
@@ -93,6 +93,8 @@ Example agent capability policy:
 allowedIntents:
   - web.search
   - notify.email
+  - mail.send
+  - mail.list
 web:
   search:
     enabled: true
@@ -101,6 +103,16 @@ notify:
   email:
     enabled: true
     connector: resend
+mail:
+  send:
+    enabled: true
+    connector: agentmail
+    inboxId: agent@agentmail.to
+  list:
+    enabled: true
+    connector: agentmail
+    inboxId: agent@agentmail.to
+    limit: 10
 ```
 
 The runner resolves an effective connector plan and passes a static Pi extension for enabled/allowed tools only. Pi can call those tools during the run. Secrets stay in environment variables. New providers, such as a future Notion connector, should follow the same pattern: add a provider-neutral intent, map it to one or more Pi-safe tool names, require agent capability plus run config, and keep provider credentials out of markdown files.

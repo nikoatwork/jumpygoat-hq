@@ -1,4 +1,32 @@
-# jumpyGoatHq
+<p align="center">
+  <img src="docs/assets/jumpygoathq-logo.png" alt="jumpyGoatHq logo" width="180">
+</p>
+
+# jumpyGoatHq - Control Center for Agents
+
+## Get Minimal AI Agents running automations for your business
+
+jumpyGoatHq is for
+
+- teams who want AI to work while they sleep
+- what the whole team to have access to the same agents
+- want to have several long running agents with different skills/context
+
+*Examples*
+
+- a marketing agent scheduling social media content every Monday
+- a coding agent running a security check every night
+- a bookeeper agent filing invoices as they come in
+
+Each of those agents must **know different stuff** and **have access to different tools** and must **do its work in different intervalls**.
+
+The only job jumpyGoatHq has is build the base for you to set that up easily and without knowing how to code.
+
+The tag line is about **minimal AI Agents**. Why? Well, because most tools out there are way too complex. Bring too many features. Become a black box where you don't understand what agent is doing what.
+
+## How it works
+
+## What jumpyGoatHq does under the hood (technically)
 
 **A tiny, file-native control plane for Pi-powered agents.**
 
@@ -7,18 +35,8 @@ Define agents in markdown, give them scheduled automations or one-off tasks, run
 ```txt
 agents as markdown → schedules/tasks/operator commands → Pi runs → SQLite run history
 ```
+working on adding smart memory system.
 
-jumpyGoatHq is for people who want recurring AI work to feel inspectable and self-hostable, without adopting a workflow builder, hosted agent platform, or custom LLM loop.
-
-> Pre-release: agents are the user-facing runtime primitive. Breaking changes are still allowed when they make the primitives clearer.
-
-## Why use it?
-
-- **Make reusable agents, not one-off prompts.** Each agent is a small bundle: `AGENT.md` plus optional `context/*.md`.
-- **Run work from files.** Automations, boards, and tasks are markdown files you can inspect, diff, back up, and edit directly.
-- **Use Pi for the hard part.** Pi remains the harness and tool loop; jumpyGoatHq adds scheduling, task dispatch, connector gates, and observability around it.
-- **Know what happened.** Every automation or task produces a SQLite run record with status, output, trace text, model audit fields, and usage when Pi reports it.
-- **Stay local-first.** The default web UI binds to `127.0.0.1`, mutable workspace data is gitignored, and deployment state can live under `JUMPYGOATHQ_HOME`.
 
 ## Screenshots
 
@@ -157,40 +175,12 @@ modelProfiles:
 
 jumpyGoatHq resolves profile keys before invoking Pi and stores requested/resolved model metadata on each run. Pi still owns provider auth, API keys, custom providers, and concrete model availability. Do not put secrets in `settings.yml`.
 
-## Optional email notifications
-
-Email notifications are opt-in and gated. The runner sends email only when the agent allows `notify.email`, the agent or automation enables the email connector, Pi requests the action, and Resend config is present.
-
-```bash
-RESEND_API_KEY=re_...
-JUMPYGOATHQ_NOTIFY_EMAIL_TO=you@example.com
-JUMPYGOATHQ_NOTIFY_EMAIL_FROM="jumpyGoatHq <agent@yourdomain.com>"
-JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX="[jumpyGoatHq] "
-```
-
-For real delivery, verify the `from` domain/address in Resend and make the same env available to cron.
-
-## Local validation
-
-Use these from the repo root while developing:
-
-```bash
-pnpm validate:web       # Playwright smoke checks for the raw HTML web UI
-pnpm validate:backend   # creates/runs one temporary Pi-backed smoke automation
-pnpm validate           # web smoke, then backend smoke
-```
-
-Common fixes:
-
-- Port in use: `PLAYWRIGHT_PORT=3124 pnpm validate:web`
-- Browser missing: `pnpm exec playwright install chromium`
-- Pi auth/provider missing: `pi /login` and `pnpm run doctor`
-
 ## More docs
 
 - Product north star: [`docs/vision/strategy/agent.md`](docs/vision/strategy/agent.md)
 - Target spec: [`tasks/spec.md`](tasks/spec.md)
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Connector setup: [`docs/connectors/README.md`](docs/connectors/README.md)
 - Web UI package notes: [`packages/web/DOCS.md`](packages/web/DOCS.md)
 - End-to-end agent testing: [`docs/testing/end-to-end-agent.md`](docs/testing/end-to-end-agent.md)
 
