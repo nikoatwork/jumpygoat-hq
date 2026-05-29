@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-29
 
+- feat: added a gated Cloudflare R2 artifact connector with `artifact.upload` / `artifact_upload`, deterministic `runs/<runId>/<filename>` object keys, seven-day presigned download URLs, safe run/agent file path resolution, compact connector audit summaries, docs/context setup guide, doctor diagnostics, and validation (`test:connectors`, `pnpm build`, `doctor`, `validate:web`, `validate:backend`) — completed in `tasks/done/2026-05-29_tasks-r2-artifact-share-links.md`.
 - chore: added live connector smoke scripts for Firecrawl, AgentMail, Resend, and local `script.run`, with safe read-only defaults where possible and docs for quick end-to-end revalidation.
 - fix: carried automation-level `mail` and `scripts` connector config into runner invocations so AgentMail `mail_send` and local `script_run` tools are exposed for automation runs; validated with AgentMail CLI/live smoke, connector tests, and runner build.
 - docs/brand: refreshed the README positioning with the jumpyGoatHq logo/tagline, added AgentMail environment/setup references in `.env.example` and architecture docs, and captured the markdown-native agent-memory architecture research brief in `tasks/research/2026-05-21-agent-memory-architecture.md`.

@@ -1,4 +1,4 @@
-export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email", "mail.send", "mail.list", "script.run"] as const;
+export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email", "mail.send", "mail.list", "script.run", "artifact.upload"] as const;
 export type ConnectorIntent = (typeof CONNECTOR_INTENTS)[number];
 
 export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
@@ -9,6 +9,7 @@ export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
   "mail.send": "mail_send",
   "mail.list": "mail_list",
   "script.run": "script_run",
+  "artifact.upload": "artifact_upload",
 };
 
 export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
@@ -19,11 +20,12 @@ export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
   mail_send: "mail.send",
   mail_list: "mail.list",
   script_run: "script.run",
+  artifact_upload: "artifact.upload",
 };
 
-export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email", "mail_send", "mail_list", "script_run"] as const;
+export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email", "mail_send", "mail_list", "script_run", "artifact_upload"] as const;
 export type ConnectorToolName = (typeof CONNECTOR_TOOL_NAMES)[number];
-export type ConnectorProvider = "firecrawl" | "resend" | "agentmail" | "local-script";
+export type ConnectorProvider = "firecrawl" | "resend" | "agentmail" | "local-script" | "r2";
 export type ConnectorActionStatus =
   | "started"
   | "succeeded"
@@ -70,6 +72,13 @@ export type ScriptRunRuntimeConfig = {
   maxOutputChars?: number;
 };
 
+export type ArtifactUploadRuntimeConfig = {
+  agentDir?: string;
+  expiresInSeconds?: number;
+  maxFileBytes?: number;
+  timeoutMs?: number;
+};
+
 export type ResolvedConnectorTool = {
   intent: ConnectorIntent;
   toolName: ConnectorToolName;
@@ -85,6 +94,7 @@ export type ConnectorRuntimeConfig = {
   resend?: ResendRuntimeConfig;
   agentmail?: AgentMailRuntimeConfig;
   script?: ScriptRunRuntimeConfig;
+  artifacts?: ArtifactUploadRuntimeConfig;
 };
 
 export type ConnectorPlan = ConnectorRuntimeConfig;
@@ -106,6 +116,10 @@ export type ConnectorActionRecord = {
   url?: string;
   query?: string;
   script?: string;
+  artifactKey?: string;
+  filename?: string;
+  bytes?: number;
+  expiresAt?: string;
   providerMessageId?: string;
   resultSummary?: Record<string, unknown>;
   error?: string;

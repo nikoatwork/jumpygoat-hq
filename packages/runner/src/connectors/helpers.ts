@@ -52,6 +52,10 @@ export function connectorSummary(args: {
   url?: string;
   query?: string;
   script?: string;
+  artifactKey?: string;
+  filename?: string;
+  bytes?: number;
+  expiresAt?: string;
   providerMessageId?: string;
   resultSummary?: Record<string, unknown>;
   error?: string;
@@ -73,6 +77,10 @@ export function connectorSummary(args: {
     url: args.url,
     query: args.query,
     script: args.script,
+    artifactKey: args.artifactKey,
+    filename: args.filename,
+    bytes: args.bytes,
+    expiresAt: args.expiresAt,
     providerMessageId: args.providerMessageId,
     resultSummary: args.resultSummary,
     error: args.error,

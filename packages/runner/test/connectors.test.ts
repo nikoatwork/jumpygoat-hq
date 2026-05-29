@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createAgentMailTools, createFirecrawlTools, createResendTools, createScriptRunTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
+import { createAgentMailTools, createArtifactTools, createFirecrawlTools, createResendTools, createScriptRunTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
 import type { AgentMeta } from "../src/agent.js";
 import type { Automation } from "../src/automation.js";
 import { invocationFromAutomation } from "../src/invocation.js";
@@ -39,6 +39,8 @@ async function main(): Promise<void> {
   await testAgentMailMissingConfig();
   await testScriptRunGatingAndExecution();
   await testScriptRunPathSafetyAndFailures();
+  await testArtifactUploadGatingAndSuccess();
+  await testArtifactUploadPathSafetyAndMissingConfig();
   console.log("connector tests ok");
 }
 
@@ -388,6 +390,142 @@ async function testScriptRunPathSafetyAndFailures(): Promise<void> {
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function testArtifactUploadGatingAndSuccess(): Promise<void> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "jghq-artifact-"));
+  const originalFetch = globalThis.fetch;
+  const previousCwd = process.cwd();
+  const originalEnv = snapshotEnv(["CLOUDFLARE_R2_ACCOUNT_ID", "CLOUDFLARE_R2_ACCESS_KEY_ID", "CLOUDFLARE_R2_SECRET_ACCESS_KEY", "CLOUDFLARE_R2_BUCKET"]);
+  try {
+    const runDir = path.join(tempDir, "run");
+    const agentDir = path.join(tempDir, "agent");
+    await mkdir(path.join(runDir, "output"), { recursive: true });
+    await mkdir(path.join(agentDir, "assets"), { recursive: true });
+    await writeFile(path.join(runDir, "output", "report.pdf"), "fake pdf");
+    await writeFile(path.join(agentDir, "assets", "agent-report.pdf"), "agent pdf");
+    process.chdir(runDir);
+    process.env.CLOUDFLARE_R2_ACCOUNT_ID = "account123";
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = "access123";
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "secret123";
+    process.env.CLOUDFLARE_R2_BUCKET = "artifact-bucket";
+
+    const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+    globalThis.fetch = async (input, init) => {
+      fetchCalls.push({ url: String(input), init });
+      assert.equal(init?.method, "PUT");
+      assert.match(String(input), /^https:\/\/account123\.r2\.cloudflarestorage\.com\/artifact-bucket\/runs\/run-artifact\//);
+      assert.match(String(input), /(?:report\.pdf|custom-report\.pdf)$/);
+      assert.equal((init?.headers as Record<string, string>)["content-type"], "application/pdf");
+      assert.match((init?.headers as Record<string, string>).authorization, /^AWS4-HMAC-SHA256 Credential=access123\//);
+      return new Response("", { status: 200 });
+    };
+
+    const disabledPlan = resolveConnectorPlan({
+      automation: { name: "artifact-auto", artifacts: { upload: { enabled: true, connector: "r2" } } },
+      agent: { name: "artifact-agent", allowedIntents: [] },
+      runId: "run-artifact",
+    });
+    assert.deepEqual(disabledPlan.tools, []);
+
+    const plan = resolveConnectorPlan({
+      automation: { name: "artifact-auto", artifacts: { upload: { enabled: true, connector: "r2", maxFileBytes: 1000 } } },
+      agent: { name: "artifact-agent", allowedIntents: ["artifact.upload"], path: path.join(agentDir, "AGENT.md") },
+      runId: "run-artifact",
+    });
+    assert.deepEqual(plan.tools.map((tool) => tool.intent), ["artifact.upload"]);
+    assert.equal(plan.artifacts?.agentDir, agentDir);
+
+    const tool = createArtifactTools(plan).find((entry) => entry.name === "artifact_upload");
+    assert.ok(tool);
+    const result = await tool.execute("call-artifact", { path: "output/report.pdf" });
+    assert.match(result.content[0]?.text ?? "", /artifact_upload succeeded/);
+    assert.match(result.content[0]?.text ?? "", /X-Amz-Signature=/);
+    assert.equal(fetchCalls.length, 1);
+    const summary = result.details?.connectorSummary as { connector?: string; intent?: string; artifactKey?: string; filename?: string; bytes?: number; expiresAt?: string };
+    assert.equal(summary.connector, "r2");
+    assert.equal(summary.intent, "artifact.upload");
+    assert.equal(summary.artifactKey, "runs/run-artifact/report.pdf");
+    assert.equal(summary.filename, "report.pdf");
+    assert.equal(summary.bytes, 8);
+    assert.ok(summary.expiresAt);
+
+    const trace = [
+      JSON.stringify({ type: "tool_execution_start", toolCallId: "call-artifact", toolName: "artifact_upload", args: { path: "output/report.pdf" } }),
+      JSON.stringify({ type: "tool_execution_end", toolCallId: "call-artifact", toolName: "artifact_upload", result, isError: false }),
+    ].join("\n");
+    const actions = extractConnectorActionsFromTrace(trace);
+    assert.equal(actions.length, 1);
+    assert.equal(actions[0]?.connector, "r2");
+    assert.equal(actions[0]?.artifactKey, "runs/run-artifact/report.pdf");
+
+    const agentResult = await tool.execute("call-agent-artifact", { path: "assets/agent-report.pdf", filename: "custom report.pdf" });
+    assert.match(agentResult.content[0]?.text ?? "", /custom-report.pdf/);
+  } finally {
+    process.chdir(previousCwd);
+    globalThis.fetch = originalFetch;
+    restoreEnvSnapshot(originalEnv);
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function testArtifactUploadPathSafetyAndMissingConfig(): Promise<void> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "jghq-artifact-safety-"));
+  const previousCwd = process.cwd();
+  const originalEnv = snapshotEnv(["CLOUDFLARE_R2_ACCOUNT_ID", "CLOUDFLARE_R2_ACCESS_KEY_ID", "CLOUDFLARE_R2_SECRET_ACCESS_KEY", "CLOUDFLARE_R2_BUCKET"]);
+  try {
+    const runDir = path.join(tempDir, "run");
+    const outsideDir = path.join(tempDir, "outside");
+    await mkdir(path.join(runDir, "output"), { recursive: true });
+    await mkdir(outsideDir, { recursive: true });
+    await writeFile(path.join(runDir, "output", "too-big.pdf"), "123456789");
+    await writeFile(path.join(outsideDir, "escape.pdf"), "escape");
+    await symlink(path.join(outsideDir, "escape.pdf"), path.join(runDir, "output", "escape.pdf"));
+    process.chdir(runDir);
+
+    const plan = resolveConnectorPlan({
+      automation: { name: "artifact-auto", artifacts: { upload: { enabled: true, connector: "r2", maxFileBytes: 4 } } },
+      agent: { name: "artifact-agent", allowedIntents: ["artifact.upload"] },
+      runId: "run-artifact",
+    });
+    const tool = createArtifactTools(plan).find((entry) => entry.name === "artifact_upload");
+    assert.ok(tool);
+
+    const absolute = await tool.execute("call-artifact-abs", { path: path.join(runDir, "output", "too-big.pdf") });
+    assert.match(absolute.content[0]?.text ?? "", /must be relative/);
+    assert.equal((absolute.details?.connectorSummary as { status?: string }).status, "failed");
+
+    const traversal = await tool.execute("call-artifact-dotdot", { path: "output/../too-big.pdf" });
+    assert.match(traversal.content[0]?.text ?? "", /path traversal/);
+
+    const symlinkEscape = await tool.execute("call-artifact-escape", { path: "output/escape.pdf" });
+    assert.match(symlinkEscape.content[0]?.text ?? "", /outside the run folder/);
+
+    const tooBig = await tool.execute("call-artifact-big", { path: "output/too-big.pdf" });
+    assert.match(tooBig.content[0]?.text ?? "", /too large/);
+
+    const allowedPlan = resolveConnectorPlan({
+      automation: { name: "artifact-auto", artifacts: { upload: { enabled: true, connector: "r2", maxFileBytes: 100 } } },
+      agent: { name: "artifact-agent", allowedIntents: ["artifact.upload"] },
+      runId: "run-artifact",
+    });
+    const missingConfigTool = createArtifactTools(allowedPlan).find((entry) => entry.name === "artifact_upload");
+    assert.ok(missingConfigTool);
+    const missingConfig = await missingConfigTool.execute("call-artifact-missing-config", { path: "output/too-big.pdf" });
+    assert.match(missingConfig.content[0]?.text ?? "", /Missing CLOUDFLARE_R2_ACCOUNT_ID/);
+  } finally {
+    process.chdir(previousCwd);
+    restoreEnvSnapshot(originalEnv);
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+function snapshotEnv(names: string[]): Record<string, string | undefined> {
+  return Object.fromEntries(names.map((name) => [name, process.env[name]]));
+}
+
+function restoreEnvSnapshot(snapshot: Record<string, string | undefined>): void {
+  for (const [name, value] of Object.entries(snapshot)) restoreEnv(name, value);
 }
 
 function restoreEnv(name: string, value: string | undefined): void {

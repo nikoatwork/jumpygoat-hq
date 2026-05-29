@@ -64,6 +64,23 @@ scripts:
 Run the allowlisted search script, summarize new listings, and send any requested follow-up through connector tools.
 ```
 
+Artifact upload override example:
+
+```yaml
+---
+agent: report-agent
+schedule: manual
+artifacts:
+  upload:
+    enabled: true
+    connector: r2
+    expiresInSeconds: 604800
+    maxFileBytes: 50000000
+---
+
+Create `output/report.pdf`, upload it with `artifact_upload`, and send the returned URL through the configured mail or notification tool.
+```
+
 Secrets, provider schemas, side-effect behavior, and connector audit records belong to connectors/tools, not automation files.
 
 This directory is mutable operator state. Automation files are gitignored; only this README is committed.

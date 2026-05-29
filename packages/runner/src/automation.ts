@@ -58,6 +58,14 @@ const ScriptRunConfig = z.object({
   maxOutputChars: z.number().int().positive().optional(),
 });
 
+const ArtifactUploadConfig = z.object({
+  enabled: z.boolean().optional(),
+  connector: z.literal("r2"),
+  expiresInSeconds: z.number().int().min(1).max(604800).optional(),
+  maxFileBytes: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+});
+
 export const ConnectorOverridesSchema = z.object({
   web: z.object({
     search: WebSearchConfig.optional(),
@@ -73,6 +81,9 @@ export const ConnectorOverridesSchema = z.object({
   }).optional(),
   scripts: z.object({
     run: ScriptRunConfig.optional(),
+  }).optional(),
+  artifacts: z.object({
+    upload: ArtifactUploadConfig.optional(),
   }).optional(),
 });
 

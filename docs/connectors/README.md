@@ -19,6 +19,7 @@ Secrets stay in `.env.local`, deployment secrets, or cron environment. Do not pu
 | Resend | `notify.email` | `notify_email` | [`resend.md`](resend.md) |
 | AgentMail | `mail.send`, `mail.list` | `mail_send`, `mail_list` | [`agentmail.md`](agentmail.md) |
 | Local Script | `script.run` | `script_run` | [`script-run.md`](script-run.md) |
+| Cloudflare R2 Artifacts | `artifact.upload` | `artifact_upload` | [`r2-artifacts.md`](r2-artifacts.md) |
 
 ## Check local configuration
 
@@ -41,5 +42,7 @@ pnpm smoke:agentmail -- --send --to niko@example.com
 pnpm smoke:resend -- --send --to niko@example.com --from "jumpyGoatHq <agent@example.com>"
 pnpm smoke:script-run
 ```
+
+R2 artifact links are covered by connector tests and `pnpm run doctor`; a live upload smoke can be added once a disposable test bucket convention exists.
 
 See `packages/runner/scripts/connectors/README.md` for flags and safety notes. AgentMail and Firecrawl have safe read-only defaults; Resend and outbound AgentMail sends require explicit send flags.

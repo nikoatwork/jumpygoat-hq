@@ -114,4 +114,15 @@ function checkOptionalConnectors(): void {
     if (process.env.AGENTMAIL_INBOX_ID) ok(`AgentMail default inbox: ${process.env.AGENTMAIL_INBOX_ID}`);
     else warn("AgentMail has no AGENTMAIL_INBOX_ID default; provide mail.send.inboxId/mail.list.inboxId in automation/agent config or env before use");
   }
+
+  const r2Fields = ["CLOUDFLARE_R2_ACCOUNT_ID", "CLOUDFLARE_R2_ACCESS_KEY_ID", "CLOUDFLARE_R2_SECRET_ACCESS_KEY", "CLOUDFLARE_R2_BUCKET"];
+  const r2Present = r2Fields.filter((name) => Boolean(process.env[name]));
+  if (r2Present.length === 0) {
+    ok("Cloudflare R2 artifacts not configured; optional unless an enabled automation uses artifact.upload");
+  } else if (r2Present.length < r2Fields.length) {
+    warn(`Cloudflare R2 artifacts partially configured: missing ${r2Fields.filter((name) => !process.env[name]).join(", ")}`);
+  } else {
+    ok("Cloudflare R2 artifacts configured for artifact.upload");
+    ok(`Cloudflare R2 bucket: ${process.env.CLOUDFLARE_R2_BUCKET}`);
+  }
 }

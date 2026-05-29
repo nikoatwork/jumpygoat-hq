@@ -29,6 +29,7 @@ Intent to tool mapping:
 | `mail.send` | `mail_send` | AgentMail |
 | `mail.list` | `mail_list` | AgentMail |
 | `script.run` | `script_run` | Local Script |
+| `artifact.upload` | `artifact_upload` | Cloudflare R2 |
 
 ## Runtime config and secrets
 
@@ -39,6 +40,8 @@ The runner resolves a `ConnectorPlan`, serializes non-secret run/config values i
 - `AGENTMAIL_API_KEY`
 - optional notification defaults: `JUMPYGOATHQ_NOTIFY_EMAIL_TO`, `JUMPYGOATHQ_NOTIFY_EMAIL_FROM`, `JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX`
 - optional AgentMail defaults: `AGENTMAIL_INBOX_ID`, `AGENTMAIL_TO`, `AGENTMAIL_SUBJECT_PREFIX`
+- Cloudflare R2 artifact upload: `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_R2_BUCKET`
+- optional artifact defaults: `JUMPYGOATHQ_ARTIFACT_EXPIRES_SECONDS`, `JUMPYGOATHQ_ARTIFACT_MAX_FILE_BYTES`, `JUMPYGOATHQ_ARTIFACT_UPLOAD_TIMEOUT_MS`
 
 The local script connector has no provider API key; scripts run with `tsx` from the runner environment.
 
@@ -49,7 +52,8 @@ The local script connector has no provider API key; scripts run with `tsx` from 
 - `notify_email` sends immediately when Pi calls it; the gating and agent prompt are the confirmation layer.
 - `mail_send` sends immediately from the configured AgentMail inbox; `mail_list` returns bounded recent inbox messages/previews.
 - `script_run` runs an allowlisted `.ts`/`.tsx` file under the active agent's `scripts/` folder with JSON stdin, timeout, bounded stdout/stderr, symlink/path checks, and compact audit summaries. V1 does not enforce OS-level network/filesystem sandboxing; `network` and `write` are explicit policy/audit flags.
-- Missing API keys or required config throw tool errors so Pi can read and react to the failure. Script connector failures return compact failed tool results so the trace still carries connector summary details.
+- `artifact_upload` reads a relative file path from the run cwd or active agent folder, uploads it to private Cloudflare R2 under `runs/<runId>/<safe-filename>`, and returns a seven-day presigned GET URL by default.
+- Missing API keys or required config throw/read as tool errors so Pi can react to the failure. Script and artifact connector failures return compact failed tool results so the trace still carries connector summary details.
 
 ## Connector action records
 

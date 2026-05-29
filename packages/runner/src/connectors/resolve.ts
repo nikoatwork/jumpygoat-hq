@@ -13,6 +13,7 @@ const INTENT_PROVIDER: Record<ConnectorIntent, ConnectorProvider> = {
   "mail.send": "agentmail",
   "mail.list": "agentmail",
   "script.run": "local-script",
+  "artifact.upload": "r2",
 };
 
 type ConnectorInvocation = Pick<Invocation, "name"> & ConnectorOverrides;
@@ -43,6 +44,7 @@ export function resolveConnectorPlan(args: {
     resend: resolveResendRuntimeConfig(args.agent, invocation),
     agentmail: resolveAgentMailRuntimeConfig(args.agent, invocation),
     script: resolveScriptRunRuntimeConfig(args.agent, invocation),
+    artifacts: resolveArtifactUploadRuntimeConfig(args.agent, invocation),
   };
 }
 
@@ -74,6 +76,10 @@ export function isConnectorIntentEnabled(agent: ConnectorOverrides, automation: 
   if (intent === "script.run") {
     const config = mergeConfig(agent.scripts?.run, automation.scripts?.run);
     return config?.enabled === true && config.connector === "local-script";
+  }
+  if (intent === "artifact.upload") {
+    const config = mergeConfig(agent.artifacts?.upload, automation.artifacts?.upload);
+    return config?.enabled === true && config.connector === "r2";
   }
   return false;
 }
@@ -130,6 +136,17 @@ function resolveScriptRunRuntimeConfig(agent: ConnectorOverrides & { path?: stri
     write: run.write === true,
     timeoutMs: run.timeoutMs,
     maxOutputChars: run.maxOutputChars,
+  };
+}
+
+function resolveArtifactUploadRuntimeConfig(agent: ConnectorOverrides & { path?: string }, automation: ConnectorOverrides): ConnectorPlan["artifacts"] {
+  const upload = mergeConfig(agent.artifacts?.upload, automation.artifacts?.upload);
+  if (!upload) return undefined;
+  return {
+    agentDir: agent.path ? path.dirname(agent.path) : undefined,
+    expiresInSeconds: upload.expiresInSeconds,
+    maxFileBytes: upload.maxFileBytes,
+    timeoutMs: upload.timeoutMs,
   };
 }
 

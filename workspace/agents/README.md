@@ -50,6 +50,7 @@ allowedIntents:
   - mail.send
   - mail.list
   - script.run
+  - artifact.upload
 web:
   search:
     enabled: true
@@ -79,6 +80,12 @@ scripts:
     write: false
     timeoutMs: 60000
     maxOutputChars: 12000
+artifacts:
+  upload:
+    enabled: false
+    connector: r2
+    expiresInSeconds: 604800
+    maxFileBytes: 25000000
 ---
 
 ## Instructions
@@ -86,7 +93,7 @@ scripts:
 Tell Pi who this agent is, how it should work, what it should not do, and when it may use connector tools.
 ```
 
-Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, `notify.email`, `mail.send`, `mail.list`, and `script.run`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides non-secret defaults; automation/task invocation frontmatter may override run-specific non-secret values when needed. `script.run` can execute only allowlisted `.ts`/`.tsx` files under this agent's `scripts/` folder; persistent script state should stay under `state/`.
+Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, `notify.email`, `mail.send`, `mail.list`, `script.run`, and `artifact.upload`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides non-secret defaults; automation/task invocation frontmatter may override run-specific non-secret values when needed. `script.run` can execute only allowlisted `.ts`/`.tsx` files under this agent's `scripts/` folder; persistent script state should stay under `state/`. `artifact.upload` can upload relative files from the run workspace or active agent folder to Cloudflare R2 and return an expiring signed URL.
 
 Context files under `context/*.md` are loaded alphabetically by filename and appended to the generated Pi instruction file for each run. Recommended naming: `00-overview.md`, `10-playbook.md`, `20-style.md`. Keep context markdown deterministic and non-secret unless your `JUMPYGOATHQ_HOME` is private.
 

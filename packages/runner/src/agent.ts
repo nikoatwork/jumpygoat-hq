@@ -49,6 +49,7 @@ export async function loadAgent(name: string): Promise<Agent> {
     notify: frontmatter.notify,
     mail: frontmatter.mail,
     scripts: frontmatter.scripts,
+    artifacts: frontmatter.artifacts,
     path: file,
     raw,
     contextFiles,

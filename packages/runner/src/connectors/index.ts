@@ -6,3 +6,4 @@ export * from "./firecrawl/index.js";
 export * from "./resend/index.js";
 export * from "./agentmail/index.js";
 export * from "./script/index.js";
+export * from "./artifacts/index.js";

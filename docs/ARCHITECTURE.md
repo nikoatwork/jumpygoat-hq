@@ -20,6 +20,7 @@ jumpyGoatHq keeps the product model intentionally small:
 |---|---|---|
 | **Agent bundle** | Identity, instructions, scoped context, model defaults, capability policy, and future explicit resources/memory/procedures. | Secrets, external service schemas, scheduled prompts, task queue state, or run history. |
 | **Connector/tool** | Governed external capability: credentials, provider schemas, side-effect policy, Pi-safe tool names, bounded results, and connector audit records. | Agent persona, scheduling, or hidden agent-local capability code. |
+| **Artifact** | A file produced or selected during a run and exposed through a governed reference, such as an R2 signed URL. | A destination-specific Dropbox/Drive/Notion object as the product primitive. |
 | **Automation/task** | Invocation source: prompt, schedule/status, assignee/agent reference, and run-specific non-secret overrides. | Long-lived persona, service credentials, or persisted run transcript. |
 | **Run** | Immutable/auditable execution record: source, agent, resolved model, trace/output/error, connector actions, timing, and usage when Pi reports it. | Source-of-truth authoring state for agents, automations, boards, or tasks. |
 
@@ -85,7 +86,7 @@ A connector tool is exposed only when both gates pass:
 1. the agent frontmatter `allowedIntents` includes the provider-neutral intent; and
 2. the agent default config or automation/task override enables that intent/provider for the run.
 
-Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, `notify.email` → `notify_email`, `mail.send` → `mail_send`, and `mail.list` → `mail_list`.
+Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, `notify.email` → `notify_email`, `mail.send` → `mail_send`, `mail.list` → `mail_list`, `script.run` → `script_run`, and `artifact.upload` → `artifact_upload`.
 
 Example agent capability policy:
 
@@ -95,6 +96,7 @@ allowedIntents:
   - notify.email
   - mail.send
   - mail.list
+  - artifact.upload
 web:
   search:
     enabled: true
@@ -113,11 +115,18 @@ mail:
     connector: agentmail
     inboxId: agent@agentmail.to
     limit: 10
+artifacts:
+  upload:
+    enabled: true
+    connector: r2
+    expiresInSeconds: 604800
 ```
 
 The runner resolves an effective connector plan and passes a static Pi extension for enabled/allowed tools only. Pi can call those tools during the run. Secrets stay in environment variables. New providers, such as a future Notion connector, should follow the same pattern: add a provider-neutral intent, map it to one or more Pi-safe tool names, require agent capability plus run config, and keep provider credentials out of markdown files.
 
 This keeps the boundary clean: agent-local resources can improve context, memory, formatting, or deterministic helper behavior; connectors own organization/instance service integrations, credentials, side-effect policy, tool schemas, and audit records.
+
+Artifact upload is intentionally modeled as an artifact primitive backed by the R2 connector: a run file becomes `runs/<runId>/<safe-filename>` in private R2 storage, and the agent receives a time-limited presigned URL it can pass to email, webhook, Slack, Notion, or any later action. The artifact is the product-level concept; Cloudflare R2 is the first connector implementation.
 
 Legacy post-run fenced `jumpygoathq-action` email blocks remain temporarily for compatibility, but in-run Pi tools are the default connector architecture.
 
