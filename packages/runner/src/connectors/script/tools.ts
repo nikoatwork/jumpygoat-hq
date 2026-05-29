@@ -235,7 +235,16 @@ function buildScriptEnv(validated: ValidationResult, timeoutMs: number, network:
 
 function minimalInheritedEnv(): NodeJS.ProcessEnv {
   const keep = ["PATH", "HOME", "TMPDIR", "TEMP", "TMP", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "NODE_OPTIONS"];
-  return Object.fromEntries(keep.flatMap((name) => process.env[name] === undefined ? [] : [[name, process.env[name]]])) as NodeJS.ProcessEnv;
+  const env = Object.fromEntries(keep.flatMap((name) => process.env[name] === undefined ? [] : [[name, process.env[name]]])) as NodeJS.ProcessEnv;
+  if (env.PATH) env.PATH = absolutizePathEnv(env.PATH, process.cwd());
+  return env;
+}
+
+function absolutizePathEnv(value: string, baseDir: string): string {
+  return value.split(path.delimiter).map((entry) => {
+    if (!entry || path.isAbsolute(entry)) return entry;
+    return path.resolve(baseDir, entry);
+  }).join(path.delimiter);
 }
 
 function formatScriptResult(script: string, result: ScriptExecutionResult, maxOutputChars: number): { text: string; truncated: boolean } {

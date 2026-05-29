@@ -181,6 +181,7 @@ jumpyGoatHq resolves profile keys before invoking Pi and stores requested/resolv
 - Target spec: [`tasks/spec.md`](tasks/spec.md)
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Connector setup: [`docs/connectors/README.md`](docs/connectors/README.md)
+- Private workspace Git versioning: [`docs/WORKSPACE_GIT.md`](docs/WORKSPACE_GIT.md)
 - Web UI package notes: [`packages/web/DOCS.md`](packages/web/DOCS.md)
 - End-to-end agent testing: [`docs/testing/end-to-end-agent.md`](docs/testing/end-to-end-agent.md)
 
