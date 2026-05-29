@@ -55,7 +55,7 @@ export type ResendRuntimeConfig = {
 
 export type AgentMailRuntimeConfig = {
   inboxId?: string;
-  to?: string;
+  to?: string | string[];
   subjectPrefix?: string;
   labels?: string[];
   listLimit?: number;

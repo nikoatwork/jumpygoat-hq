@@ -36,8 +36,10 @@ const AgentMailToolConfig = z.object({
   timeoutMs: z.number().int().positive().optional(),
 });
 
+const AgentMailAddressConfig = z.union([z.string(), z.array(z.string())]);
+
 const AgentMailSendConfig = AgentMailToolConfig.extend({
-  to: z.string().optional(),
+  to: AgentMailAddressConfig.optional(),
   subjectPrefix: z.string().optional(),
   labels: z.array(z.string()).optional(),
 });

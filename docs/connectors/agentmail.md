@@ -93,7 +93,7 @@ Common fields:
 
 Send fields:
 
-- `to`: default recipient. Defaults to `AGENTMAIL_TO`. The tool call can override it.
+- `to`: default recipient, either a string or a string array. Defaults to `AGENTMAIL_TO`. The tool call can override it.
 - `subjectPrefix`: prefix applied to tool-provided subjects. Defaults to `AGENTMAIL_SUBJECT_PREFIX`.
 - `labels`: optional labels to attach to sent messages.
 
