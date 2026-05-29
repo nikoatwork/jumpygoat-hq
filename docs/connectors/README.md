@@ -29,3 +29,17 @@ pnpm run doctor
 ```
 
 Connector checks are informational. Optional connectors that are not configured do not make doctor fail. Partial connector config prints warnings so you know what is still needed before enabling that connector in an agent/automation.
+
+## Live smoke scripts
+
+For quick end-to-end connector revalidation without hand-writing temporary automations, use the runner smoke scripts. They load `.env.local`/`.env`, build an in-memory automation + agent, resolve connector gates, and execute the real connector tool:
+
+```bash
+pnpm smoke:firecrawl
+pnpm smoke:agentmail
+pnpm smoke:agentmail -- --send --to niko@example.com
+pnpm smoke:resend -- --send --to niko@example.com --from "jumpyGoatHq <agent@example.com>"
+pnpm smoke:script-run
+```
+
+See `packages/runner/scripts/connectors/README.md` for flags and safety notes. AgentMail and Firecrawl have safe read-only defaults; Resend and outbound AgentMail sends require explicit send flags.

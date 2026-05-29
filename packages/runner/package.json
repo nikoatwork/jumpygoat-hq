@@ -11,7 +11,11 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "test:connectors": "tsx test/connectors.test.ts",
-    "test:model-settings": "tsx test/model-settings.test.ts"
+    "test:model-settings": "tsx test/model-settings.test.ts",
+    "smoke:agentmail": "tsx scripts/connectors/agentmail-smoke.ts",
+    "smoke:firecrawl": "tsx scripts/connectors/firecrawl-smoke.ts",
+    "smoke:resend": "tsx scripts/connectors/resend-smoke.ts",
+    "smoke:script-run": "tsx scripts/connectors/script-run-smoke.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",

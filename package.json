@@ -22,7 +22,11 @@
     "dev:web": "pnpm --filter @jumpygoat-hq/web dev",
     "validate:web": "pnpm --filter @jumpygoat-hq/core build && pnpm --filter @jumpygoat-hq/web build && playwright test",
     "validate:backend": "pnpm --filter @jumpygoat-hq/runner exec tsx ../../scripts/smoke-runner.ts",
-    "validate": "pnpm validate:web && pnpm validate:backend"
+    "validate": "pnpm validate:web && pnpm validate:backend",
+    "smoke:agentmail": "pnpm --filter @jumpygoat-hq/runner smoke:agentmail",
+    "smoke:firecrawl": "pnpm --filter @jumpygoat-hq/runner smoke:firecrawl",
+    "smoke:resend": "pnpm --filter @jumpygoat-hq/runner smoke:resend",
+    "smoke:script-run": "pnpm --filter @jumpygoat-hq/runner smoke:script-run"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
