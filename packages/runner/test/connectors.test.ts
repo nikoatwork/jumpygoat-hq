@@ -54,13 +54,15 @@ async function testAutomationInvocationCarriesConnectorOverrides(): Promise<void
     ...automation,
     mail: { send: { enabled: true, connector: "agentmail", inboxId: "agent@agentmail.to", to: "to@example.com" } },
     scripts: { run: { enabled: true, connector: "local-script", allow: ["scripts/check.ts"] } },
+    artifacts: { upload: { enabled: true, connector: "r2", expiresInSeconds: 600, maxFileBytes: 1000 } },
   };
   const invocation = invocationFromAutomation(withMailAndScripts);
   assert.deepEqual(invocation.mail, withMailAndScripts.mail);
   assert.deepEqual(invocation.scripts, withMailAndScripts.scripts);
+  assert.deepEqual(invocation.artifacts, withMailAndScripts.artifacts);
 
-  const plan = resolveConnectorPlan({ invocation, agent: { ...agent, allowedIntents: ["mail.send", "script.run"] }, runId: "run-invocation" });
-  assert.deepEqual(plan.tools.map((tool) => tool.intent), ["mail.send", "script.run"]);
+  const plan = resolveConnectorPlan({ invocation, agent: { ...agent, allowedIntents: ["mail.send", "script.run", "artifact.upload"] }, runId: "run-invocation" });
+  assert.deepEqual(plan.tools.map((tool) => tool.intent), ["mail.send", "script.run", "artifact.upload"]);
 }
 
 async function testFirecrawlSearch(): Promise<void> {

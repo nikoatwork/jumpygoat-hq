@@ -29,6 +29,7 @@ export function invocationFromAutomation(automation: Automation): Invocation {
     notify: automation.notify,
     mail: automation.mail,
     scripts: automation.scripts,
+    artifacts: automation.artifacts,
   };
 }
 
