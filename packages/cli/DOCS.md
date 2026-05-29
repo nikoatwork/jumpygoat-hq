@@ -84,7 +84,7 @@ jumpygoathq automations apply daily-product-news \
 jumpygoathq automations status daily-product-news --limit 5 --json
 ```
 
-`automations apply` also accepts `--prompt "..."`, `--stdin`, or `--file automation.md|json|yaml`. Markdown files are sent as raw automation markdown; JSON/YAML files can include connector config such as Firecrawl `web.*` and Resend `notify.email` blocks.
+`automations apply` also accepts `--prompt "..."`, `--stdin`, or `--file automation.md|json|yaml`. Markdown files are sent as raw automation markdown; JSON/YAML files can include connector config such as Firecrawl `web.*`, Resend `notify.email`, AgentMail `mail.*`, and local script `scripts.run` blocks.
 
 One-shot setup accepts JSON or YAML:
 
@@ -142,3 +142,4 @@ Remote troubleshooting:
 - For Tailscale/SSH tunnel setups, verify `curl <api-url>/api` from the same shell before debugging CLI behavior.
 - Cron install captures the server-side environment, not the client shell. Ensure `pnpm` is on the server PATH used by the web/API process, then inspect `jumpyGoatHqHome()/data/cron-<automation>.log` if scheduled runs do not fire.
 - Resend email notifications need `notify.email.from` in automation frontmatter or `JUMPYGOATHQ_NOTIFY_EMAIL_FROM` on the server, and the sender must be authorized in Resend.
+- `script.run` automations need reviewed `.ts`/`.tsx` files under the target agent's `scripts/` folder on the server/workspace; CLI/API calls apply markdown/config but do not upload arbitrary script files unless your bundle process includes them.

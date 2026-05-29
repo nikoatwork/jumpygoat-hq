@@ -1,5 +1,7 @@
+import { createAgentMailTools } from "./agentmail/index.js";
 import { createFirecrawlTools } from "./firecrawl/index.js";
 import { createResendTools } from "./resend/index.js";
+import { createScriptRunTools } from "./script/index.js";
 import type { ConnectorRuntimeConfig, ConnectorToolDefinition, ConnectorToolName } from "./types.js";
 
 const CONFIG_ENV = "JUMPYGOATHQ_CONNECTORS_CONFIG_JSON";
@@ -13,7 +15,7 @@ export default function jumpyGoatHqConnectorExtension(pi: PiLike): void {
   if (!runtime || runtime.tools.length === 0) return;
 
   const allowedNames = new Set<ConnectorToolName>(runtime.tools.map((tool) => tool.toolName));
-  const definitions = [...createFirecrawlTools(runtime), ...createResendTools(runtime)];
+  const definitions = [...createFirecrawlTools(runtime), ...createResendTools(runtime), ...createAgentMailTools(runtime), ...createScriptRunTools(runtime)];
   for (const definition of definitions) {
     if (allowedNames.has(definition.name)) pi.registerTool(definition);
   }

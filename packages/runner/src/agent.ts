@@ -18,6 +18,7 @@ export type AgentMeta = ConnectorOverrides & {
   description?: string;
   model?: string;
   allowedIntents: string[];
+  path?: string;
 };
 
 export type AgentContextFile = {
@@ -46,6 +47,8 @@ export async function loadAgent(name: string): Promise<Agent> {
     allowedIntents: frontmatter.allowedIntents || [],
     web: frontmatter.web,
     notify: frontmatter.notify,
+    mail: frontmatter.mail,
+    scripts: frontmatter.scripts,
     path: file,
     raw,
     contextFiles,

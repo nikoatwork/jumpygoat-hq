@@ -23,7 +23,7 @@ jumpygoathq instances use home
 jumpygoathq instances list
 ```
 
-Create or update resources:
+Create or update resources (agent/automation markdown can include connector gates such as `script.run` and `scripts.run`):
 
 ```bash
 jumpygoathq agents apply helper --file ./AGENT.md

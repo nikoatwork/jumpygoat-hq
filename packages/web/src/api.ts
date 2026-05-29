@@ -306,7 +306,7 @@ async function automationStatusResponse(name: string, limit = 10): Promise<Recor
       etag: automation.etag,
     },
     cron: cron ? { installed: true, block: cron.block, line: cron.line, warning: cron.warning } : { installed: false },
-    connectors: connectorSummary(automation.web, automation.notify),
+    connectors: connectorSummary(automation.web, automation.notify, automation.mail, automation.scripts),
     recentRuns: runs.map(summarizeRun),
     warnings,
   };
@@ -332,12 +332,16 @@ async function automationExists(name: string): Promise<boolean> {
   }
 }
 
-function connectorSummary(web: unknown, notify: unknown): Record<string, unknown> {
+function connectorSummary(web: unknown, notify: unknown, mail?: unknown, scripts?: unknown): Record<string, unknown> {
   const summary: Record<string, unknown> = {};
   const webConfig = optionalRecord(web);
   const notifyConfig = optionalRecord(notify);
+  const mailConfig = optionalRecord(mail);
+  const scriptsConfig = optionalRecord(scripts);
   if (webConfig) summary.web = Object.fromEntries(Object.entries(webConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
   if (notifyConfig) summary.notify = Object.fromEntries(Object.entries(notifyConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
+  if (mailConfig) summary.mail = Object.fromEntries(Object.entries(mailConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
+  if (scriptsConfig) summary.scripts = Object.fromEntries(Object.entries(scriptsConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
   return summary;
 }
 
@@ -422,6 +426,8 @@ function automationInput(input: Record<string, unknown>, fallbackName?: string):
     prompt: typeof input.prompt === "string" ? input.prompt : undefined,
     web: input.web,
     notify: input.notify,
+    mail: input.mail,
+    scripts: input.scripts,
     frontmatter: optionalRecord(input.frontmatter),
     rawMarkdown: typeof input.rawMarkdown === "string" ? input.rawMarkdown : undefined,
   };

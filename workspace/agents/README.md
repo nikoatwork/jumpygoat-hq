@@ -9,14 +9,15 @@ workspace/agents/<name>/AGENT.md          # required; loaded every run
 workspace/agents/<name>/context/*.md      # optional; loaded alphabetically
 ```
 
-Reserved directories may be used for organization, but jumpyGoatHq does **not** load or execute them yet:
+Optional agent-local resources are private to the bundle and loaded/executed only through explicit contracts:
 
 ```text
 workspace/agents/<name>/references/       # reserved future reference docs
 workspace/agents/<name>/templates/        # reserved future templates
 workspace/agents/<name>/assets/           # reserved future static assets
 workspace/agents/<name>/procedures/       # reserved future reusable procedures
-workspace/agents/<name>/scripts/          # reserved future gated helper scripts
+workspace/agents/<name>/scripts/          # optional TypeScript scripts gated by script.run
+workspace/agents/<name>/state/            # optional durable script state, agent-private
 workspace/agents/<name>/memory/           # reserved future curated memory/state
 ```
 
@@ -46,6 +47,9 @@ description: What this agent is responsible for.
 model: gpt-5.5 # optional default; automation model overrides this
 allowedIntents:
   - web.search
+  - mail.send
+  - mail.list
+  - script.run
 web:
   search:
     enabled: true
@@ -55,6 +59,26 @@ notify:
   email:
     enabled: false
     connector: resend
+mail:
+  send:
+    enabled: false
+    connector: agentmail
+    inboxId: agent@agentmail.to
+  list:
+    enabled: false
+    connector: agentmail
+    inboxId: agent@agentmail.to
+    limit: 10
+scripts:
+  run:
+    enabled: false
+    connector: local-script
+    allow:
+      - scripts/example.ts
+    network: false
+    write: false
+    timeoutMs: 60000
+    maxOutputChars: 12000
 ---
 
 ## Instructions
@@ -62,10 +86,10 @@ notify:
 Tell Pi who this agent is, how it should work, what it should not do, and when it may use connector tools.
 ```
 
-Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, and `notify.email`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides non-secret defaults; automation/task invocation frontmatter may override run-specific non-secret values when needed.
+Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, `notify.email`, `mail.send`, `mail.list`, and `script.run`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides non-secret defaults; automation/task invocation frontmatter may override run-specific non-secret values when needed. `script.run` can execute only allowlisted `.ts`/`.tsx` files under this agent's `scripts/` folder; persistent script state should stay under `state/`.
 
 Context files under `context/*.md` are loaded alphabetically by filename and appended to the generated Pi instruction file for each run. Recommended naming: `00-overview.md`, `10-playbook.md`, `20-style.md`. Keep context markdown deterministic and non-secret unless your `JUMPYGOATHQ_HOME` is private.
 
-Future loaded resources must use explicit jumpyGoatHq rules for naming, ordering, size limits, and execution/audit behavior. Until those contracts exist, `references/`, `templates/`, `assets/`, `procedures/`, `scripts/`, and `memory/` are non-loaded authoring space only.
+Future loaded resources must use explicit jumpyGoatHq rules for naming, ordering, size limits, and execution/audit behavior. Until those contracts exist, `references/`, `templates/`, `assets/`, `procedures/`, and `memory/` are non-loaded authoring space only. `scripts/` is executable only through the gated `script.run` connector.
 
 This directory is mutable operator state. Agent directories are gitignored; only this README is committed.

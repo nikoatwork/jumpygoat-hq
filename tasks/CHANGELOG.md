@@ -2,6 +2,10 @@
 
 This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
 
+## 2026-05-29
+
+- feat: added the gated local `script.run` connector for allowlisted agent-bundled TypeScript scripts, with runner schema/resolution, Pi tool registration, path/symlink safety checks, bounded execution/output, trace summaries, core/API preservation, docs, examples, and validation (`test:connectors`, `pnpm build`, `validate:web`, `validate:backend`) — completed in `tasks/done/2026-05-29_tasks-script-run-connector.md`.
+
 ## 2026-05-15
 
 - feat: added dependency-free VPS operational JSONL logging for web, API audit, runner, Pi subprocesses, cron wrappers, and SSH troubleshooting docs — completed in `tasks/done/2026-05-15_tasks-lightweight-vps-logging.md`.

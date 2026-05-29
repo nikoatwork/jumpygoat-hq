@@ -51,6 +51,7 @@ export function connectorSummary(args: {
   to?: string;
   url?: string;
   query?: string;
+  script?: string;
   providerMessageId?: string;
   resultSummary?: Record<string, unknown>;
   error?: string;
@@ -71,6 +72,7 @@ export function connectorSummary(args: {
     to: args.to,
     url: args.url,
     query: args.query,
+    script: args.script,
     providerMessageId: args.providerMessageId,
     resultSummary: args.resultSummary,
     error: args.error,

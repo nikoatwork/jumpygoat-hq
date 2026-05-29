@@ -20,6 +20,50 @@ model: gpt-5.5 # optional; overrides the agent default model
 Prompt for this run.
 ```
 
-Connector defaults belong on the agent. Add connector blocks here only for per-run non-secret overrides, for example a different notification recipient. Secrets, provider schemas, side-effect behavior, and connector audit records belong to connectors/tools, not automation files.
+Connector defaults belong on the agent. Add connector blocks here only for per-run non-secret overrides, for example a different notification recipient, AgentMail inbox filter, or a narrower script allowlist:
+
+```yaml
+---
+agent: your-agent
+schedule: manual
+mail:
+  send:
+    enabled: true
+    connector: agentmail
+    inboxId: agent@agentmail.to
+    to: operator@example.com
+  list:
+    enabled: true
+    connector: agentmail
+    inboxId: agent@agentmail.to
+    limit: 10
+    labels: [unread]
+---
+
+Check the inbox for unread messages and send a response if needed.
+```
+
+Script override example:
+
+```yaml
+---
+agent: real-estate-searcher
+schedule: manual
+scripts:
+  run:
+    enabled: true
+    connector: local-script
+    allow:
+      - scripts/search-immoscout.ts
+    network: true
+    write: true
+    timeoutMs: 60000
+    maxOutputChars: 12000
+---
+
+Run the allowlisted search script, summarize new listings, and send any requested follow-up through connector tools.
+```
+
+Secrets, provider schemas, side-effect behavior, and connector audit records belong to connectors/tools, not automation files.
 
 This directory is mutable operator state. Automation files are gitignored; only this README is committed.

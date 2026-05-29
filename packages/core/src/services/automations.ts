@@ -16,6 +16,8 @@ export type AutomationCreateInput = {
   prompt?: string;
   web?: unknown;
   notify?: unknown;
+  mail?: unknown;
+  scripts?: unknown;
   frontmatter?: Record<string, unknown>;
   rawMarkdown?: string;
 };
@@ -111,6 +113,8 @@ async function readAutomationFile(name: string, options: ListOptions): Promise<A
       model: parsed.data.model ? String(parsed.data.model) : "",
       web: parsed.data.web,
       notify: parsed.data.notify,
+      mail: parsed.data.mail,
+      scripts: parsed.data.scripts,
       prompt: parsed.content.trim(),
       promptPreview: parsed.content.trim().replace(/\s+/g, " ").slice(0, 160),
       ...(options.includeRaw ? { rawMarkdown: raw } : {}),
@@ -147,6 +151,8 @@ export function automationMarkdown(input: ResolvedAutomationInput | AutomationCr
     model: createInput.model,
     web: createInput.web,
     notify: createInput.notify,
+    mail: createInput.mail,
+    scripts: createInput.scripts,
   });
   return matter.stringify((createInput.prompt || "").trim() + "\n", frontmatter);
 }
@@ -181,6 +187,8 @@ async function resolveAutomationInput(input: AutomationCreateInput, existing?: {
   }
   if (input.web !== undefined) data.web = input.web;
   if (input.notify !== undefined) data.notify = input.notify;
+  if (input.mail !== undefined) data.mail = input.mail;
+  if (input.scripts !== undefined) data.scripts = input.scripts;
 
   const frontmatter = supportedAutomationFrontmatter(data);
   return {
@@ -201,6 +209,8 @@ function supportedAutomationFrontmatter(data: Record<string, unknown>): Record<s
   if (data.model !== undefined && data.model !== "") frontmatter.model = data.model;
   if (data.web !== undefined) frontmatter.web = data.web;
   if (data.notify !== undefined) frontmatter.notify = data.notify;
+  if (data.mail !== undefined) frontmatter.mail = data.mail;
+  if (data.scripts !== undefined) frontmatter.scripts = data.scripts;
   return frontmatter;
 }
 
@@ -214,6 +224,8 @@ async function validateResolvedAutomationInput(input: ResolvedAutomationInput, m
   if (input.frontmatter.model !== undefined && typeof input.frontmatter.model !== "string") fields.push({ field: "model", message: "Model must be a string." });
   if (input.frontmatter.web !== undefined && !isRecord(input.frontmatter.web)) fields.push({ field: "web", message: "Web connector config must be an object." });
   if (input.frontmatter.notify !== undefined && !isRecord(input.frontmatter.notify)) fields.push({ field: "notify", message: "Notify connector config must be an object." });
+  if (input.frontmatter.mail !== undefined && !isRecord(input.frontmatter.mail)) fields.push({ field: "mail", message: "Mail connector config must be an object." });
+  if (input.frontmatter.scripts !== undefined && !isRecord(input.frontmatter.scripts)) fields.push({ field: "scripts", message: "Scripts connector config must be an object." });
   if (input.agent && !existsSync(agentPath(input.agent))) fields.push({ field: "agent", message: `Agent does not exist: ${input.agent}` });
 
   if (isSafeName(input.name)) {

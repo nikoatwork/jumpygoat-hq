@@ -74,10 +74,44 @@ try {
 if (process.env.VERCEL_AI_GATEWAY_API_KEY) ok("VERCEL_AI_GATEWAY_API_KEY is set");
 else warn("VERCEL_AI_GATEWAY_API_KEY not set; okay if Pi stored login/provider auth is configured");
 
+checkOptionalConnectors();
+
 console.log();
 if (failed) {
   console.log("Doctor failed.");
   process.exitCode = 1;
 } else {
   console.log("Doctor passed with possible warnings.");
+}
+
+function checkOptionalConnectors(): void {
+  console.log("\nOptional connectors");
+
+  if (process.env.FIRECRAWL_API_KEY) ok("Firecrawl configured: FIRECRAWL_API_KEY is set");
+  else ok("Firecrawl not configured; optional unless an enabled automation uses web.search/web.scrape/web.crawl");
+
+  const resendConfigured = Boolean(process.env.RESEND_API_KEY || process.env.JUMPYGOATHQ_NOTIFY_EMAIL_TO || process.env.JUMPYGOATHQ_NOTIFY_EMAIL_FROM || process.env.JUMPYGOATHQ_NOTIFY_SUBJECT_PREFIX);
+  if (!resendConfigured) {
+    ok("Resend not configured; optional unless an enabled automation uses notify.email");
+  } else if (!process.env.RESEND_API_KEY) {
+    warn("Resend partially configured: set RESEND_API_KEY before using notify.email");
+  } else {
+    ok("Resend configured: RESEND_API_KEY is set");
+    if (!process.env.JUMPYGOATHQ_NOTIFY_EMAIL_FROM) warn("Resend has no JUMPYGOATHQ_NOTIFY_EMAIL_FROM default; provide notify.email.from in automation/agent config or env before sending");
+    if (!process.env.JUMPYGOATHQ_NOTIFY_EMAIL_TO) warn("Resend has no JUMPYGOATHQ_NOTIFY_EMAIL_TO default; provide notify.email.to in automation/agent config or env before sending");
+  }
+
+  if (commandExists("tsx")) ok("local-script runner available: tsx found on PATH");
+  else warn("local-script runner not found on PATH; install dependencies before using script.run");
+
+  const agentMailConfigured = Boolean(process.env.AGENTMAIL_API_KEY || process.env.AGENTMAIL_INBOX_ID || process.env.AGENTMAIL_TO || process.env.AGENTMAIL_SUBJECT_PREFIX);
+  if (!agentMailConfigured) {
+    ok("AgentMail not configured; optional unless an enabled automation uses mail.send/mail.list");
+  } else if (!process.env.AGENTMAIL_API_KEY) {
+    warn("AgentMail partially configured: set AGENTMAIL_API_KEY before using mail.send/mail.list");
+  } else {
+    ok("AgentMail configured: AGENTMAIL_API_KEY is set");
+    if (process.env.AGENTMAIL_INBOX_ID) ok(`AgentMail default inbox: ${process.env.AGENTMAIL_INBOX_ID}`);
+    else warn("AgentMail has no AGENTMAIL_INBOX_ID default; provide mail.send.inboxId/mail.list.inboxId in automation/agent config or env before use");
+  }
 }

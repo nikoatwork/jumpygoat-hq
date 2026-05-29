@@ -1,4 +1,4 @@
-export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email"] as const;
+export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email", "mail.send", "mail.list", "script.run"] as const;
 export type ConnectorIntent = (typeof CONNECTOR_INTENTS)[number];
 
 export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
@@ -6,6 +6,9 @@ export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
   "web.scrape": "web_scrape",
   "web.crawl": "web_crawl",
   "notify.email": "notify_email",
+  "mail.send": "mail_send",
+  "mail.list": "mail_list",
+  "script.run": "script_run",
 };
 
 export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
@@ -13,11 +16,14 @@ export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
   web_scrape: "web.scrape",
   web_crawl: "web.crawl",
   notify_email: "notify.email",
+  mail_send: "mail.send",
+  mail_list: "mail.list",
+  script_run: "script.run",
 };
 
-export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email"] as const;
+export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email", "mail_send", "mail_list", "script_run"] as const;
 export type ConnectorToolName = (typeof CONNECTOR_TOOL_NAMES)[number];
-export type ConnectorProvider = "firecrawl" | "resend";
+export type ConnectorProvider = "firecrawl" | "resend" | "agentmail" | "local-script";
 export type ConnectorActionStatus =
   | "started"
   | "succeeded"
@@ -45,6 +51,25 @@ export type ResendRuntimeConfig = {
   subjectPrefix?: string;
 };
 
+export type AgentMailRuntimeConfig = {
+  inboxId?: string;
+  to?: string;
+  subjectPrefix?: string;
+  labels?: string[];
+  listLimit?: number;
+  maxOutputChars?: number;
+  timeoutMs?: number;
+};
+
+export type ScriptRunRuntimeConfig = {
+  agentDir?: string;
+  allow?: string[];
+  network?: boolean;
+  write?: boolean;
+  timeoutMs?: number;
+  maxOutputChars?: number;
+};
+
 export type ResolvedConnectorTool = {
   intent: ConnectorIntent;
   toolName: ConnectorToolName;
@@ -58,6 +83,8 @@ export type ConnectorRuntimeConfig = {
   tools: ResolvedConnectorTool[];
   firecrawl?: FirecrawlRuntimeConfig;
   resend?: ResendRuntimeConfig;
+  agentmail?: AgentMailRuntimeConfig;
+  script?: ScriptRunRuntimeConfig;
 };
 
 export type ConnectorPlan = ConnectorRuntimeConfig;
@@ -78,6 +105,7 @@ export type ConnectorActionRecord = {
   to?: string;
   url?: string;
   query?: string;
+  script?: string;
   providerMessageId?: string;
   resultSummary?: Record<string, unknown>;
   error?: string;

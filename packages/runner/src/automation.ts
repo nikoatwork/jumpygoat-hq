@@ -29,6 +29,35 @@ const NotifyEmailConfig = z.object({
   subjectPrefix: z.string().optional(),
 });
 
+const AgentMailToolConfig = z.object({
+  enabled: z.boolean().optional(),
+  connector: z.literal("agentmail"),
+  inboxId: z.string().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+});
+
+const AgentMailSendConfig = AgentMailToolConfig.extend({
+  to: z.string().optional(),
+  subjectPrefix: z.string().optional(),
+  labels: z.array(z.string()).optional(),
+});
+
+const AgentMailListConfig = AgentMailToolConfig.extend({
+  limit: z.number().int().min(1).max(50).optional(),
+  labels: z.array(z.string()).optional(),
+  maxOutputChars: z.number().int().positive().optional(),
+});
+
+const ScriptRunConfig = z.object({
+  enabled: z.boolean().optional(),
+  connector: z.literal("local-script"),
+  allow: z.array(z.string()).optional(),
+  network: z.boolean().optional(),
+  write: z.boolean().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+  maxOutputChars: z.number().int().positive().optional(),
+});
+
 export const ConnectorOverridesSchema = z.object({
   web: z.object({
     search: WebSearchConfig.optional(),
@@ -37,6 +66,13 @@ export const ConnectorOverridesSchema = z.object({
   }).optional(),
   notify: z.object({
     email: NotifyEmailConfig.optional(),
+  }).optional(),
+  mail: z.object({
+    send: AgentMailSendConfig.optional(),
+    list: AgentMailListConfig.optional(),
+  }).optional(),
+  scripts: z.object({
+    run: ScriptRunConfig.optional(),
   }).optional(),
 });
 

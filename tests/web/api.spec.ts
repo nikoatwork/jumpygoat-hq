@@ -129,7 +129,7 @@ test("JSON API preserves rich automation frontmatter through create and update",
     let response = await route("POST", new URL("http://local.test/api/agents"), {
       json: {
         name: "helper",
-        content: "---\nname: helper\ndescription: API helper\nallowedIntents: [web.search, notify.email]\n---\n\n## Identity\n\nHelp via API.\n",
+        content: "---\nname: helper\ndescription: API helper\nallowedIntents: [web.search, notify.email, mail.send, mail.list, script.run]\n---\n\n## Identity\n\nHelp via API.\n",
       },
     });
     expect(response.status).toBe(201);
@@ -142,12 +142,16 @@ test("JSON API preserves rich automation frontmatter through create and update",
         prompt: "Search and email a summary.",
         web: { search: { enabled: true, connector: "firecrawl", limit: 2 } },
         notify: { email: { enabled: true, connector: "resend", to: "ops@example.com", from: "Agent <agent@example.com>" } },
+        mail: { send: { enabled: true, connector: "agentmail", inboxId: "agent@agentmail.to", to: "ops@example.com" }, list: { enabled: true, connector: "agentmail", inboxId: "agent@agentmail.to", limit: 5 } },
+        scripts: { run: { enabled: true, connector: "local-script", allow: ["scripts/search.ts"], network: true, write: false } },
       },
     });
     expect(response.status).toBe(201);
     let automation = JSON.parse(response.body).automation;
     expect(automation.web.search.limit).toBe(2);
     expect(automation.notify.email.to).toBe("ops@example.com");
+    expect(automation.mail.send.inboxId).toBe("agent@agentmail.to");
+    expect(automation.scripts.run.allow).toEqual(["scripts/search.ts"]);
 
     response = await route("PUT", new URL("http://local.test/api/automations/daily"), {
       json: { agent: "helper", schedule: "manual", prompt: "Updated prompt, same connector config." },
@@ -157,9 +161,14 @@ test("JSON API preserves rich automation frontmatter through create and update",
     expect(automation.prompt).toBe("Updated prompt, same connector config.");
     expect(automation.web.search.connector).toBe("firecrawl");
     expect(automation.notify.email.to).toBe("ops@example.com");
+    expect(automation.mail.list.limit).toBe(5);
+    expect(automation.scripts.run.connector).toBe("local-script");
     expect(automation.rawMarkdown).toContain("notify:");
     expect(automation.rawMarkdown).toContain("to: ops@example.com");
     expect(automation.rawMarkdown).toContain("web:");
+    expect(automation.rawMarkdown).toContain("mail:");
+    expect(automation.rawMarkdown).toContain("scripts:");
+    expect(automation.rawMarkdown).toContain("inboxId: agent@agentmail.to");
     expect(automation.rawMarkdown).toContain("limit: 2");
 
     response = await route("POST", new URL("http://local.test/api/automations"), {

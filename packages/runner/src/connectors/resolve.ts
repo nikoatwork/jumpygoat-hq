@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { AgentMeta } from "../agent.js";
 import type { ConnectorOverrides } from "../automation.js";
 import type { Invocation } from "../invocation.js";
@@ -9,6 +10,9 @@ const INTENT_PROVIDER: Record<ConnectorIntent, ConnectorProvider> = {
   "web.scrape": "firecrawl",
   "web.crawl": "firecrawl",
   "notify.email": "resend",
+  "mail.send": "agentmail",
+  "mail.list": "agentmail",
+  "script.run": "local-script",
 };
 
 type ConnectorInvocation = Pick<Invocation, "name"> & ConnectorOverrides;
@@ -37,6 +41,8 @@ export function resolveConnectorPlan(args: {
     tools,
     firecrawl: resolveFirecrawlRuntimeConfig(args.agent, invocation),
     resend: resolveResendRuntimeConfig(args.agent, invocation),
+    agentmail: resolveAgentMailRuntimeConfig(args.agent, invocation),
+    script: resolveScriptRunRuntimeConfig(args.agent, invocation),
   };
 }
 
@@ -56,6 +62,18 @@ export function isConnectorIntentEnabled(agent: ConnectorOverrides, automation: 
   if (intent === "notify.email") {
     const config = mergeConfig(agent.notify?.email, automation.notify?.email);
     return config?.enabled === true && (config.connector ?? "resend") === "resend";
+  }
+  if (intent === "mail.send") {
+    const config = mergeConfig(agent.mail?.send, automation.mail?.send);
+    return config?.enabled === true && config.connector === "agentmail";
+  }
+  if (intent === "mail.list") {
+    const config = mergeConfig(agent.mail?.list, automation.mail?.list);
+    return config?.enabled === true && config.connector === "agentmail";
+  }
+  if (intent === "script.run") {
+    const config = mergeConfig(agent.scripts?.run, automation.scripts?.run);
+    return config?.enabled === true && config.connector === "local-script";
   }
   return false;
 }
@@ -85,6 +103,36 @@ function resolveResendRuntimeConfig(agent: ConnectorOverrides, automation: Conne
   };
 }
 
+function resolveAgentMailRuntimeConfig(agent: ConnectorOverrides, automation: ConnectorOverrides): ConnectorPlan["agentmail"] {
+  const send = mergeConfig(agent.mail?.send, automation.mail?.send);
+  const list = mergeConfig(agent.mail?.list, automation.mail?.list);
+  const configs = [send, list].filter(Boolean);
+  if (!configs.length) return undefined;
+  return {
+    inboxId: send?.inboxId || list?.inboxId || process.env.AGENTMAIL_INBOX_ID,
+    to: send?.to || process.env.AGENTMAIL_TO,
+    subjectPrefix: send?.subjectPrefix ?? process.env.AGENTMAIL_SUBJECT_PREFIX ?? "",
+    labels: firstStringArray([list?.labels, send?.labels]),
+    listLimit: firstNumber([list?.limit]),
+    maxOutputChars: firstNumber([list?.maxOutputChars]),
+    timeoutMs: firstNumber(configs.map((config) => config?.timeoutMs)),
+  };
+}
+
+function resolveScriptRunRuntimeConfig(agent: ConnectorOverrides & { path?: string }, automation: ConnectorOverrides): ConnectorPlan["script"] {
+  const run = mergeConfig(agent.scripts?.run, automation.scripts?.run);
+  if (!run) return undefined;
+  const agentDir = agent.path ? path.dirname(agent.path) : undefined;
+  return {
+    agentDir,
+    allow: run.allow,
+    network: run.network === true,
+    write: run.write === true,
+    timeoutMs: run.timeoutMs,
+    maxOutputChars: run.maxOutputChars,
+  };
+}
+
 function mergeConfig<T extends Record<string, unknown>>(base: T | undefined, override: T | undefined): T | undefined {
   if (!base) return override;
   if (!override) return base;
@@ -93,6 +141,10 @@ function mergeConfig<T extends Record<string, unknown>>(base: T | undefined, ove
 
 function firstNumber(values: Array<number | undefined>): number | undefined {
   return values.find((value): value is number => typeof value === "number" && Number.isFinite(value));
+}
+
+function firstStringArray(values: Array<string[] | undefined>): string[] | undefined {
+  return values.find((value): value is string[] => Array.isArray(value));
 }
 
 export function connectorPlanEnv(plan: ConnectorPlan): string {

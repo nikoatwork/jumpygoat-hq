@@ -58,6 +58,7 @@ function actionFromStart(event: TraceToolStart): ConnectorActionRecord {
     query: typeof args.query === "string" ? args.query : undefined,
     url: typeof args.url === "string" ? args.url : undefined,
     to: typeof args.to === "string" ? args.to : undefined,
+    script: typeof args.script === "string" ? args.script : undefined,
   };
 }
 
@@ -107,8 +108,11 @@ function resultText(result: unknown): string | undefined {
     .slice(0, 1000);
 }
 
-function connectorForTool(toolName: "web_search" | "web_scrape" | "web_crawl" | "notify_email"): "firecrawl" | "resend" {
-  return toolName === "notify_email" ? "resend" : "firecrawl";
+function connectorForTool(toolName: ConnectorToolName): "firecrawl" | "resend" | "agentmail" | "local-script" {
+  if (toolName === "notify_email") return "resend";
+  if (toolName === "mail_send" || toolName === "mail_list") return "agentmail";
+  if (toolName === "script_run") return "local-script";
+  return "firecrawl";
 }
 
 function parseJsonObject(line: string): Record<string, unknown> | undefined {

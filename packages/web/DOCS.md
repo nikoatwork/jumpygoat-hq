@@ -169,6 +169,8 @@ curl -sS -X POST "$HQ/api/automations/daily-product-news/runs" \
 
 `PUT /api/agents/:name` and `PUT /api/automations/:name` are idempotent upserts. Their responses include `created`, `updated`, `path`, `etag`, and the resource DTO. Validation failures return the deterministic error shape above.
 
+Script-enabled agents use the same API. Upload `AGENT.md` content that includes `allowedIntents: [script.run]` and `scripts.run` config, then place reviewed `.ts`/`.tsx` files under that agent's `scripts/` folder on the server/workspace. Automation upserts may narrow or override `scripts.run.allow`, `network`, `write`, `timeoutMs`, and `maxOutputChars`; never send secrets in markdown.
+
 One-shot setup combines the same operations:
 
 ```bash
@@ -231,6 +233,8 @@ Side-effecting API calls such as run-now, setup with `installCron`/`runNow`, and
 - **Tailscale/default instance:** if remote calls hang or fail, verify the server is reachable from the client (`curl $HQ/api`), the server is bound to the expected interface, and `JUMPYGOATHQ_API_TOKEN` matches the CLI/API token. Prefer a named CLI instance for repeat use.
 - **Cron PATH:** installed cron blocks export the current `HOME`, `PATH`, `JUMPYGOATHQ_HOME`, and `JUMPYGOATHQ_DB_PATH` where present. If cron runs fail, inspect `jumpyGoatHqHome()/data/cron-<automation>.log` and ensure `pnpm` is on the PATH captured during install.
 - **Email `from`:** Resend notifications require `notify.email.from` or `JUMPYGOATHQ_NOTIFY_EMAIL_FROM`; the sender must be valid for the configured Resend account/domain. `notify.email.to` can be supplied in automation frontmatter or `JUMPYGOATHQ_NOTIFY_EMAIL_TO`.
+- **AgentMail inbox:** AgentMail send/list tools require `AGENTMAIL_API_KEY` plus `mail.send.inboxId`, `mail.list.inboxId`, or `AGENTMAIL_INBOX_ID`. Use `mail.send`/`mail.list` in `allowedIntents` and `connector: agentmail` in config.
+- **Local scripts:** `script.run` requires `tsx` on the server PATH and an allowlisted script under the agent folder's `scripts/` directory. Run `pnpm run doctor` on the server if `script_run` fails before starting.
 
 ## Binding
 
