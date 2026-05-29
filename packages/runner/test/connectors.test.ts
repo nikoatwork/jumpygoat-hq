@@ -5,6 +5,7 @@ import path from "node:path";
 import { createAgentMailTools, createFirecrawlTools, createResendTools, createScriptRunTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
 import type { AgentMeta } from "../src/agent.js";
 import type { Automation } from "../src/automation.js";
+import { invocationFromAutomation } from "../src/invocation.js";
 
 const automation: Automation = {
   name: "test-auto",
@@ -27,6 +28,7 @@ const agent: AgentMeta = {
 
 async function main(): Promise<void> {
   await testGating();
+  await testAutomationInvocationCarriesConnectorOverrides();
   await testFirecrawlSearch();
   await testFirecrawlScrapeAndCrawl();
   await testFirecrawlErrorResponses();
@@ -43,6 +45,20 @@ async function main(): Promise<void> {
 async function testGating(): Promise<void> {
   const plan = resolveConnectorPlan({ automation, agent, runId: "run-1" });
   assert.deepEqual(plan.tools.map((tool) => tool.intent), ["web.search", "notify.email"]);
+}
+
+async function testAutomationInvocationCarriesConnectorOverrides(): Promise<void> {
+  const withMailAndScripts: Automation = {
+    ...automation,
+    mail: { send: { enabled: true, connector: "agentmail", inboxId: "agent@agentmail.to", to: "to@example.com" } },
+    scripts: { run: { enabled: true, connector: "local-script", allow: ["scripts/check.ts"] } },
+  };
+  const invocation = invocationFromAutomation(withMailAndScripts);
+  assert.deepEqual(invocation.mail, withMailAndScripts.mail);
+  assert.deepEqual(invocation.scripts, withMailAndScripts.scripts);
+
+  const plan = resolveConnectorPlan({ invocation, agent: { ...agent, allowedIntents: ["mail.send", "script.run"] }, runId: "run-invocation" });
+  assert.deepEqual(plan.tools.map((tool) => tool.intent), ["mail.send", "script.run"]);
 }
 
 async function testFirecrawlSearch(): Promise<void> {

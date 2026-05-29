@@ -27,6 +27,8 @@ export function invocationFromAutomation(automation: Automation): Invocation {
     workspaceKey: automation.name,
     web: automation.web,
     notify: automation.notify,
+    mail: automation.mail,
+    scripts: automation.scripts,
   };
 }
 
