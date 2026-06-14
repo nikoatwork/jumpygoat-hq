@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { dbPath, setupDb } from "../packages/runner/src/db.js";
-import { jumpyGoatHqHome, agentsDir, automationsDir, dataDir, repoRoot, tracesDir, workspacesDir } from "../packages/shared/paths.js";
+import { jumpyGoatHqHome, agentsDir, automationsDir, dataDir, repoRoot, tracesDir, workdirsDir } from "../packages/shared/paths.js";
 
 let failed = false;
 
@@ -37,7 +37,7 @@ ok(`workspace root: ${jumpyGoatHqHome()}`);
 ok(`automations dir: ${automationsDir()}`);
 ok(`agents dir: ${agentsDir()}`);
 ok(`data dir: ${dataDir()}`);
-ok(`workspaces dir: ${workspacesDir()}`);
+ok(`workdirs dir: ${workdirsDir()}`);
 ok(`traces dir: ${tracesDir()}`);
 ok(`user: ${os.userInfo().username}`);
 ok(`HOME: ${os.homedir()}`);

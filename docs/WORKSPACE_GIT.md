@@ -41,7 +41,7 @@ Do not track runtime or secrets:
 
 - `.env`, `.env.local`
 - `data/`, SQLite files, logs
-- `workspaces/`, traces, run artifacts
+- `workdirs/`, traces, run artifacts
 - agent `state/` unless you explicitly want that state in Git
 
 ## Create the private workspace repo
@@ -71,6 +71,8 @@ cat > .gitignore <<'EOF'
 # Runtime state
 data/
 traces/
+workdirs/
+# legacy pre-workdirs runtime cwd root
 workspaces/
 
 # SQLite/run artifacts
@@ -150,7 +152,7 @@ Review before committing:
 ```bash
 cd "$JGH_WORKSPACE"
 git status
-git diff -- . ':!data' ':!workspaces' ':!traces'
+git diff -- . ':!data' ':!workdirs' ':!workspaces' ':!traces'
 git add agents automations boards settings.yml .gitignore
 git commit -m "Add workspace agents and automations"
 git push

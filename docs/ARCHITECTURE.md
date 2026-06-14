@@ -143,7 +143,7 @@ Legacy post-run fenced `jumpygoathq-action` email blocks remain temporarily for 
 
 ### Invocation
 
-An internal normalized Pi execution spec created from either an automation or a ready task. An invocation contains source identity, agent, prompt, optional model override, connector overrides, schedule/status label, and workspace key. This keeps the backend runner path shared without merging user-facing concepts. Automation and task invocations use the same agent bundle semantics.
+An internal normalized Pi execution spec created from either an automation or a ready task. An invocation contains source identity, agent, prompt, optional model override, connector overrides, schedule/status label, and workdir key. This keeps the backend runner path shared without merging user-facing concepts. Automation and task invocations use the same agent bundle semantics.
 
 ### Board and task queue
 
@@ -160,16 +160,16 @@ Task statuses are `not-yet`, `ready`, `working-on-it`, and `done`. `pnpm dispatc
 
 Task heartbeat cron is separate from per-automation cron. `pnpm install:task-cron` writes an idempotent `jumpygoathq:task-heartbeat` crontab block whose command runs from the repo root, exports the same `HOME`/`PATH`/`JUMPYGOATHQ_*` environment as automation cron, and logs to `jumpyGoatHqHome()/data/cron-task-heartbeat.log`. `pnpm list:task-cron`, `pnpm uninstall:task-cron`, and the general `pnpm list:cron` surface installed/missing/malformed status. Cadence and limit are setup-time CLI/env choices (`--schedule`, `--limit`, `JUMPYGOATHQ_TASK_HEARTBEAT_CRON`, `JUMPYGOATHQ_TASK_DISPATCH_LIMIT`), not persisted in `settings.yml`.
 
-### Workspace
+### Workdir
 
 Per-invocation Pi working directory:
 
 ```text
-workspace/workspaces/<automation-or-task-workspace-key>/
-$JUMPYGOATHQ_HOME/workspaces/<automation-or-task-workspace-key>/
+workspace/workdirs/<automation-or-task-workdir-key>/
+$JUMPYGOATHQ_HOME/workdirs/<automation-or-task-workdir-key>/
 ```
 
-Automation invocations use the automation id as the workspace key; task invocations use a task-derived key. The runner starts Pi with this directory as `cwd`. Runtime data only; gitignored.
+Automation invocations use the automation id as the workdir key; task invocations use a task-derived key. The runner starts Pi with this directory as `cwd`. Runtime data only; gitignored.
 
 ### Instance settings
 
@@ -270,7 +270,7 @@ The JSON API binds with the same web server default of `127.0.0.1`. Set `JUMPYGO
 3. Runner resolves `jumpyGoatHqHome()/agents/<agent>/AGENT.md` plus alphabetical `context/*.md`.
 4. Runner resolves effective requested model in order: invocation override, agent default, instance `defaultModelProfile`, then Pi default.
 5. Runner converts a matching semantic profile key from `settings.yml` to a concrete Pi selector; unknown strings pass through as direct selectors with a warning in run metadata. Runner also resolves the connector plan from agent defaults plus invocation overrides.
-6. Runner writes a generated agent instruction file under the invocation workspace and starts Pi:
+6. Runner writes a generated agent instruction file under the invocation workdir and starts Pi:
 
    ```bash
    pi --mode json --no-session --no-skills --no-context-files --skill <generated-agent-file> [--extension <connector-extension>] [--model <model>] <prompt>
@@ -278,7 +278,7 @@ The JSON API binds with the same web server default of `127.0.0.1`. Set `JUMPYGO
 
    `--skill` is Pi's CLI term for the generated instruction file. `--no-skills` keeps discovered Pi capability bundles out while still allowing the explicit generated file, and `--no-context-files` prevents parent `AGENTS.md`/`CLAUDE.md` files from silently entering scheduled/task runs. jumpyGoatHq's domain model remains automation/task → invocation → agent → run. No custom Pi `--system-prompt` is used by default; jumpyGoatHq run framing lives in the generated agent instruction file to avoid duplicating context.
 
-7. Pi runs in `jumpyGoatHqHome()/workspaces/<invocation-workspace-key>/`.
+7. Pi runs in `jumpyGoatHqHome()/workdirs/<invocation-workdir-key>/`.
 8. Runner captures Pi JSON events into readable output/trace fields, normalizes any Pi-emitted `message.usage` details without estimating missing values, and updates the run row.
 
 ## Web viewer

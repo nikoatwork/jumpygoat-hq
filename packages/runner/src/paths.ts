@@ -20,6 +20,6 @@ export {
   taskPath,
   tasksDir,
   tracesDir,
-  workspaceDir,
-  workspacesDir,
+  workdirPath,
+  workdirsDir,
 } from "../../shared/paths.js";

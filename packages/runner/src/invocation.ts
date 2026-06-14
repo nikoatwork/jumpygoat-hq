@@ -13,7 +13,7 @@ export type Invocation = ConnectorOverrides & {
   prompt: string;
   model?: string;
   schedule?: string | null;
-  workspaceKey: string;
+  workdirKey: string;
 };
 
 export function invocationFromAutomation(automation: Automation): Invocation {
@@ -24,7 +24,7 @@ export function invocationFromAutomation(automation: Automation): Invocation {
     prompt: automation.prompt,
     model: automation.model,
     schedule: automation.schedule ?? null,
-    workspaceKey: automation.name,
+    workdirKey: automation.name,
     web: automation.web,
     notify: automation.notify,
     mail: automation.mail,
@@ -42,7 +42,7 @@ export function invocationFromTask(board: Board, task: AgentTask): Invocation {
     agent: task.assignee,
     prompt: taskPrompt(board, task),
     schedule: "task-dispatch",
-    workspaceKey: `task-${task.board}-${task.id}`,
+    workdirKey: `task-${task.board}-${task.id}`,
   };
 }
 

@@ -8,6 +8,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-05-29
 
+- chore: renamed per-invocation Pi cwd storage from `workspace/workspaces/` to `workspace/workdirs/`, updated shared path helpers/docs, and left legacy ignore rules for old runtime folders.
 - feat: added a gated Cloudflare R2 artifact connector with `artifact.upload` / `artifact_upload`, deterministic `runs/<runId>/<filename>` object keys, seven-day presigned download URLs, safe run/agent file path resolution, compact connector audit summaries, docs/context setup guide, doctor diagnostics, and validation (`test:connectors`, `pnpm build`, `doctor`, `validate:web`, `validate:backend`) — completed in `tasks/done/2026-05-29_tasks-r2-artifact-share-links.md`.
 - chore: added live connector smoke scripts for Firecrawl, AgentMail, Resend, and local `script.run`, with safe read-only defaults where possible and docs for quick end-to-end revalidation.
 - fix: carried automation-level `mail` and `scripts` connector config into runner invocations so AgentMail `mail_send` and local `script_run` tools are exposed for automation runs; validated with AgentMail CLI/live smoke, connector tests, and runner build.

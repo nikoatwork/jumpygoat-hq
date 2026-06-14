@@ -17,7 +17,7 @@ export JUMPYGOATHQ_HOME=/tmp/jumpygoat-hq-e2e-test
 mkdir -p "$JUMPYGOATHQ_HOME"
 ```
 
-Do not commit active `workspace/{agents,automations,boards,data,workspaces,traces}` files.
+Do not commit active `workspace/{agents,automations,boards,data,workdirs,traces}` files.
 
 ## 2. Start web UI
 
@@ -111,7 +111,7 @@ EOF
 Check generated workspace/state files under:
 
 ```txt
-workspace/workspaces/<automation>/
+workspace/workdirs/<automation>/
 workspace/data/jumpygoat-hq.sqlite
 ```
 
@@ -142,4 +142,4 @@ If unsure whether cron was installed, verify:
 crontab -l 2>/dev/null | grep -n '<automation>\|jumpygoathq:start\|jumpygoathq:end' || true
 ```
 
-Keep useful gitignored agent/automation/board files only when requested. Otherwise remove test fixtures under `workspace/agents/`, `workspace/automations/`, `workspace/boards/`, and `workspace/workspaces/`.
+Keep useful gitignored agent/automation/board files only when requested. Otherwise remove test fixtures under `workspace/agents/`, `workspace/automations/`, `workspace/boards/`, and `workspace/workdirs/`.

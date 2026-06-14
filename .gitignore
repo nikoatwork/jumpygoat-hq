@@ -5,11 +5,12 @@ dist/
 .DS_Store
 
 # Runtime/local instance state. Keep the public repo as a template;
-# personal agents, automations, run history, traces, and workspaces stay private.
+# personal agents, automations, run history, traces, and workdirs stay private.
 data/
 traces/
 test-results/
 playwright-report/
+# Legacy top-level Pi cwd root from the MVP.
 workspaces/
 automations/*
 !automations/
@@ -26,6 +27,8 @@ tasks/done/
 # Canonical mutable local workspace. Keep docs, ignore active state.
 workspace/data/
 workspace/traces/
+workspace/workdirs/
+# Legacy pre-workdirs nested Pi cwd root.
 workspace/workspaces/
 workspace/settings.yml
 workspace/automations/*

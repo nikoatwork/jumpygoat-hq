@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { Agent } from "./agent.js";
 import { connectorPlanEnv, connectorToolNames, type ConnectorPlan } from "./connectors/index.js";
 import type { Invocation } from "./invocation.js";
-import { workspaceDir } from "./paths.js";
+import { workdirPath } from "./paths.js";
 import type { RunLog } from "./run-log.js";
 import { pushOutputFromPiEvent, pushTraceLine } from "./run-log.js";
 import { createLogger } from "../../shared/logger.js";
@@ -24,7 +24,7 @@ export async function runPiInvocation(args: {
   const { invocation, agent, log, runId, model, connectorPlan } = args;
   if (!existsSync(agent.path)) throw new Error(`Agent not found: ${agent.path}`);
 
-  const cwd = workspaceDir(invocation.workspaceKey);
+  const cwd = workdirPath(invocation.workdirKey);
   await mkdir(cwd, { recursive: true });
   const agentFile = await writeGeneratedAgentFile(cwd, runId, agent);
 

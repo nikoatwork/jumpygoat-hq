@@ -53,12 +53,12 @@ export function settingsPath() {
   return path.join(settingsDir(), "settings.yml");
 }
 
-export function workspacesDir() {
-  return path.join(jumpyGoatHqHome(), "workspaces");
+export function workdirsDir() {
+  return path.join(jumpyGoatHqHome(), "workdirs");
 }
 
-export function workspaceDir(name) {
-  return path.join(workspacesDir(), name);
+export function workdirPath(name) {
+  return path.join(workdirsDir(), name);
 }
 
 export function tracesDir() {

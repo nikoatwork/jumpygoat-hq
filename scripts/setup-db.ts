@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { loadDotEnv } from "../packages/runner/src/env.js";
 import { openDb, dbPath } from "../packages/runner/src/db.js";
-import { agentsDir, automationsDir, boardsDir, dataDir, jumpyGoatHqHome, tracesDir, workspacesDir } from "../packages/shared/paths.js";
+import { agentsDir, automationsDir, boardsDir, dataDir, jumpyGoatHqHome, tracesDir, workdirsDir } from "../packages/shared/paths.js";
 
 loadDotEnv();
 seedWorkspaceSkeleton();
@@ -15,7 +15,7 @@ console.log(`SQLite database ready: ${dbPath()}`);
 console.log("Task heartbeat cron is explicit setup: run `pnpm install:task-cron` to dispatch ready assigned tasks periodically.");
 
 function seedWorkspaceSkeleton(): void {
-  for (const dir of [jumpyGoatHqHome(), agentsDir(), automationsDir(), boardsDir(), dataDir(), tracesDir(), workspacesDir()]) {
+  for (const dir of [jumpyGoatHqHome(), agentsDir(), automationsDir(), boardsDir(), dataDir(), tracesDir(), workdirsDir()]) {
     mkdirSync(dir, { recursive: true });
   }
   writeIfMissing(path.join(boardsDir(), "README.md"), [

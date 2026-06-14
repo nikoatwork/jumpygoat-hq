@@ -30,7 +30,7 @@ The core idea: define agents as markdown, run them through schedules or assigned
 | **Schedule** | When an automation should run | `manual` or 5-field cron in automation frontmatter |
 | **Dispatcher** | Local heartbeat that claims ready tasks and runs assigned agents | script/cron/systemd wrapper |
 | **Run** | One auditable execution | shared `runs` row in SQLite |
-| **Workspace** | Per-run/automation working directory | `workspaces/<name>/` |
+| **Workdir** | Per-run/automation working directory | `workdirs/<name>/` |
 | **Trace** | Raw Pi JSON events plus derived readable timeline | `runs.trace_text` |
 | **Connector/tool** | Runner/gateway-owned extension capability | connector package + policy gates + env secrets |
 | **Gateway** | Optional operator chat surface | browser now, Slack later, domain-only tools |
@@ -51,7 +51,7 @@ workspace/
   boards/<board>/BOARD.md
   boards/<board>/tasks/<task-id>.md
   data/jumpygoat-hq.sqlite
-  workspaces/<automation-or-task>/
+  workdirs/<automation-or-task>/
   traces/
 ```
 
@@ -176,7 +176,7 @@ The first dispatcher can assume one local heartbeat and simple atomic file updat
 5. Inserts a `runs` row with `status = running`.
 6. Resolves connector/tool gates from agent capabilities plus automation/run config.
 7. Spawns Pi with agent instructions/context and allowed extension tools.
-8. Runs with a scoped cwd under `workspaces/`.
+8. Runs with a scoped cwd under `workdirs/`.
 9. Captures raw Pi JSONL trace, assistant output, stderr/errors, and connector summaries.
 10. Updates the run row with status, timing, trace, output, errors, and metadata.
 

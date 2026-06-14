@@ -43,7 +43,7 @@ mkdir -p /root/jumpygoat-hq-deploy/{bin,ops}
 cd /root/jumpygoat-hq-deploy
 
 git clone <repo-url> jumpygoat-hq
-mkdir -p jumpygoat-hq-instance/{agents,automations,boards,data,workspaces,traces}
+mkdir -p jumpygoat-hq-instance/{agents,automations,boards,data,workdirs,traces}
 
 cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 pnpm install
@@ -55,12 +55,12 @@ JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance pnpm run doctor
 If you already have a checkout, move or clone it into the same shape, then create the instance directory beside it:
 
 ```bash
-mkdir -p /root/jumpygoat-hq-deploy/{bin,ops,jumpygoat-hq-instance/{agents,automations,boards,data,workspaces,traces}}
+mkdir -p /root/jumpygoat-hq-deploy/{bin,ops,jumpygoat-hq-instance/{agents,automations,boards,data,workdirs,traces}}
 # optional compatibility symlink for old habits/scripts:
 ln -sfn /root/jumpygoat-hq-deploy/jumpygoat-hq /root/jumpygoat-hq
 ```
 
-`JUMPYGOATHQ_HOME` is the mutable instance root. Runtime files live directly under `$JUMPYGOATHQ_HOME/{agents,automations,boards,data,workspaces,traces}` plus optional `$JUMPYGOATHQ_HOME/settings.yml` while source code stays in the repo checkout.
+`JUMPYGOATHQ_HOME` is the mutable instance root. Runtime files live directly under `$JUMPYGOATHQ_HOME/{agents,automations,boards,data,workdirs,traces}` plus optional `$JUMPYGOATHQ_HOME/settings.yml` while source code stays in the repo checkout.
 
 Pi must be installed and authenticated for the same Unix user that will run systemd/cron:
 
@@ -340,6 +340,6 @@ A template is available at [`docs/deploy/INSTALLATION_RECORD.template.md`](deplo
 
 ## Notes
 
-- Runtime and personal instance state is intentionally outside source when `JUMPYGOATHQ_HOME` is set: `$JUMPYGOATHQ_HOME/{agents,automations,boards,data,workspaces,traces}` and optional `$JUMPYGOATHQ_HOME/settings.yml`. Local development uses gitignored `workspace/{agents,automations,boards,data,workspaces,traces}` plus `workspace/settings.yml` by default.
+- Runtime and personal instance state is intentionally outside source when `JUMPYGOATHQ_HOME` is set: `$JUMPYGOATHQ_HOME/{agents,automations,boards,data,workdirs,traces}` and optional `$JUMPYGOATHQ_HOME/settings.yml`. Local development uses gitignored `workspace/{agents,automations,boards,data,workdirs,traces}` plus `workspace/settings.yml` by default.
 - Keep `HOST=127.0.0.1` unless the service is behind trusted auth/proxy/firewall.
 - For a non-root deployment, replace `User=`, `WorkingDirectory=`, `EnvironmentFile=`, `HOME=`, and the executable paths with that user’s values.

@@ -3,7 +3,10 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { loadDotEnv } from "../packages/runner/src/env.js";
 import { jumpyGoatHqHome, agentsDir, automationsDir, dbPath, repoRoot } from "../packages/shared/paths.js";
+
+loadDotEnv();
 
 const explicitAutomation = Boolean(process.env.JUMPYGOATHQ_SMOKE_AUTOMATION || process.argv[2]);
 const automation = process.env.JUMPYGOATHQ_SMOKE_AUTOMATION || process.argv[2] || "jumpygoathq-smoke";

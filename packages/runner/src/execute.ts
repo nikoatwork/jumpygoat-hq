@@ -4,7 +4,7 @@ import { loadAgent } from "./agent.js";
 import { extractConnectorActionsFromTrace, processLegacyConnectorActions, resolveConnectorPlan } from "./connectors/index.js";
 import { dbPath, finishRun, insertRun, openDb } from "./db.js";
 import { invocationProject, invocationTaskId, type Invocation } from "./invocation.js";
-import { agentPath, jumpyGoatHqHome, workspaceDir } from "./paths.js";
+import { agentPath, jumpyGoatHqHome, workdirPath } from "./paths.js";
 import { runPiInvocation } from "./pi.js";
 import { createRunLog, errorText, outputText, pushTraceLine, traceText } from "./run-log.js";
 import { loadSettings, resolveModelRequest } from "../../shared/settings.js";
@@ -75,7 +75,7 @@ export async function executeInvocation(invocation: Invocation, options: { runId
     model_resolution_warning: modelResolution.warning ?? null,
     db_path: dbPath(),
     instance_home: jumpyGoatHqHome(),
-    workspace: workspaceDir(invocation.workspaceKey),
+    workdir: workdirPath(invocation.workdirKey),
   });
 
   try {

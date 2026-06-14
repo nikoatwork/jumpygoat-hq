@@ -29,7 +29,7 @@ An agent is a directory-backed operational bundle with a required `AGENT.md` ent
 - allowed intents/capabilities;
 - connector/tool policy.
 
-The shape intentionally borrows Pi's useful progressive-disclosure pattern for instructions, references, scripts, assets, and workflows. jumpyGoatHq gets that adaptability through explicit contracts without making untyped Pi resources the control-plane primitive. Today only `AGENT.md` and `context/*.md` are loaded. Future agent contracts may add explicit references, templates, assets, procedures, helper scripts, or memory/state, but lifecycle, task assignment, connector policy, workspaces, and run audit remain jumpyGoatHq-owned.
+The shape intentionally borrows Pi's useful progressive-disclosure pattern for instructions, references, scripts, assets, and workflows. jumpyGoatHq gets that adaptability through explicit contracts without making untyped Pi resources the control-plane primitive. Today only `AGENT.md` and `context/*.md` are loaded. Future agent contracts may add explicit references, templates, assets, procedures, helper scripts, or memory/state, but lifecycle, task assignment, connector policy, workdirs, and run audit remain jumpyGoatHq-owned.
 
 An **automation** or **task** runs an agent with a prompt.
 

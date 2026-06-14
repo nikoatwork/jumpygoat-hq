@@ -39,7 +39,7 @@ Use this file as a map. Detailed product/runtime docs live elsewhere.
 - Agents are the product entity: `jumpyGoatHqHome()/agents/<name>/AGENT.md` plus optional context in `context/*.md`.
 - Automations are single markdown files with YAML frontmatter under `jumpyGoatHqHome()/automations/` and reference `agent: <name>`.
 - Boards/tasks are markdown under `jumpyGoatHqHome()/boards/<board>/BOARD.md` and `tasks/<task-id>.md`; tasks assign to agents with `assignee: <name>`.
-- Runtime/personal state is gitignored: `.env`, `.env.local`, local `workspace/{agents,automations,skills,boards,projects,data,workspaces,traces}`, legacy `data/`, legacy `workspaces/`, active top-level `agents/*`, `skills/*`, and active top-level `automations/*.md`.
+- Runtime/personal state is gitignored: `.env`, `.env.local`, local `workspace/{agents,automations,skills,boards,projects,data,workdirs,traces}`, legacy `data/`, legacy top-level `workspaces/`, legacy local `workspace/workspaces/`, active top-level `agents/*`, `skills/*`, and active top-level `automations/*.md`.
 - Web UI is intentionally minimal raw HTML; avoid frontend frameworks unless the constraint changes.
 - Auth is deferred; bind web locally by default or put it behind trusted proxy/auth.
 - Chat/browser/Slack surfaces must mutate only user-owned jumpyGoatHq workspace content through domain services; no repo-wide shell/write access.
