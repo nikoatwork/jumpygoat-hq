@@ -14,6 +14,7 @@ const INTENT_PROVIDER: Record<ConnectorIntent, ConnectorProvider> = {
   "mail.list": "agentmail",
   "script.run": "local-script",
   "artifact.upload": "r2",
+  "actor.run": "apify",
 };
 
 type ConnectorInvocation = Pick<Invocation, "name"> & ConnectorOverrides;
@@ -45,6 +46,7 @@ export function resolveConnectorPlan(args: {
     agentmail: resolveAgentMailRuntimeConfig(args.agent, invocation),
     script: resolveScriptRunRuntimeConfig(args.agent, invocation),
     artifacts: resolveArtifactUploadRuntimeConfig(args.agent, invocation),
+    apify: resolveApifyRunRuntimeConfig(args.agent, invocation),
   };
 }
 
@@ -80,6 +82,11 @@ export function isConnectorIntentEnabled(agent: ConnectorOverrides, automation: 
   if (intent === "artifact.upload") {
     const config = mergeConfig(agent.artifacts?.upload, automation.artifacts?.upload);
     return config?.enabled === true && config.connector === "r2";
+  }
+  if (intent === "actor.run") {
+    const config = mergeConfig(agent.actors?.run, automation.actors?.run);
+    const agentAllow = agent.actors?.run?.allow;
+    return config?.enabled === true && config.connector === "apify" && Array.isArray(agentAllow) && agentAllow.length > 0;
   }
   return false;
 }
@@ -147,6 +154,19 @@ function resolveArtifactUploadRuntimeConfig(agent: ConnectorOverrides & { path?:
     expiresInSeconds: upload.expiresInSeconds,
     maxFileBytes: upload.maxFileBytes,
     timeoutMs: upload.timeoutMs,
+  };
+}
+
+function resolveApifyRunRuntimeConfig(agent: ConnectorOverrides, automation: ConnectorOverrides): ConnectorPlan["apify"] {
+  const run = mergeConfig(agent.actors?.run, automation.actors?.run);
+  if (!run) return undefined;
+  return {
+    allow: agent.actors?.run?.allow,
+    actor: run.actor,
+    input: run.input,
+    maxOutputItems: run.maxOutputItems,
+    maxOutputChars: run.maxOutputChars,
+    timeoutMs: run.timeoutMs,
   };
 }
 

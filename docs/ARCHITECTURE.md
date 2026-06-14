@@ -86,7 +86,7 @@ A connector tool is exposed only when both gates pass:
 1. the agent frontmatter `allowedIntents` includes the provider-neutral intent; and
 2. the agent default config or automation/task override enables that intent/provider for the run.
 
-Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, `notify.email` → `notify_email`, `mail.send` → `mail_send`, `mail.list` → `mail_list`, `script.run` → `script_run`, and `artifact.upload` → `artifact_upload`.
+Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, `notify.email` → `notify_email`, `mail.send` → `mail_send`, `mail.list` → `mail_list`, `script.run` → `script_run`, `artifact.upload` → `artifact_upload`, and `actor.run` → `apify_run_actor`.
 
 Example agent capability policy:
 
@@ -97,6 +97,7 @@ allowedIntents:
   - mail.send
   - mail.list
   - artifact.upload
+  - actor.run
 web:
   search:
     enabled: true
@@ -120,7 +121,17 @@ artifacts:
     enabled: true
     connector: r2
     expiresInSeconds: 604800
+actors:
+  run:
+    enabled: true
+    connector: apify
+    allow:
+      - apidojo/tweet-scraper
+    actor: apidojo/tweet-scraper
+    maxOutputItems: 25
 ```
+
+Apify is intentionally a generic but allowlisted actor connector: one shared Apify credential (`APIFY_API_TOKEN`, or `APIFY_API_KEY` as a local compatibility alias) can run many actor types over time, but the agent's `actors.run.allow` list is the permission source of truth. Automations may choose an allowlisted actor and provide data-only input defaults for scheduled runs; Pi tool calls may merge JSON input overrides over those defaults. The tool returns bounded default dataset previews and metadata, not full unbounded datasets.
 
 The runner resolves an effective connector plan and passes a static Pi extension for enabled/allowed tools only. Pi can call those tools during the run. Secrets stay in environment variables. New providers, such as a future Notion connector, should follow the same pattern: add a provider-neutral intent, map it to one or more Pi-safe tool names, require agent capability plus run config, and keep provider credentials out of markdown files.
 

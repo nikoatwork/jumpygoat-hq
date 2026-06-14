@@ -81,6 +81,31 @@ artifacts:
 Create `output/report.pdf`, upload it with `artifact_upload`, and send the returned URL through the configured mail or notification tool.
 ```
 
+Apify actor override example:
+
+```yaml
+---
+agent: twitter-researcher
+schedule: manual
+actors:
+  run:
+    enabled: true
+    connector: apify
+    actor: apidojo/tweet-scraper
+    input:
+      twitterHandles: [apify]
+      maxItems: 10
+      sort: Latest
+      tweetLanguage: en
+    maxOutputItems: 10
+    maxOutputChars: 20000
+---
+
+Run the configured Apify tweet scraper and summarize the bounded dataset preview.
+```
+
+The referenced Apify actor must be allowlisted on the agent in `actors.run.allow`. Automation input is data-only YAML/JSON; executable function fields are not supported.
+
 Secrets, provider schemas, side-effect behavior, and connector audit records belong to connectors/tools, not automation files.
 
 This directory is mutable operator state. Automation files are gitignored; only this README is committed.

@@ -2,6 +2,10 @@
 
 This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
 
+## 2026-06-14
+
+- feat: added a generic allowlisted Apify actor connector (`actor.run` / `apify_run_actor`) with agent-owned actor allowlists, automation-owned data input defaults, bounded dataset previews, connector audit summaries, `APIFY_API_TOKEN`/`APIFY_API_KEY` support, mocked tests, docs, and a live one-item `apidojo/tweet-scraper` smoke; validation passed with `test:connectors`, `pnpm build`, `smoke:apify`, `validate:backend`, and `validate:web` — completed in `tasks/done/2026-06-14_tasks-apify-connector.md`.
+
 ## 2026-05-29
 
 - feat: added a gated Cloudflare R2 artifact connector with `artifact.upload` / `artifact_upload`, deterministic `runs/<runId>/<filename>` object keys, seven-day presigned download URLs, safe run/agent file path resolution, compact connector audit summaries, docs/context setup guide, doctor diagnostics, and validation (`test:connectors`, `pnpm build`, `doctor`, `validate:web`, `validate:backend`) — completed in `tasks/done/2026-05-29_tasks-r2-artifact-share-links.md`.

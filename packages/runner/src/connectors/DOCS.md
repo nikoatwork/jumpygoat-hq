@@ -30,6 +30,7 @@ Intent to tool mapping:
 | `mail.list` | `mail_list` | AgentMail |
 | `script.run` | `script_run` | Local Script |
 | `artifact.upload` | `artifact_upload` | Cloudflare R2 |
+| `actor.run` | `apify_run_actor` | Apify |
 
 ## Runtime config and secrets
 
@@ -42,6 +43,7 @@ The runner resolves a `ConnectorPlan`, serializes non-secret run/config values i
 - optional AgentMail defaults: `AGENTMAIL_INBOX_ID`, `AGENTMAIL_TO`, `AGENTMAIL_SUBJECT_PREFIX`
 - Cloudflare R2 artifact upload: `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_R2_BUCKET`
 - optional artifact defaults: `JUMPYGOATHQ_ARTIFACT_EXPIRES_SECONDS`, `JUMPYGOATHQ_ARTIFACT_MAX_FILE_BYTES`, `JUMPYGOATHQ_ARTIFACT_UPLOAD_TIMEOUT_MS`
+- Apify actor runs: `APIFY_API_TOKEN` preferred, or `APIFY_API_KEY` as a compatibility alias
 
 The local script connector has no provider API key; scripts run with `tsx` from the runner environment.
 
@@ -53,6 +55,7 @@ The local script connector has no provider API key; scripts run with `tsx` from 
 - `mail_send` sends immediately from the configured AgentMail inbox; `mail_list` returns bounded recent inbox messages/previews.
 - `script_run` runs an allowlisted `.ts`/`.tsx` file under the active agent's `scripts/` folder with JSON stdin, timeout, bounded stdout/stderr, symlink/path checks, and compact audit summaries. V1 does not enforce OS-level network/filesystem sandboxing; `network` and `write` are explicit policy/audit flags.
 - `artifact_upload` reads a relative file path from the run cwd or active agent folder, uploads it to private Cloudflare R2 under `runs/<runId>/<safe-filename>`, and returns a seven-day presigned GET URL by default.
+- `apify_run_actor` runs one agent-allowlisted Apify actor, merges automation input defaults with tool-call input overrides, waits for completion, and returns run/dataset metadata plus a bounded default dataset preview. Actor-specific input schemas vary by Apify actor and should be documented in agent/automation context. Function-shaped or executable input fields are rejected; markdown config must stay YAML/JSON data.
 - Missing API keys or required config throw/read as tool errors so Pi can react to the failure. Script and artifact connector failures return compact failed tool results so the trace still carries connector summary details.
 
 ## Connector action records
@@ -60,6 +63,46 @@ The local script connector has no provider API key; scripts run with `tsx` from 
 Connector summaries are stored in tool result `details.connectorSummary`. The runner also scans Pi JSON trace `tool_execution_start`/`tool_execution_end` events and persists compact records to `runs.connector_actions_json`. Records include successes and failures, but not large Firecrawl payloads.
 
 Legacy fenced `jumpygoathq-action` email blocks are still parsed after the run for migration compatibility. If `notify_email` was already called in-run, legacy email sending is skipped to reduce duplicate sends.
+
+## Apify actor config
+
+Agent config owns actor permissions:
+
+```yaml
+allowedIntents:
+  - actor.run
+actors:
+  run:
+    enabled: true
+    connector: apify
+    allow:
+      - apidojo/tweet-scraper
+    actor: apidojo/tweet-scraper
+    maxOutputItems: 25
+    maxOutputChars: 20000
+    timeoutMs: 300000
+```
+
+Automation config may select an allowlisted actor and provide data-only input defaults:
+
+```yaml
+actors:
+  run:
+    enabled: true
+    connector: apify
+    actor: apidojo/tweet-scraper
+    input:
+      twitterHandles: [apify]
+      maxItems: 10
+      sort: Latest
+      tweetLanguage: en
+```
+
+Run a live smoke only when credentials are available:
+
+```bash
+pnpm --filter @jumpygoat-hq/runner smoke:apify -- --max-items 1
+```
 
 ## Adding a connector
 

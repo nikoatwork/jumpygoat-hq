@@ -57,6 +57,11 @@ export function connectorSummary(args: {
   bytes?: number;
   expiresAt?: string;
   providerMessageId?: string;
+  actorId?: string;
+  providerRunId?: string;
+  datasetId?: string;
+  datasetUrl?: string;
+  itemCount?: number;
   resultSummary?: Record<string, unknown>;
   error?: string;
 }): ConnectorActionRecord {
@@ -82,6 +87,11 @@ export function connectorSummary(args: {
     bytes: args.bytes,
     expiresAt: args.expiresAt,
     providerMessageId: args.providerMessageId,
+    actorId: args.actorId,
+    providerRunId: args.providerRunId,
+    datasetId: args.datasetId,
+    datasetUrl: args.datasetUrl,
+    itemCount: args.itemCount,
     resultSummary: args.resultSummary,
     error: args.error,
   };

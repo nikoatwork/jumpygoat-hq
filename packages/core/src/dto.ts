@@ -24,6 +24,7 @@ export type AutomationDto = RawMarkdownResource & {
   notify?: unknown;
   mail?: unknown;
   scripts?: unknown;
+  actors?: unknown;
   prompt: string;
   promptPreview: string;
 };

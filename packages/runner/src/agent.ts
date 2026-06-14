@@ -50,6 +50,7 @@ export async function loadAgent(name: string): Promise<Agent> {
     mail: frontmatter.mail,
     scripts: frontmatter.scripts,
     artifacts: frontmatter.artifacts,
+    actors: frontmatter.actors,
     path: file,
     raw,
     contextFiles,

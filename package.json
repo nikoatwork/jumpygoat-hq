@@ -25,6 +25,7 @@
     "validate": "pnpm validate:web && pnpm validate:backend",
     "smoke:agentmail": "pnpm --filter @jumpygoat-hq/runner smoke:agentmail",
     "smoke:firecrawl": "pnpm --filter @jumpygoat-hq/runner smoke:firecrawl",
+    "smoke:apify": "pnpm --filter @jumpygoat-hq/runner smoke:apify",
     "smoke:resend": "pnpm --filter @jumpygoat-hq/runner smoke:resend",
     "smoke:script-run": "pnpm --filter @jumpygoat-hq/runner smoke:script-run"
   },

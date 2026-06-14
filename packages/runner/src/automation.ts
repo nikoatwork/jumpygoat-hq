@@ -68,6 +68,17 @@ const ArtifactUploadConfig = z.object({
   timeoutMs: z.number().int().positive().optional(),
 });
 
+const ApifyRunConfig = z.object({
+  enabled: z.boolean().optional(),
+  connector: z.literal("apify"),
+  allow: z.array(z.string().min(1)).optional(),
+  actor: z.string().min(1).optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
+  maxOutputItems: z.number().int().min(1).max(100).optional(),
+  maxOutputChars: z.number().int().min(1000).max(50000).optional(),
+  timeoutMs: z.number().int().positive().optional(),
+});
+
 export const ConnectorOverridesSchema = z.object({
   web: z.object({
     search: WebSearchConfig.optional(),
@@ -86,6 +97,9 @@ export const ConnectorOverridesSchema = z.object({
   }).optional(),
   artifacts: z.object({
     upload: ArtifactUploadConfig.optional(),
+  }).optional(),
+  actors: z.object({
+    run: ApifyRunConfig.optional(),
   }).optional(),
 });
 

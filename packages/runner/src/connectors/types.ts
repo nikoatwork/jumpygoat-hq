@@ -1,4 +1,4 @@
-export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email", "mail.send", "mail.list", "script.run", "artifact.upload"] as const;
+export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email", "mail.send", "mail.list", "script.run", "artifact.upload", "actor.run"] as const;
 export type ConnectorIntent = (typeof CONNECTOR_INTENTS)[number];
 
 export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
@@ -10,6 +10,7 @@ export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
   "mail.list": "mail_list",
   "script.run": "script_run",
   "artifact.upload": "artifact_upload",
+  "actor.run": "apify_run_actor",
 };
 
 export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
@@ -21,11 +22,12 @@ export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
   mail_list: "mail.list",
   script_run: "script.run",
   artifact_upload: "artifact.upload",
+  apify_run_actor: "actor.run",
 };
 
-export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email", "mail_send", "mail_list", "script_run", "artifact_upload"] as const;
+export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email", "mail_send", "mail_list", "script_run", "artifact_upload", "apify_run_actor"] as const;
 export type ConnectorToolName = (typeof CONNECTOR_TOOL_NAMES)[number];
-export type ConnectorProvider = "firecrawl" | "resend" | "agentmail" | "local-script" | "r2";
+export type ConnectorProvider = "firecrawl" | "resend" | "agentmail" | "local-script" | "r2" | "apify";
 export type ConnectorActionStatus =
   | "started"
   | "succeeded"
@@ -79,6 +81,15 @@ export type ArtifactUploadRuntimeConfig = {
   timeoutMs?: number;
 };
 
+export type ApifyRunRuntimeConfig = {
+  allow?: string[];
+  actor?: string;
+  input?: Record<string, unknown>;
+  maxOutputItems?: number;
+  maxOutputChars?: number;
+  timeoutMs?: number;
+};
+
 export type ResolvedConnectorTool = {
   intent: ConnectorIntent;
   toolName: ConnectorToolName;
@@ -95,6 +106,7 @@ export type ConnectorRuntimeConfig = {
   agentmail?: AgentMailRuntimeConfig;
   script?: ScriptRunRuntimeConfig;
   artifacts?: ArtifactUploadRuntimeConfig;
+  apify?: ApifyRunRuntimeConfig;
 };
 
 export type ConnectorPlan = ConnectorRuntimeConfig;
@@ -121,6 +133,11 @@ export type ConnectorActionRecord = {
   bytes?: number;
   expiresAt?: string;
   providerMessageId?: string;
+  actorId?: string;
+  providerRunId?: string;
+  datasetId?: string;
+  datasetUrl?: string;
+  itemCount?: number;
   resultSummary?: Record<string, unknown>;
   error?: string;
 };

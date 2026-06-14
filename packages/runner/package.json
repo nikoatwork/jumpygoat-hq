@@ -14,10 +14,12 @@
     "test:model-settings": "tsx test/model-settings.test.ts",
     "smoke:agentmail": "tsx scripts/connectors/agentmail-smoke.ts",
     "smoke:firecrawl": "tsx scripts/connectors/firecrawl-smoke.ts",
+    "smoke:apify": "tsx scripts/connectors/apify-smoke.ts",
     "smoke:resend": "tsx scripts/connectors/resend-smoke.ts",
     "smoke:script-run": "tsx scripts/connectors/script-run-smoke.ts"
   },
   "dependencies": {
+    "apify-client": "^2.23.4",
     "better-sqlite3": "^12.9.0",
     "dotenv": "^17.4.2",
     "gray-matter": "^4.0.3",

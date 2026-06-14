@@ -7,3 +7,4 @@ export * from "./resend/index.js";
 export * from "./agentmail/index.js";
 export * from "./script/index.js";
 export * from "./artifacts/index.js";
+export * from "./apify/index.js";

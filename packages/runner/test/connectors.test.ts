@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createAgentMailTools, createArtifactTools, createFirecrawlTools, createResendTools, createScriptRunTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
+import { createAgentMailTools, createApifyTools, createArtifactTools, createFirecrawlTools, createResendTools, createScriptRunTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
 import type { AgentMeta } from "../src/agent.js";
 import type { Automation } from "../src/automation.js";
 import { invocationFromAutomation } from "../src/invocation.js";
@@ -41,6 +41,8 @@ async function main(): Promise<void> {
   await testScriptRunPathSafetyAndFailures();
   await testArtifactUploadGatingAndSuccess();
   await testArtifactUploadPathSafetyAndMissingConfig();
+  await testApifyRunActorGatingAndSuccess();
+  await testApifyRunActorFailuresAndTrace();
   console.log("connector tests ok");
 }
 
@@ -519,6 +521,140 @@ async function testArtifactUploadPathSafetyAndMissingConfig(): Promise<void> {
     process.chdir(previousCwd);
     restoreEnvSnapshot(originalEnv);
     await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function testApifyRunActorGatingAndSuccess(): Promise<void> {
+  const originalEnv = snapshotEnv(["APIFY_API_TOKEN", "APIFY_API_KEY"]);
+  process.env.APIFY_API_TOKEN = "test-apify";
+  delete process.env.APIFY_API_KEY;
+  const apifyAutomation: Automation = {
+    name: "apify-auto",
+    agent: "apify-agent",
+    prompt: "test prompt",
+    actors: {
+      run: {
+        enabled: true,
+        connector: "apify",
+        actor: "apidojo/tweet-scraper",
+        input: { searchTerms: ["apify"], maxItems: 2, nested: { language: "en" } },
+        maxOutputItems: 2,
+        maxOutputChars: 4000,
+      },
+    },
+  };
+  const apifyAgent: AgentMeta = {
+    name: "apify-agent",
+    allowedIntents: ["actor.run"],
+    actors: { run: { enabled: true, connector: "apify", allow: ["apidojo/tweet-scraper"] } },
+  };
+  const invocation = invocationFromAutomation(apifyAutomation);
+  assert.deepEqual(invocation.actors, apifyAutomation.actors);
+  const plan = resolveConnectorPlan({ invocation, agent: apifyAgent, runId: "run-apify" });
+  assert.deepEqual(plan.tools.map((tool) => tool.intent), ["actor.run"]);
+  assert.deepEqual(plan.apify?.allow, ["apidojo/tweet-scraper"]);
+
+  const calls: Array<{ actorId: string; input: unknown; options: unknown }> = [];
+  const fakeClient = {
+    actor(actorId: string) {
+      return {
+        async call(input: unknown, options: unknown) {
+          calls.push({ actorId, input, options });
+          return { id: "apify-run-1", status: "SUCCEEDED", defaultDatasetId: "dataset-1" };
+        },
+      };
+    },
+    dataset(datasetId: string) {
+      assert.equal(datasetId, "dataset-1");
+      return {
+        async listItems(options: unknown) {
+          assert.deepEqual(options, { limit: 2, clean: true });
+          return { items: [{ id: "tweet-1", text: "hello" }, { id: "tweet-2", text: "world" }], total: 2 };
+        },
+      };
+    },
+  };
+
+  try {
+    const tool = createApifyTools(plan, fakeClient).find((entry) => entry.name === "apify_run_actor");
+    assert.ok(tool);
+    const result = await tool.execute("call-apify", { input: { maxItems: 1, nested: { sort: "Latest" } } });
+    assert.match(result.content[0]?.text ?? "", /Apify actor run succeeded/);
+    assert.equal(calls[0]?.actorId, "apidojo/tweet-scraper");
+    assert.deepEqual(calls[0]?.input, { searchTerms: ["apify"], maxItems: 1, nested: { language: "en", sort: "Latest" } });
+    const summary = result.details?.connectorSummary as { intent?: string; connector?: string; actorId?: string; datasetId?: string; itemCount?: number };
+    assert.equal(summary.intent, "actor.run");
+    assert.equal(summary.connector, "apify");
+    assert.equal(summary.actorId, "apidojo/tweet-scraper");
+    assert.equal(summary.datasetId, "dataset-1");
+    assert.equal(summary.itemCount, 2);
+  } finally {
+    restoreEnvSnapshot(originalEnv);
+  }
+}
+
+async function testApifyRunActorFailuresAndTrace(): Promise<void> {
+  const originalEnv = snapshotEnv(["APIFY_API_TOKEN", "APIFY_API_KEY"]);
+  delete process.env.APIFY_API_TOKEN;
+  delete process.env.APIFY_API_KEY;
+  const baseAutomation: Automation = {
+    name: "apify-auto",
+    agent: "apify-agent",
+    prompt: "test prompt",
+    actors: { run: { enabled: true, connector: "apify", actor: "apidojo/tweet-scraper", input: { searchTerms: ["apify"] } } },
+  };
+  const baseAgent: AgentMeta = {
+    name: "apify-agent",
+    allowedIntents: ["actor.run"],
+    actors: { run: { enabled: true, connector: "apify", allow: ["apidojo/tweet-scraper"] } },
+  };
+  try {
+    const noAllowPlan = resolveConnectorPlan({ automation: baseAutomation, agent: { ...baseAgent, actors: { run: { enabled: true, connector: "apify" } } }, runId: "run-apify" });
+    assert.deepEqual(noAllowPlan.tools, []);
+
+    const plan = resolveConnectorPlan({ automation: baseAutomation, agent: baseAgent, runId: "run-apify" });
+    const tool = createApifyTools(plan, {
+      actor() {
+        throw new Error("should not call actor without token");
+      },
+      dataset() {
+        throw new Error("should not call dataset without token");
+      },
+    }).find((entry) => entry.name === "apify_run_actor");
+    assert.ok(tool);
+    await assert.rejects(() => tool.execute("call-missing-key", {}), /Missing APIFY_API_TOKEN or APIFY_API_KEY/);
+
+    process.env.APIFY_API_KEY = "test-apify-key";
+    await assert.rejects(() => tool.execute("call-not-allowed", { actor: "apify/web-scraper" }), /not allowlisted/);
+    await assert.rejects(() => tool.execute("call-function-input", { input: { customMapFunction: "(object) => object" } }), /function-shaped/);
+    await assert.rejects(() => tool.execute("call-oversized-input", { input: { values: Array.from({ length: 1001 }, (_, index) => index) } }), /array is too large/);
+
+    const result = {
+      content: [{ type: "text", text: "ok" }],
+      details: {
+        connectorSummary: {
+          intent: "actor.run",
+          toolName: "apify_run_actor",
+          connector: "apify",
+          status: "succeeded",
+          toolCallId: "call-trace",
+          actorId: "apidojo/tweet-scraper",
+          datasetId: "dataset-1",
+          itemCount: 1,
+        },
+      },
+    };
+    const trace = [
+      JSON.stringify({ type: "tool_execution_start", toolCallId: "call-trace", toolName: "apify_run_actor", args: { actor: "apidojo/tweet-scraper" } }),
+      JSON.stringify({ type: "tool_execution_end", toolCallId: "call-trace", toolName: "apify_run_actor", result, isError: false }),
+    ].join("\n");
+    const actions = extractConnectorActionsFromTrace(trace);
+    assert.equal(actions.length, 1);
+    assert.equal(actions[0]?.connector, "apify");
+    assert.equal(actions[0]?.actorId, "apidojo/tweet-scraper");
+    assert.equal(actions[0]?.datasetId, "dataset-1");
+  } finally {
+    restoreEnvSnapshot(originalEnv);
   }
 }
 

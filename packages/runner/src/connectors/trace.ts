@@ -60,6 +60,7 @@ function actionFromStart(event: TraceToolStart): ConnectorActionRecord {
     to: typeof args.to === "string" ? args.to : undefined,
     script: typeof args.script === "string" ? args.script : undefined,
     filename: typeof args.filename === "string" ? args.filename : undefined,
+    actorId: typeof args.actor === "string" ? args.actor : undefined,
   };
 }
 
@@ -109,11 +110,12 @@ function resultText(result: unknown): string | undefined {
     .slice(0, 1000);
 }
 
-function connectorForTool(toolName: ConnectorToolName): "firecrawl" | "resend" | "agentmail" | "local-script" | "r2" {
+function connectorForTool(toolName: ConnectorToolName): "firecrawl" | "resend" | "agentmail" | "local-script" | "r2" | "apify" {
   if (toolName === "notify_email") return "resend";
   if (toolName === "mail_send" || toolName === "mail_list") return "agentmail";
   if (toolName === "script_run") return "local-script";
   if (toolName === "artifact_upload") return "r2";
+  if (toolName === "apify_run_actor") return "apify";
   return "firecrawl";
 }
 

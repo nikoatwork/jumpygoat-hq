@@ -30,6 +30,7 @@ export function invocationFromAutomation(automation: Automation): Invocation {
     mail: automation.mail,
     scripts: automation.scripts,
     artifacts: automation.artifacts,
+    actors: automation.actors,
   };
 }
 
