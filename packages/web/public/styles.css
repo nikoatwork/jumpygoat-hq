@@ -286,9 +286,9 @@ svg { fill: currentColor; }
 .nav-children .nav-link:not(.active) { background: var(--jg-bg); }
 .nav-children .nav-link:not(.active):hover,
 .nav-children .nav-link:not(.active):focus-visible { border-color: var(--jg-line); }
-button, .button-link,
+button, .button-link, .btn, .btn-default,
 .inline-actions a, .card-actions a, td.actions a, td.actions summary,
-.activity-card-actions a, .concept-card a, .agent-card-actions a, .agent-card-actions summary,
+.activity-card-actions a, .agent-card-actions a, .agent-card-actions summary,
 form.stack p > a, form.form-stack p > a {
   display: inline-flex;
   align-items: center;
@@ -308,19 +308,28 @@ form.stack p > a, form.form-stack p > a {
   text-decoration: none;
   cursor: pointer;
 }
-button:hover, button:focus-visible, .button-link:hover, .button-link:focus-visible,
+button:hover, button:focus-visible, .button-link:hover, .button-link:focus-visible, .btn:hover, .btn:focus-visible, .btn-default:hover, .btn-default:focus-visible,
 .inline-actions a:hover, .inline-actions a:focus-visible, .card-actions a:hover, .card-actions a:focus-visible,
 td.actions a:hover, td.actions a:focus-visible, td.actions summary:hover, td.actions summary:focus-visible,
-.activity-card-actions a:hover, .activity-card-actions a:focus-visible, .concept-card a:hover, .concept-card a:focus-visible,
+.activity-card-actions a:hover, .activity-card-actions a:focus-visible,
 .agent-card-actions a:hover, .agent-card-actions a:focus-visible, .agent-card-actions summary:hover, .agent-card-actions summary:focus-visible,
 form.stack p > a:hover, form.stack p > a:focus-visible, form.form-stack p > a:hover, form.form-stack p > a:focus-visible {
-  background: var(--jg-ink);
-  color: var(--jg-bg);
+  background: var(--jg-bg);
+  color: var(--jg-ink);
   text-decoration: none;
 }
-button:active, .button-link:active { transform: translate(1px, 1px); }
+button:active, .button-link:active, .btn:active,
+.inline-actions a:active, .card-actions a:active, td.actions a:active, td.actions summary:active,
+.activity-card-actions a:active, .agent-card-actions a:active, .agent-card-actions summary:active,
+form.stack p > a:active, form.form-stack p > a:active {
+  background: var(--jg-ink);
+  border-radius: 6px;
+  color: var(--jg-bg);
+  transform: none;
+}
 .button-secondary { border-style: double; }
-.button-danger { border-image: url(/system-assets/button-default.svg) 60 stretch; border-width: 0.5em; }
+.button-danger, .btn-default { border-image: url(/system-assets/button-default.svg) 60 stretch; border-width: 0.5em; }
+.button-danger:active, .btn-default:active { border-radius: 12px; }
 .icon { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.16em; }
 summary { min-height: var(--jg-target); cursor: pointer; font-weight: 700; }
 .empty-state {
@@ -405,12 +414,11 @@ td.actions details[open] { display: flex; flex-direction: column; gap: var(--jg-
 td.actions form { align-items: center; gap: var(--jg-gap-sm); }
 td.actions details form { margin: 0; }
 .warning-list { margin: 0; padding-left: 1.2rem; }
-.page-grid, .concept-grid, .stat-grid, .agent-grid { display: grid; gap: var(--jg-grid-gap); }
+.page-grid, .stat-grid, .agent-grid { display: grid; gap: var(--jg-grid-gap); }
 .page-grid { grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); align-items: stretch; }
-.concept-grid { grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
 .stat-grid { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); align-items: stretch; }
 .agent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.panel, .card, .folder-card, .concept-card, .agent-card, .activity-card {
+.panel, .card, .folder-card, .agent-card, .activity-card {
   position: relative;
   background: var(--jg-bg);
   border: 0.12rem solid var(--jg-line);
@@ -456,24 +464,6 @@ td.actions details form { margin: 0; }
 .form-panel { max-width: 74rem; margin-inline: auto; }
 .icon-label { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; }
 .app-icon { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.14em; fill: currentColor; }
-.concept-card {
-  margin-top: 0.75rem;
-  padding: 1.6rem;
-}
-.concept-card::before {
-  content: "";
-  position: absolute;
-  top: -0.78rem;
-  left: 1.2rem;
-  width: 4.8rem;
-  height: 0.8rem;
-  background: var(--jg-bg);
-  border: 0.12rem solid var(--jg-line);
-  border-bottom: 0;
-}
-.concept-card h3 { margin: 1rem 0 0.8rem; font-size: 1.45rem; }
-.concept-card p { min-height: 5.8rem; margin: 0 0 1.3rem; line-height: 1.45; }
-.step-pill { display: inline-flex; border: 0.12rem solid var(--jg-line); padding: 0.1rem 0.5rem; font-family: Monaco, ui-monospace, monospace; font-weight: 700; }
 .stat-card {
   position: relative;
   display: flex;
@@ -629,7 +619,7 @@ td.actions details form { margin: 0; }
 @media (max-width: 640px) {
   h2 { font-size: 1.9rem; }
   .app-menu-bar { position: static; overflow-x: auto; }
-  .sidebar-nav, .agent-grid, .agent-stats, .stat-grid, .concept-grid, .page-grid { grid-template-columns: 1fr; }
+  .sidebar-nav, .agent-grid, .agent-stats, .stat-grid, .page-grid { grid-template-columns: 1fr; }
   .nav-group { display: block; }
   .nav-group-label { grid-column: 1 / -1; }
   table.responsive-table { min-width: 0; border-collapse: separate; border-spacing: 0; }
