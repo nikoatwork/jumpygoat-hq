@@ -52,6 +52,7 @@ allowedIntents:
   - script.run
   - artifact.upload
   - actor.run
+  - agent.invoke
 web:
   search:
     enabled: true
@@ -97,6 +98,16 @@ actors:
     maxOutputItems: 25
     maxOutputChars: 20000
     timeoutMs: 300000
+agents:
+  invoke:
+    enabled: false
+    connector: jumpygoathq
+    allow:
+      - researcher
+      - reviewer
+    timeoutMs: 600000
+    maxDepth: 1
+    maxOutputChars: 12000
 ---
 
 ## Instructions
@@ -104,7 +115,7 @@ actors:
 Tell Pi who this agent is, how it should work, what it should not do, and when it may use connector tools.
 ```
 
-Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, `notify.email`, `mail.send`, `mail.list`, `script.run`, `artifact.upload`, and `actor.run`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides non-secret defaults; automation/task invocation frontmatter may override run-specific non-secret values when needed. `script.run` can execute only allowlisted `.ts`/`.tsx` files under this agent's `scripts/` folder; persistent script state should stay under `state/`. `artifact.upload` can upload relative files from the run workspace or active agent folder to Cloudflare R2 and return an expiring signed URL. `actor.run` can run only Apify actor IDs listed in the agent's `actors.run.allow`; automations may select one of those actors and provide JSON/YAML input defaults, but cannot expand the allowlist.
+Supported connector intents are `web.search`, `web.scrape`, `web.crawl`, `notify.email`, `mail.send`, `mail.list`, `script.run`, `artifact.upload`, `actor.run`, and `agent.invoke`. `allowedIntents` is the capability gate. Connector config in `AGENT.md` provides non-secret defaults; automation/task invocation frontmatter may override run-specific non-secret values when needed. `script.run` can execute only allowlisted `.ts`/`.tsx` files under this agent's `scripts/` folder; persistent script state should stay under `state/`. `artifact.upload` can upload relative files from the run workspace or active agent folder to Cloudflare R2 and return an expiring signed URL. `actor.run` can run only Apify actor IDs listed in the agent's `actors.run.allow`; automations may select one of those actors and provide JSON/YAML input defaults, but cannot expand the allowlist. `agent.invoke` can synchronously run only child agents listed in `agents.invoke.allow`; child agents resolve their own permissions/model defaults and child runs are linked by parent/root/depth lineage.
 
 Context files under `context/*.md` are loaded alphabetically by filename and appended to the generated Pi instruction file for each run. Recommended naming: `00-overview.md`, `10-playbook.md`, `20-style.md`. Keep context markdown deterministic and non-secret unless your `JUMPYGOATHQ_HOME` is private.
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createAgentMailTools, createApifyTools, createArtifactTools, createFirecrawlTools, createResendTools, createScriptRunTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
+import { createAgentInvokeTools, createAgentMailTools, createApifyTools, createArtifactTools, createFirecrawlTools, createResendTools, createScriptRunTools, extractConnectorActionsFromTrace, resolveConnectorPlan } from "../src/connectors/index.js";
 import type { AgentMeta } from "../src/agent.js";
 import type { Automation } from "../src/automation.js";
 import { invocationFromAutomation } from "../src/invocation.js";
@@ -39,6 +39,7 @@ async function main(): Promise<void> {
   await testAgentMailMissingConfig();
   await testScriptRunGatingAndExecution();
   await testScriptRunPathSafetyAndFailures();
+  await testAgentInvokeGatingAndSuccess();
   await testArtifactUploadGatingAndSuccess();
   await testArtifactUploadPathSafetyAndMissingConfig();
   await testApifyRunActorGatingAndSuccess();
@@ -392,6 +393,98 @@ async function testScriptRunPathSafetyAndFailures(): Promise<void> {
       restoreEnv("PATH", originalPath);
     }
   } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function testAgentInvokeGatingAndSuccess(): Promise<void> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "jghq-agent-invoke-"));
+  const originalHome = process.env.JUMPYGOATHQ_HOME;
+  try {
+    process.env.JUMPYGOATHQ_HOME = tempDir;
+    await mkdir(path.join(tempDir, "agents", "child-agent"), { recursive: true });
+    await writeFile(path.join(tempDir, "agents", "child-agent", "AGENT.md"), "---\nname: child-agent\nallowedIntents: []\n---\n\n# Child\n");
+
+    const disabledPlan = resolveConnectorPlan({
+      automation: { name: "parent-auto" },
+      agent: { name: "parent-agent", allowedIntents: ["agent.invoke"], agents: { invoke: { enabled: true, connector: "jumpygoathq", allow: ["child-agent"] } } },
+      runId: "parent-run",
+    });
+    assert.deepEqual(disabledPlan.tools.map((tool) => tool.intent), ["agent.invoke"]);
+
+    const missingIntentPlan = resolveConnectorPlan({
+      automation: { name: "parent-auto" },
+      agent: { name: "parent-agent", allowedIntents: [], agents: { invoke: { enabled: true, connector: "jumpygoathq", allow: ["child-agent"] } } },
+      runId: "parent-run",
+    });
+    assert.deepEqual(missingIntentPlan.tools, []);
+
+    const missingAllowPlan = resolveConnectorPlan({
+      automation: { name: "parent-auto" },
+      agent: { name: "parent-agent", allowedIntents: ["agent.invoke"], agents: { invoke: { enabled: true, connector: "jumpygoathq" } } },
+      runId: "parent-run",
+    });
+    assert.deepEqual(missingAllowPlan.tools, []);
+
+    const narrowedPlan = resolveConnectorPlan({
+      invocation: { name: "parent-auto", rootRunId: "root-run", depth: 0, agents: { invoke: { enabled: true, connector: "jumpygoathq", allow: ["child-agent", "denied-agent"], timeoutMs: 1000, maxOutputChars: 2000 } } },
+      agent: { name: "parent-agent", allowedIntents: ["agent.invoke"], agents: { invoke: { enabled: true, connector: "jumpygoathq", allow: ["child-agent"], maxDepth: 1 } } },
+      runId: "parent-run",
+    });
+    assert.deepEqual(narrowedPlan.tools.map((tool) => tool.intent), ["agent.invoke"]);
+    assert.deepEqual(narrowedPlan.agentInvoke?.allow, ["child-agent"]);
+    assert.equal(narrowedPlan.rootRunId, "root-run");
+    assert.equal(narrowedPlan.depth, 0);
+
+    const tool = createAgentInvokeTools(narrowedPlan, async (invocation, options) => {
+      assert.equal(invocation.source.type, "subagent");
+      assert.equal(invocation.parentRunId, "parent-run");
+      assert.equal(invocation.rootRunId, "root-run");
+      assert.equal(invocation.depth, 1);
+      assert.equal(invocation.agent, "child-agent");
+      assert.equal(options.silent, true);
+      assert.equal(options.timeoutMs, 1000);
+      assert.match(invocation.prompt, /Parent run: parent-run/);
+      assert.match(invocation.prompt, /Delegated subtask/);
+      return {
+        runId: options.runId,
+        status: "ok",
+        exitCode: 0,
+        signal: null,
+        startedAt: "2026-01-01T00:00:00.000Z",
+        finishedAt: "2026-01-01T00:00:01.000Z",
+        durationMs: 1000,
+        outputText: "child output ".repeat(200),
+        errorText: "",
+        traceText: "",
+      };
+    }).find((entry) => entry.name === "agent_invoke");
+    assert.ok(tool);
+    const result = await tool.execute("call-agent", { agent: "child-agent", prompt: "Review this.", maxOutputChars: 1200 });
+    assert.match(result.content[0]?.text ?? "", /agent_invoke succeeded/);
+    assert.match(result.content[0]?.text ?? "", /Child run:/);
+    assert.match(result.content[0]?.text ?? "", /truncated/);
+    const summary = result.details?.connectorSummary as { connector?: string; intent?: string; status?: string; resultSummary?: { childRunId?: string; targetAgent?: string; truncated?: boolean } };
+    assert.equal(summary.connector, "jumpygoathq");
+    assert.equal(summary.intent, "agent.invoke");
+    assert.equal(summary.status, "succeeded");
+    assert.equal(summary.resultSummary?.targetAgent, "child-agent");
+    assert.equal(summary.resultSummary?.truncated, true);
+
+    const denied = await tool.execute("call-denied", { agent: "denied-agent", prompt: "No." });
+    assert.match(denied.content[0]?.text ?? "", /not allowlisted/);
+    assert.equal((denied.details?.connectorSummary as { status?: string }).status, "failed_not_allowed");
+
+    const trace = [
+      JSON.stringify({ type: "tool_execution_start", toolCallId: "call-agent", toolName: "agent_invoke", args: { agent: "child-agent" } }),
+      JSON.stringify({ type: "tool_execution_end", toolCallId: "call-agent", toolName: "agent_invoke", result, isError: false }),
+    ].join("\n");
+    const actions = extractConnectorActionsFromTrace(trace);
+    assert.equal(actions.length, 1);
+    assert.equal(actions[0]?.connector, "jumpygoathq");
+    assert.equal(actions[0]?.intent, "agent.invoke");
+  } finally {
+    restoreEnv("JUMPYGOATHQ_HOME", originalHome);
     await rm(tempDir, { recursive: true, force: true });
   }
 }

@@ -88,6 +88,9 @@ export type RunRow = {
   trace_text: string;
   error_text: string;
   connector_actions_json?: string;
+  parent_run_id?: string | null;
+  root_run_id?: string | null;
+  depth?: number | null;
   project?: string | null;
   task_id?: string | null;
   usage_input_tokens?: number | null;

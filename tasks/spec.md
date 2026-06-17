@@ -33,6 +33,7 @@ The core idea: define agents as markdown, run them through schedules or assigned
 | **Workdir** | Per-run/automation working directory | `workdirs/<name>/` |
 | **Trace** | Raw Pi JSON events plus derived readable timeline | `runs.trace_text` |
 | **Connector/tool** | Runner/gateway-owned extension capability | connector package + policy gates + env secrets |
+| **Agent invocation** | Gated synchronous child-agent call from a parent agent | `agent.invoke` / `agent_invoke` + child run lineage |
 | **Gateway** | Optional operator chat surface | browser now, Slack later, domain-only tools |
 
 Skills are legacy MVP terminology. The product should converge on agents before release.
@@ -92,7 +93,7 @@ You are the daily review agent. Be concise. Identify blockers, due items, and re
 
 Optional context files under `agents/<agent>/context/*.md` are loaded deterministically, likely alphabetically, and appended/included in the Pi instruction context.
 
-Agent frontmatter owns defaults and capabilities. Secrets never live in agent files.
+Agent frontmatter owns defaults and capabilities. Secrets never live in agent files. A parent agent may enable synchronous child-agent orchestration with `agent.invoke` and `agents.invoke.allow`; child agents resolve their own defaults/capabilities and do not inherit parent connector permissions.
 
 ---
 
@@ -213,6 +214,15 @@ Examples:
 allowedIntents:
   - notify.email
   - web.search
+  - agent.invoke
+agents:
+  invoke:
+    enabled: true
+    connector: jumpygoathq
+    allow: [researcher, reviewer]
+    timeoutMs: 600000
+    maxDepth: 1
+    maxOutputChars: 12000
 ```
 
 Secrets stay in env:
@@ -222,7 +232,7 @@ RESEND_API_KEY=re_...
 FIRECRAWL_API_KEY=fc_...
 ```
 
-Connector results should be summarized into run metadata for auditability.
+Connector results should be summarized into run metadata for auditability. `agent.invoke` writes child runs as normal `runs` rows with `source_type = subagent`, `parent_run_id`, `root_run_id`, and `depth`, and returns only bounded child output/status/timing to the parent context.
 
 ---
 

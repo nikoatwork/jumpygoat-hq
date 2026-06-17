@@ -69,6 +69,6 @@ Scripts receive a minimal inherited process environment (`PATH`, home/temp/user/
 
 `script.run` is a governed connector, not an agent-local bypass. The runner gates registration, validates paths/allowlists, resolves symlinks, sets the agent folder as cwd, bounds runtime and output, and records compact connector summaries with script path, exit code, duration, output chars, truncation, and network/write flags.
 
-V1 does not provide OS-level network or filesystem sandboxing. `network: true` and `write: true` are explicit policy flags and audit metadata; scripts must honor them. Scripts do not receive full runner secrets by default; pass secrets through your own reviewed runtime mechanism if a script genuinely needs them. Keep agent folders private, review scripts before enabling them, and do not store secrets in markdown.
+V1 does not provide OS-level network or filesystem sandboxing. `network: true` and `write: true` are explicit policy flags and audit metadata; scripts must honor them. Scripts receive bounded runtime metadata such as `JUMPYGOATHQ_AGENT_DIR`, `JUMPYGOATHQ_REPO_ROOT`, and script path flags, but do not receive full runner secrets by default; pass secrets through your own reviewed runtime mechanism if a script genuinely needs them. Keep agent folders private, review scripts before enabling them, and do not store secrets in markdown.
 
 Run `pnpm run doctor` to verify `tsx` is available.

@@ -86,7 +86,7 @@ A connector tool is exposed only when both gates pass:
 1. the agent frontmatter `allowedIntents` includes the provider-neutral intent; and
 2. the agent default config or automation/task override enables that intent/provider for the run.
 
-Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, `notify.email` → `notify_email`, `mail.send` → `mail_send`, `mail.list` → `mail_list`, `script.run` → `script_run`, `artifact.upload` → `artifact_upload`, and `actor.run` → `apify_run_actor`.
+Supported intents/tools: `web.search` → `web_search`, `web.scrape` → `web_scrape`, `web.crawl` → `web_crawl`, `notify.email` → `notify_email`, `mail.send` → `mail_send`, `mail.list` → `mail_list`, `script.run` → `script_run`, `artifact.upload` → `artifact_upload`, `actor.run` → `apify_run_actor`, and `agent.invoke` → `agent_invoke`.
 
 Example agent capability policy:
 
@@ -98,6 +98,7 @@ allowedIntents:
   - mail.list
   - artifact.upload
   - actor.run
+  - agent.invoke
 web:
   search:
     enabled: true
@@ -129,9 +130,21 @@ actors:
       - apidojo/tweet-scraper
     actor: apidojo/tweet-scraper
     maxOutputItems: 25
+agents:
+  invoke:
+    enabled: true
+    connector: jumpygoathq
+    allow:
+      - researcher
+      - reviewer
+    timeoutMs: 600000
+    maxDepth: 1
+    maxOutputChars: 12000
 ```
 
 Apify is intentionally a generic but allowlisted actor connector: one shared Apify credential (`APIFY_API_TOKEN`, or `APIFY_API_KEY` as a local compatibility alias) can run many actor types over time, but the agent's `actors.run.allow` list is the permission source of truth. Automations may choose an allowlisted actor and provide data-only input defaults for scheduled runs; Pi tool calls may merge JSON input overrides over those defaults. The tool returns bounded default dataset previews and metadata, not full unbounded datasets.
+
+`agent.invoke` is the first synchronous orchestration connector. A parent agent with `allowedIntents: [agent.invoke]` and `agents.invoke.allow` can call `agent_invoke` with a target agent and delegated prompt. The tool creates a child invocation, runs another Pi process through the normal runner path, waits for completion, writes a normal child run row with `parent_run_id`, `root_run_id`, and `depth`, then returns bounded child output/status/timing to the parent. Child agents resolve only their own agent defaults and connector policy; they do not inherit parent connector permissions. Scope-one defaults deny self-invocation and keep `maxDepth` at `1` unless explicitly configured.
 
 The runner resolves an effective connector plan and passes a static Pi extension for enabled/allowed tools only. Pi can call those tools during the run. Secrets stay in environment variables. New providers, such as a future Notion connector, should follow the same pattern: add a provider-neutral intent, map it to one or more Pi-safe tool names, require agent capability plus run config, and keep provider credentials out of markdown files.
 
@@ -143,7 +156,7 @@ Legacy post-run fenced `jumpygoathq-action` email blocks remain temporarily for 
 
 ### Invocation
 
-An internal normalized Pi execution spec created from either an automation or a ready task. An invocation contains source identity, agent, prompt, optional model override, connector overrides, schedule/status label, and workdir key. This keeps the backend runner path shared without merging user-facing concepts. Automation and task invocations use the same agent bundle semantics.
+An internal normalized Pi execution spec created from an automation, a ready task, or a synchronous subagent call. An invocation contains source identity, agent, prompt, optional model override, connector overrides, schedule/status label, workdir key, and optional lineage (`parentRunId`, `rootRunId`, `depth`). This keeps the backend runner path shared without merging user-facing concepts. Automation, task, and subagent invocations use the same agent bundle semantics.
 
 ### Board and task queue
 
@@ -202,7 +215,7 @@ workspace/data/jumpygoat-hq.sqlite
 $JUMPYGOATHQ_HOME/data/jumpygoat-hq.sqlite
 ```
 
-The `runs` table stores legacy-compatible `automation`, explicit `source_type`/`source_id`, agent, optional `project`/`task_id`, requested/resolved model/profile audit fields, status/timing, output text, trace text, error text, connector action JSON, and nullable best-effort Pi-emitted usage/cost aggregates.
+The `runs` table stores legacy-compatible `automation`, explicit `source_type`/`source_id`, agent, optional `project`/`task_id`, optional parent/root/depth lineage for subagent runs, requested/resolved model/profile audit fields, status/timing, output text, trace text, error text, connector action JSON, and nullable best-effort Pi-emitted usage/cost aggregates.
 
 ## Unified domain API and clients
 

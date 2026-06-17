@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { createRequire } from "node:module";
 import { apiRoute, type RequestBody } from "./api.js";
 
 import {
@@ -44,7 +46,10 @@ import { jumpyGoatHqHome } from "./paths.js";
 import { getRun, listAutomations, listBoards, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listTasks, readBoard, readSchedulePageView, readSettingsView, readTaskHeartbeatCronStatus, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
 import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
 
-export type ResponseData = { status: number; headers?: Record<string, string>; body: string };
+export type ResponseData = { status: number; headers?: Record<string, string>; body: string | Buffer };
+
+const require = createRequire(import.meta.url);
+const systemCssRoot = path.dirname(require.resolve("@sakun/system.css"));
 
 export async function route(method: string, url: URL, requestBody?: URLSearchParams | RequestBody): Promise<ResponseData> {
   const body = normalizeRequestBody(requestBody);
@@ -52,6 +57,8 @@ export async function route(method: string, url: URL, requestBody?: URLSearchPar
   try {
     const apiResponse = await apiRoute(method, url, body);
     if (apiResponse) return apiResponse;
+    if (method === "GET" && url.pathname === "/system.css") return systemCssFile();
+    if (method === "GET" && url.pathname.startsWith("/system-assets/")) return systemAssetFile(url.pathname);
     if (method === "GET" && url.pathname === "/styles.css") return staticFile("../public/styles.css", "text/css; charset=utf-8");
     if (method === "GET" && url.pathname === "/kanban.js") return staticFile("../public/kanban.js", "application/javascript; charset=utf-8");
     if (method === "GET" && url.pathname === "/") return html(await dashboard());
@@ -158,6 +165,37 @@ function html(body: string, status = 200): ResponseData {
 async function staticFile(relativePath: string, contentType: string): Promise<ResponseData> {
   const body = await readFile(new URL(relativePath, import.meta.url), "utf8");
   return { status: 200, headers: { "content-type": contentType, "cache-control": "no-store" }, body };
+}
+
+async function systemCssFile(): Promise<ResponseData> {
+  const source = await readFile(path.join(systemCssRoot, "system.css"), "utf8");
+  const body = source
+    .replace(/url\((["']?)(?!data:)([^"')]+)\1\)/g, (_match, _quote, asset) => `url(/system-assets/${asset})`)
+    .replace(/\/\*# sourceMappingURL=system\.css\.map \*\//, "");
+  return { status: 200, headers: { "content-type": "text/css; charset=utf-8", "cache-control": "no-store" }, body };
+}
+
+async function systemAssetFile(requestPath: string): Promise<ResponseData> {
+  const asset = decodeURIComponent(requestPath.replace(/^\/system-assets\//, ""));
+  if (!/^[A-Za-z0-9_.-]+$/.test(asset)) return notFoundResponse();
+  const contentType = systemAssetContentType(asset);
+  if (!contentType) return notFoundResponse();
+  const body = await readFile(path.join(systemCssRoot, asset));
+  return { status: 200, headers: { "content-type": contentType, "cache-control": "public, max-age=31536000, immutable" }, body };
+}
+
+function systemAssetContentType(asset: string): string | null {
+  const extension = path.extname(asset).toLowerCase();
+  if (extension === ".woff") return "font/woff";
+  if (extension === ".woff2") return "font/woff2";
+  if (extension === ".svg") return "image/svg+xml";
+  if (extension === ".png") return "image/png";
+  if (extension === ".ttf") return "font/ttf";
+  return null;
+}
+
+function notFoundResponse(): ResponseData {
+  return { status: 404, headers: { "content-type": "text/html; charset=utf-8" }, body: notFound() };
 }
 
 function redirect(location: string): ResponseData {
@@ -822,6 +860,9 @@ function runDetailPage(id: string): string {
       ["Source", raw(runSource(run))],
       ["Agent", runAgentName(run)],
       ["Board/task", raw(run.project && run.task_id ? `<a href="/boards/${encodeURIComponent(run.project)}/tasks/${encodeURIComponent(run.task_id)}"><code>${escapeHtml(run.project)}/${escapeHtml(run.task_id)}</code></a>` : "")],
+      ["Parent run", raw(run.parent_run_id ? runIdLink(run.parent_run_id) : "")],
+      ["Root run", raw(run.root_run_id && run.root_run_id !== run.id ? runIdLink(run.root_run_id) : "")],
+      ["Depth", run.depth ?? ""],
       ["Status", raw(status(run.status))],
       ["Started", raw(date(run.started_at))],
       ["Finished", raw(date(run.finished_at))],
@@ -834,6 +875,7 @@ function runDetailPage(id: string): string {
       ["Usage", usageDetail(run)],
       ["Connector actions", raw(`<pre>${escapeHtml(formatConnectorActions(run.connector_actions_json))}</pre>`)],
     ]))}
+    ${childRunsSection(run.id)}
     ${section("Timeline", traceLog(formatTraceLog(run.trace_text)))}
     ${section("Output", run.output_text ? `<pre>${escapeHtml(run.output_text)}</pre>` : emptyState("No output text captured."))}
     ${run.error_text ? section("Error", `<pre>${escapeHtml(run.error_text)}</pre>`) : ""}
@@ -844,6 +886,12 @@ function runDetailPage(id: string): string {
 function traceLog(entries: TraceLogEntry[]): string {
   const rows = entries.map((entry) => [raw(`<span class="trace-kind trace-${escapeHtml(entry.category)}">${escapeHtml(entry.category)}</span>`), entry.label, entry.detail || ""]);
   return table(["Kind", "Event", "Detail"], rows, { className: "trace-log", empty: "No trace events captured." });
+}
+
+function childRunsSection(parentRunId: string): string {
+  const children = listRuns(500).filter((run) => run.parent_run_id === parentRunId);
+  if (!children.length) return "";
+  return section("Child runs", runsTable(children, "No child runs found."));
 }
 
 function runsTable(runs: ReturnType<typeof listRuns>, empty = "No runs found."): string {
@@ -860,6 +908,10 @@ function runsTable(runs: ReturnType<typeof listRuns>, empty = "No runs found."):
     r.exit_code ?? "",
   ]);
   return table(["Run", "Source", "Agent", "Task", "Status", "Model", "Connector", "Started", "Duration", "Exit"], rows, { empty });
+}
+
+function runIdLink(id: string): string {
+  return `<a href="/runs/${encodeURIComponent(id)}"><code>${escapeHtml(id.slice(0, 10))}</code></a>`;
 }
 
 function runSource(run: Pick<ReturnType<typeof listRuns>[number], "automation" | "source_type" | "source_id">): string {

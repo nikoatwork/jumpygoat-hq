@@ -12,6 +12,8 @@ export type RunListOptions = {
   agent?: string;
   board?: string;
   taskId?: string;
+  parentRunId?: string;
+  rootRunId?: string;
 };
 
 export interface RunService {
@@ -41,6 +43,9 @@ type RunRow = {
   trace_text: string;
   error_text: string;
   connector_actions_json?: string | null;
+  parent_run_id?: string | null;
+  root_run_id?: string | null;
+  depth?: number | null;
   project?: string | null;
   task_id?: string | null;
   usage_json?: string | null;
@@ -57,6 +62,8 @@ export async function listRuns(options: RunListOptions = {}): Promise<RunDto[]> 
   addFilter(where, params, "agent", options.agent);
   addFilter(where, params, "project", options.board);
   addFilter(where, params, "task_id", options.taskId);
+  addFilter(where, params, "parent_run_id", options.parentRunId);
+  addFilter(where, params, "root_run_id", options.rootRunId);
 
   const sql = `select * from runs${where.length ? ` where ${where.join(" and ")}` : ""} order by started_at desc limit ?`;
   const db = new Database(dbPath(), { readonly: true });
@@ -108,6 +115,9 @@ function runToDto(row: RunRow): RunDto {
     traceText: row.trace_text,
     errorText: row.error_text,
     connectorActionsJson: row.connector_actions_json,
+    parentRunId: row.parent_run_id,
+    rootRunId: row.root_run_id,
+    depth: row.depth,
     board: row.project,
     taskId: row.task_id,
     usage: parseUsage(row.usage_json),

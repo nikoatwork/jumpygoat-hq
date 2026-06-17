@@ -1,6 +1,7 @@
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { repoRoot } from "../../paths.js";
 import { clampNumber, connectorSummary, errorMessage, truncateText } from "../helpers.js";
 import type { ConnectorRuntimeConfig, ConnectorToolDefinition, ConnectorToolResult } from "../types.js";
 
@@ -224,6 +225,7 @@ function buildScriptEnv(validated: ValidationResult, timeoutMs: number, network:
   return {
     ...minimalInheritedEnv(),
     JUMPYGOATHQ_AGENT_DIR: validated.realAgentDir,
+    JUMPYGOATHQ_REPO_ROOT: repoRoot(),
     JUMPYGOATHQ_SCRIPT_PATH: validated.requested,
     JUMPYGOATHQ_SCRIPT_REAL_PATH: validated.realScriptPath,
     JUMPYGOATHQ_SCRIPT_NETWORK: String(network),

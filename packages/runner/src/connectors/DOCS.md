@@ -31,6 +31,7 @@ Intent to tool mapping:
 | `script.run` | `script_run` | Local Script |
 | `artifact.upload` | `artifact_upload` | Cloudflare R2 |
 | `actor.run` | `apify_run_actor` | Apify |
+| `agent.invoke` | `agent_invoke` | jumpyGoatHq |
 
 ## Runtime config and secrets
 
@@ -45,7 +46,7 @@ The runner resolves a `ConnectorPlan`, serializes non-secret run/config values i
 - optional artifact defaults: `JUMPYGOATHQ_ARTIFACT_EXPIRES_SECONDS`, `JUMPYGOATHQ_ARTIFACT_MAX_FILE_BYTES`, `JUMPYGOATHQ_ARTIFACT_UPLOAD_TIMEOUT_MS`
 - Apify actor runs: `APIFY_API_TOKEN` preferred, or `APIFY_API_KEY` as a compatibility alias
 
-The local script connector has no provider API key; scripts run with `tsx` from the runner environment.
+The local script connector has no provider API key; scripts run with `tsx` from the runner environment. The `agent.invoke` connector has no provider API key; it uses the same local jumpyGoatHq runner/Pi environment as the parent run.
 
 ## Tool behavior
 
@@ -56,13 +57,35 @@ The local script connector has no provider API key; scripts run with `tsx` from 
 - `script_run` runs an allowlisted `.ts`/`.tsx` file under the active agent's `scripts/` folder with JSON stdin, timeout, bounded stdout/stderr, symlink/path checks, and compact audit summaries. V1 does not enforce OS-level network/filesystem sandboxing; `network` and `write` are explicit policy/audit flags.
 - `artifact_upload` reads a relative file path from the run cwd or active agent folder, uploads it to private Cloudflare R2 under `runs/<runId>/<safe-filename>`, and returns a seven-day presigned GET URL by default.
 - `apify_run_actor` runs one agent-allowlisted Apify actor, merges automation input defaults with tool-call input overrides, waits for completion, and returns run/dataset metadata plus a bounded default dataset preview. Actor-specific input schemas vary by Apify actor and should be documented in agent/automation context. Function-shaped or executable input fields are rejected; markdown config must stay YAML/JSON data.
-- Missing API keys or required config throw/read as tool errors so Pi can react to the failure. Script and artifact connector failures return compact failed tool results so the trace still carries connector summary details.
+- `agent_invoke` synchronously runs one agent-allowlisted child jumpyGoatHq agent as a normal child invocation, waits for completion, writes a child run row with parent/root/depth lineage, and returns bounded child output plus child run id/status/timing. The child agent resolves its own model defaults and connector permissions; it does not inherit parent connector capabilities.
+- Missing API keys or required config throw/read as tool errors so Pi can react to the failure. Script, artifact, and agent invocation connector failures return compact failed tool results so the trace still carries connector summary details.
 
 ## Connector action records
 
 Connector summaries are stored in tool result `details.connectorSummary`. The runner also scans Pi JSON trace `tool_execution_start`/`tool_execution_end` events and persists compact records to `runs.connector_actions_json`. Records include successes and failures, but not large Firecrawl payloads.
 
 Legacy fenced `jumpygoathq-action` email blocks are still parsed after the run for migration compatibility. If `notify_email` was already called in-run, legacy email sending is skipped to reduce duplicate sends.
+
+## Agent invocation config
+
+Agent config owns child-agent invocation permissions:
+
+```yaml
+allowedIntents:
+  - agent.invoke
+agents:
+  invoke:
+    enabled: true
+    connector: jumpygoathq
+    allow:
+      - researcher
+      - reviewer
+    timeoutMs: 600000
+    maxDepth: 1
+    maxOutputChars: 12000
+```
+
+Automation config may narrow the allowlist or runtime bounds, but cannot expand the agent-owned allowlist. Tool calls provide the target `agent` and delegated `prompt`; optional `model` overrides apply only to the child invocation.
 
 ## Apify actor config
 

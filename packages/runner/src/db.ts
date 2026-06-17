@@ -14,6 +14,7 @@ export function openDb(): Database.Database {
   mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   db.pragma("journal_mode = WAL");
+  db.pragma("busy_timeout = 5000");
   setupDb(db);
   return db;
 }
@@ -29,6 +30,9 @@ export function setupDb(db?: Database.Database): void {
       agent text not null,
       project text,
       task_id text,
+      parent_run_id text,
+      root_run_id text,
+      depth integer,
       model text,
       requested_model text,
       resolved_model text,
@@ -66,6 +70,9 @@ export function setupDb(db?: Database.Database): void {
   ensureColumn(target, "runs", "source_id", "text");
   ensureColumn(target, "runs", "project", "text");
   ensureColumn(target, "runs", "task_id", "text");
+  ensureColumn(target, "runs", "parent_run_id", "text");
+  ensureColumn(target, "runs", "root_run_id", "text");
+  ensureColumn(target, "runs", "depth", "integer");
   ensureColumn(target, "runs", "connector_actions_json", "text not null default '[]'");
   ensureColumn(target, "runs", "requested_model", "text");
   ensureColumn(target, "runs", "resolved_model", "text");
@@ -84,6 +91,8 @@ export function setupDb(db?: Database.Database): void {
   ensureColumn(target, "runs", "usage_json", "text");
   removeColumnIfExists(target, "runs", "sk" + "ill");
   target.exec("create index if not exists runs_task_idx on runs(project, task_id, started_at desc)");
+  target.exec("create index if not exists runs_parent_run_idx on runs(parent_run_id, started_at desc)");
+  target.exec("create index if not exists runs_root_run_idx on runs(root_run_id, depth, started_at desc)");
   if (!db) target.close();
 }
 
@@ -104,7 +113,9 @@ function removeColumnIfExists(db: Database.Database, table: string, column: stri
 function openRawDb(): Database.Database {
   const file = dbPath();
   mkdirSync(path.dirname(file), { recursive: true });
-  return new Database(file);
+  const db = new Database(file);
+  db.pragma("busy_timeout = 5000");
+  return db;
 }
 
 export function insertRun(db: Database.Database, args: {
@@ -116,8 +127,8 @@ export function insertRun(db: Database.Database, args: {
   startedAt: string;
 }): void {
   db.prepare(`
-    insert into runs (id, automation, source_type, source_id, agent, project, task_id, model, requested_model, resolved_model, model_profile, model_resolution_warning, schedule, status, started_at)
-    values (@id, @automation, @source_type, @source_id, @agent, @project, @task_id, @model, @requested_model, @resolved_model, @model_profile, @model_resolution_warning, @schedule, 'running', @started_at)
+    insert into runs (id, automation, source_type, source_id, agent, project, task_id, parent_run_id, root_run_id, depth, model, requested_model, resolved_model, model_profile, model_resolution_warning, schedule, status, started_at)
+    values (@id, @automation, @source_type, @source_id, @agent, @project, @task_id, @parent_run_id, @root_run_id, @depth, @model, @requested_model, @resolved_model, @model_profile, @model_resolution_warning, @schedule, 'running', @started_at)
   `).run({
     id: args.runId,
     automation: args.invocation.name,
@@ -126,6 +137,9 @@ export function insertRun(db: Database.Database, args: {
     agent: args.invocation.agent,
     project: invocationProject(args.invocation) ?? null,
     task_id: invocationTaskId(args.invocation) ?? null,
+    parent_run_id: args.invocation.parentRunId ?? null,
+    root_run_id: args.invocation.rootRunId ?? args.runId,
+    depth: args.invocation.depth ?? 0,
     model: args.model ?? null,
     requested_model: args.modelResolution?.requestedModel ?? args.model ?? null,
     resolved_model: args.modelResolution?.resolvedModel ?? args.model ?? null,

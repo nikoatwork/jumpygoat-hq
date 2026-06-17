@@ -19,6 +19,7 @@ export type AutomationCreateInput = {
   mail?: unknown;
   scripts?: unknown;
   actors?: unknown;
+  agents?: unknown;
   frontmatter?: Record<string, unknown>;
   rawMarkdown?: string;
 };
@@ -117,6 +118,7 @@ async function readAutomationFile(name: string, options: ListOptions): Promise<A
       mail: parsed.data.mail,
       scripts: parsed.data.scripts,
       actors: parsed.data.actors,
+      agents: parsed.data.agents,
       prompt: parsed.content.trim(),
       promptPreview: parsed.content.trim().replace(/\s+/g, " ").slice(0, 160),
       ...(options.includeRaw ? { rawMarkdown: raw } : {}),
@@ -156,6 +158,7 @@ export function automationMarkdown(input: ResolvedAutomationInput | AutomationCr
     mail: createInput.mail,
     scripts: createInput.scripts,
     actors: createInput.actors,
+    agents: createInput.agents,
   });
   return matter.stringify((createInput.prompt || "").trim() + "\n", frontmatter);
 }
@@ -193,6 +196,7 @@ async function resolveAutomationInput(input: AutomationCreateInput, existing?: {
   if (input.mail !== undefined) data.mail = input.mail;
   if (input.scripts !== undefined) data.scripts = input.scripts;
   if (input.actors !== undefined) data.actors = input.actors;
+  if (input.agents !== undefined) data.agents = input.agents;
 
   const frontmatter = supportedAutomationFrontmatter(data);
   return {
@@ -216,6 +220,7 @@ function supportedAutomationFrontmatter(data: Record<string, unknown>): Record<s
   if (data.mail !== undefined) frontmatter.mail = data.mail;
   if (data.scripts !== undefined) frontmatter.scripts = data.scripts;
   if (data.actors !== undefined) frontmatter.actors = data.actors;
+  if (data.agents !== undefined) frontmatter.agents = data.agents;
   return frontmatter;
 }
 
@@ -232,6 +237,7 @@ async function validateResolvedAutomationInput(input: ResolvedAutomationInput, m
   if (input.frontmatter.mail !== undefined && !isRecord(input.frontmatter.mail)) fields.push({ field: "mail", message: "Mail connector config must be an object." });
   if (input.frontmatter.scripts !== undefined && !isRecord(input.frontmatter.scripts)) fields.push({ field: "scripts", message: "Scripts connector config must be an object." });
   if (input.frontmatter.actors !== undefined && !isRecord(input.frontmatter.actors)) fields.push({ field: "actors", message: "Actors connector config must be an object." });
+  if (input.frontmatter.agents !== undefined && !isRecord(input.frontmatter.agents)) fields.push({ field: "agents", message: "Agents connector config must be an object." });
   if (input.agent && !existsSync(agentPath(input.agent))) fields.push({ field: "agent", message: `Agent does not exist: ${input.agent}` });
 
   if (isSafeName(input.name)) {

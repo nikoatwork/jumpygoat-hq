@@ -110,7 +110,8 @@ function resultText(result: unknown): string | undefined {
     .slice(0, 1000);
 }
 
-function connectorForTool(toolName: ConnectorToolName): "firecrawl" | "resend" | "agentmail" | "local-script" | "r2" | "apify" {
+function connectorForTool(toolName: ConnectorToolName): "firecrawl" | "resend" | "agentmail" | "local-script" | "r2" | "apify" | "jumpygoathq" {
+  if (toolName === "agent_invoke") return "jumpygoathq";
   if (toolName === "notify_email") return "resend";
   if (toolName === "mail_send" || toolName === "mail_list") return "agentmail";
   if (toolName === "script_run") return "local-script";

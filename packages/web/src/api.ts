@@ -147,7 +147,7 @@ export async function apiRoute(method: string, url: URL, body: RequestBody = {})
     }
 
     if (path === "/api/runs" && method === "GET") {
-      return json({ runs: await listRuns({ limit: optionalNumber(url.searchParams.get("limit")), sourceType: optionalString(url.searchParams.get("sourceType")), sourceId: optionalString(url.searchParams.get("sourceId")), automation: optionalString(url.searchParams.get("automation")), agent: optionalString(url.searchParams.get("agent")), board: optionalString(url.searchParams.get("board")), taskId: optionalString(url.searchParams.get("taskId")) }) });
+      return json({ runs: await listRuns({ limit: optionalNumber(url.searchParams.get("limit")), sourceType: optionalString(url.searchParams.get("sourceType")), sourceId: optionalString(url.searchParams.get("sourceId")), automation: optionalString(url.searchParams.get("automation")), agent: optionalString(url.searchParams.get("agent")), board: optionalString(url.searchParams.get("board")), taskId: optionalString(url.searchParams.get("taskId")), parentRunId: optionalString(url.searchParams.get("parentRunId")), rootRunId: optionalString(url.searchParams.get("rootRunId")) }) });
     }
 
     const runMatch = path.match(/^\/api\/runs\/([^/]+)$/);
@@ -306,7 +306,7 @@ async function automationStatusResponse(name: string, limit = 10): Promise<Recor
       etag: automation.etag,
     },
     cron: cron ? { installed: true, block: cron.block, line: cron.line, warning: cron.warning } : { installed: false },
-    connectors: connectorSummary(automation.web, automation.notify, automation.mail, automation.scripts, automation.actors),
+    connectors: connectorSummary(automation.web, automation.notify, automation.mail, automation.scripts, automation.actors, automation.agents),
     recentRuns: runs.map(summarizeRun),
     warnings,
   };
@@ -332,18 +332,20 @@ async function automationExists(name: string): Promise<boolean> {
   }
 }
 
-function connectorSummary(web: unknown, notify: unknown, mail?: unknown, scripts?: unknown, actors?: unknown): Record<string, unknown> {
+function connectorSummary(web: unknown, notify: unknown, mail?: unknown, scripts?: unknown, actors?: unknown, agents?: unknown): Record<string, unknown> {
   const summary: Record<string, unknown> = {};
   const webConfig = optionalRecord(web);
   const notifyConfig = optionalRecord(notify);
   const mailConfig = optionalRecord(mail);
   const scriptsConfig = optionalRecord(scripts);
   const actorsConfig = optionalRecord(actors);
+  const agentsConfig = optionalRecord(agents);
   if (webConfig) summary.web = Object.fromEntries(Object.entries(webConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
   if (notifyConfig) summary.notify = Object.fromEntries(Object.entries(notifyConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
   if (mailConfig) summary.mail = Object.fromEntries(Object.entries(mailConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
   if (scriptsConfig) summary.scripts = Object.fromEntries(Object.entries(scriptsConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
   if (actorsConfig) summary.actors = Object.fromEntries(Object.entries(actorsConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
+  if (agentsConfig) summary.agents = Object.fromEntries(Object.entries(agentsConfig).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
   return summary;
 }
 
@@ -431,6 +433,7 @@ function automationInput(input: Record<string, unknown>, fallbackName?: string):
     mail: input.mail,
     scripts: input.scripts,
     actors: input.actors,
+    agents: input.agents,
     frontmatter: optionalRecord(input.frontmatter),
     rawMarkdown: typeof input.rawMarkdown === "string" ? input.rawMarkdown : undefined,
   };

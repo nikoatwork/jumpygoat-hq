@@ -1,4 +1,4 @@
-export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email", "mail.send", "mail.list", "script.run", "artifact.upload", "actor.run"] as const;
+export const CONNECTOR_INTENTS = ["web.search", "web.scrape", "web.crawl", "notify.email", "mail.send", "mail.list", "script.run", "artifact.upload", "actor.run", "agent.invoke"] as const;
 export type ConnectorIntent = (typeof CONNECTOR_INTENTS)[number];
 
 export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
@@ -11,6 +11,7 @@ export const INTENT_TO_TOOL_NAME: Record<ConnectorIntent, ConnectorToolName> = {
   "script.run": "script_run",
   "artifact.upload": "artifact_upload",
   "actor.run": "apify_run_actor",
+  "agent.invoke": "agent_invoke",
 };
 
 export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
@@ -23,11 +24,12 @@ export const TOOL_NAME_TO_INTENT: Record<ConnectorToolName, ConnectorIntent> = {
   script_run: "script.run",
   artifact_upload: "artifact.upload",
   apify_run_actor: "actor.run",
+  agent_invoke: "agent.invoke",
 };
 
-export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email", "mail_send", "mail_list", "script_run", "artifact_upload", "apify_run_actor"] as const;
+export const CONNECTOR_TOOL_NAMES = ["web_search", "web_scrape", "web_crawl", "notify_email", "mail_send", "mail_list", "script_run", "artifact_upload", "apify_run_actor", "agent_invoke"] as const;
 export type ConnectorToolName = (typeof CONNECTOR_TOOL_NAMES)[number];
-export type ConnectorProvider = "firecrawl" | "resend" | "agentmail" | "local-script" | "r2" | "apify";
+export type ConnectorProvider = "firecrawl" | "resend" | "agentmail" | "local-script" | "r2" | "apify" | "jumpygoathq";
 export type ConnectorActionStatus =
   | "started"
   | "succeeded"
@@ -39,7 +41,10 @@ export type ConnectorActionStatus =
   | "skipped_malformed"
   | "skipped_tool_already_used"
   | "failed_missing_config"
-  | "failed_delivery";
+  | "failed_delivery"
+  | "failed_not_allowed"
+  | "failed_max_depth"
+  | "failed_timeout";
 
 export type FirecrawlRuntimeConfig = {
   timeoutMs?: number;
@@ -90,6 +95,13 @@ export type ApifyRunRuntimeConfig = {
   timeoutMs?: number;
 };
 
+export type AgentInvokeRuntimeConfig = {
+  allow?: string[];
+  timeoutMs?: number;
+  maxDepth?: number;
+  maxOutputChars?: number;
+};
+
 export type ResolvedConnectorTool = {
   intent: ConnectorIntent;
   toolName: ConnectorToolName;
@@ -107,6 +119,9 @@ export type ConnectorRuntimeConfig = {
   script?: ScriptRunRuntimeConfig;
   artifacts?: ArtifactUploadRuntimeConfig;
   apify?: ApifyRunRuntimeConfig;
+  agentInvoke?: AgentInvokeRuntimeConfig;
+  rootRunId?: string;
+  depth?: number;
 };
 
 export type ConnectorPlan = ConnectorRuntimeConfig;

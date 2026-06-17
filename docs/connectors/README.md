@@ -20,6 +20,7 @@ Secrets stay in `.env.local`, deployment secrets, or cron environment. Do not pu
 | AgentMail | `mail.send`, `mail.list` | `mail_send`, `mail_list` | [`agentmail.md`](agentmail.md) |
 | Local Script | `script.run` | `script_run` | [`script-run.md`](script-run.md) |
 | Cloudflare R2 Artifacts | `artifact.upload` | `artifact_upload` | [`r2-artifacts.md`](r2-artifacts.md) |
+| Agent Invocation | `agent.invoke` | `agent_invoke` | [`agent-invoke.md`](agent-invoke.md) |
 
 ## Check local configuration
 

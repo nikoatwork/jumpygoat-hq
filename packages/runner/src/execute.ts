@@ -18,12 +18,16 @@ export type InvocationExecutionResult = {
   status: "ok" | "error";
   exitCode: number | null;
   signal: NodeJS.Signals | null;
+  timedOut?: boolean;
   startedAt: string;
   finishedAt: string;
   durationMs: number;
+  outputText: string;
+  errorText: string;
+  traceText: string;
 };
 
-export async function executeInvocation(invocation: Invocation, options: { runId?: string; label?: string } = {}): Promise<InvocationExecutionResult> {
+export async function executeInvocation(invocation: Invocation, options: { runId?: string; label?: string; silent?: boolean; timeoutMs?: number } = {}): Promise<InvocationExecutionResult> {
   const agentFile = agentPath(invocation.agent);
   if (!existsSync(agentFile)) throw new Error(`Agent not found: ${agentFile}`);
 
@@ -56,14 +60,20 @@ export async function executeInvocation(invocation: Invocation, options: { runId
     schedule: invocation.schedule ?? null,
     project: project ?? null,
     task_id: taskId ?? null,
+    parent_run_id: invocation.parentRunId ?? null,
+    root_run_id: invocation.rootRunId ?? runId,
+    depth: invocation.depth ?? 0,
     started_at: startedAt,
   });
 
   insertRun(db, { runId, invocation, agent, model: modelResolution.requestedModel, modelResolution, startedAt });
 
-  console.log(`${options.label || "jumpyGoatHq run"} ${runId}`);
-  if (invocation.source.type === "task") console.log(`task: ${invocation.source.id}`);
-  console.log(`db: ${dbPath()}`);
+  if (!options.silent) {
+    console.log(`${options.label || "jumpyGoatHq run"} ${runId}`);
+    if (invocation.source.type === "task") console.log(`task: ${invocation.source.id}`);
+    if (invocation.source.type === "subagent") console.log(`subagent: ${invocation.source.id}`);
+    console.log(`db: ${dbPath()}`);
+  }
   runnerLogger.info("run_start", {
     run_id: runId,
     source_type: invocation.source.type,
@@ -76,10 +86,13 @@ export async function executeInvocation(invocation: Invocation, options: { runId
     db_path: dbPath(),
     instance_home: jumpyGoatHqHome(),
     workdir: workdirPath(invocation.workdirKey),
+    parent_run_id: invocation.parentRunId ?? null,
+    root_run_id: invocation.rootRunId ?? runId,
+    depth: invocation.depth ?? 0,
   });
 
   try {
-    const result = await runPiInvocation({ invocation, agent, log, runId, model, connectorPlan });
+    const result = await runPiInvocation({ invocation, agent, log, runId, model, connectorPlan, timeoutMs: options.timeoutMs });
     const finishedAt = new Date().toISOString();
     const durationMs = Date.now() - Date.parse(startedAt);
     const status = result.exitCode === 0 ? "ok" : "error";
@@ -103,6 +116,7 @@ export async function executeInvocation(invocation: Invocation, options: { runId
       status,
       exit_code: result.exitCode,
       signal: result.signal,
+      timed_out: result.timedOut,
       duration_ms: durationMs,
       output_chars: outputText(log).length,
       error_chars: errorText(log).length,
@@ -126,9 +140,13 @@ export async function executeInvocation(invocation: Invocation, options: { runId
       model_profile: modelResolution.profileKey ?? null,
       project: project ?? null,
       task_id: taskId ?? null,
+      parent_run_id: invocation.parentRunId ?? null,
+      root_run_id: invocation.rootRunId ?? runId,
+      depth: invocation.depth ?? 0,
       status,
       exit_code: result.exitCode,
       signal: result.signal,
+      timed_out: result.timedOut,
       duration_ms: durationMs,
       finished_at: finishedAt,
     });
@@ -146,7 +164,7 @@ export async function executeInvocation(invocation: Invocation, options: { runId
       connectorActionsJson: JSON.stringify(connectorActions),
       usage: extractUsageFromTraceText(traceText(log)),
     });
-    return { runId, status, exitCode: result.exitCode, signal: result.signal, startedAt, finishedAt, durationMs };
+    return { runId, status, exitCode: result.exitCode, signal: result.signal, timedOut: result.timedOut, startedAt, finishedAt, durationMs, outputText: outputText(log), errorText: errorText(log), traceText: traceText(log) };
   } catch (error) {
     const message = error instanceof Error ? error.stack || error.message : String(error);
     const finishedAt = new Date().toISOString();
@@ -165,6 +183,9 @@ export async function executeInvocation(invocation: Invocation, options: { runId
       output_chars: outputText(log).length,
       error_chars: errorText(log).length,
       trace_chars: traceText(log).length,
+      parent_run_id: invocation.parentRunId ?? null,
+      root_run_id: invocation.rootRunId ?? runId,
+      depth: invocation.depth ?? 0,
       message,
     });
 

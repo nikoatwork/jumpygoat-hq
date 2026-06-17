@@ -65,6 +65,9 @@ export function formatTraceLog(traceText: string): TraceLogEntry[] {
       case "jumpygoathq_non_json_stdout":
         entries.push({ category: "raw", label: "Non-JSON stdout", detail: preview(stringValue(event.text)) });
         break;
+      case "jumpygoathq_pi_timeout":
+        entries.push({ category: "error", label: "Pi timeout", detail: joinDetails([pair("timeout", event.timeout_ms)]) });
+        break;
       case "jumpygoathq_connector_plan":
         entries.push({ category: "connector", label: "Connector tools enabled", detail: joinDetails([pair("tools", Array.isArray(event.tools) ? event.tools.join(", ") : undefined), pair("intents", Array.isArray(event.intents) ? event.intents.join(", ") : undefined)]) });
         break;
@@ -75,7 +78,7 @@ export function formatTraceLog(traceText: string): TraceLogEntry[] {
         entries.push({ category: "connector", label: "Connector actions", detail: connectorDetail(event.actions) });
         break;
       case "jumpygoathq_summary":
-        entries.push({ category: "run", label: "Run summary", detail: joinDetails([pair("status", event.status), pair("exit", event.exit_code ?? event.exitCode), pair("duration", durationText(event.duration_ms ?? event.durationMs))]) });
+        entries.push({ category: "run", label: "Run summary", detail: joinDetails([pair("status", event.status), pair("exit", event.exit_code ?? event.exitCode), pair("duration", durationText(event.duration_ms ?? event.durationMs)), pair("parent", event.parent_run_id), pair("root", event.root_run_id), pair("depth", event.depth)]) });
         break;
       case "jumpygoathq_error":
         entries.push({ category: "error", label: "Runner error", detail: preview(stringValue(event.message)) });

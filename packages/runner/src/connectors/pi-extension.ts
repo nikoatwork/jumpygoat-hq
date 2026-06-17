@@ -1,3 +1,4 @@
+import { createAgentInvokeTools } from "./agent/index.js";
 import { createAgentMailTools } from "./agentmail/index.js";
 import { createApifyTools } from "./apify/index.js";
 import { createArtifactTools } from "./artifacts/index.js";
@@ -17,7 +18,7 @@ export default function jumpyGoatHqConnectorExtension(pi: PiLike): void {
   if (!runtime || runtime.tools.length === 0) return;
 
   const allowedNames = new Set<ConnectorToolName>(runtime.tools.map((tool) => tool.toolName));
-  const definitions = [...createFirecrawlTools(runtime), ...createResendTools(runtime), ...createAgentMailTools(runtime), ...createScriptRunTools(runtime), ...createArtifactTools(runtime), ...createApifyTools(runtime)];
+  const definitions = [...createFirecrawlTools(runtime), ...createResendTools(runtime), ...createAgentMailTools(runtime), ...createScriptRunTools(runtime), ...createArtifactTools(runtime), ...createApifyTools(runtime), ...createAgentInvokeTools(runtime)];
   for (const definition of definitions) {
     if (allowedNames.has(definition.name)) pi.registerTool(definition);
   }

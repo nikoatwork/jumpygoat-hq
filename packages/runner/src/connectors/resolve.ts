@@ -15,9 +15,10 @@ const INTENT_PROVIDER: Record<ConnectorIntent, ConnectorProvider> = {
   "script.run": "local-script",
   "artifact.upload": "r2",
   "actor.run": "apify",
+  "agent.invoke": "jumpygoathq",
 };
 
-type ConnectorInvocation = Pick<Invocation, "name"> & ConnectorOverrides;
+type ConnectorInvocation = Pick<Invocation, "name" | "rootRunId" | "depth"> & ConnectorOverrides;
 
 export function resolveConnectorPlan(args: {
   invocation: ConnectorInvocation;
@@ -47,6 +48,9 @@ export function resolveConnectorPlan(args: {
     script: resolveScriptRunRuntimeConfig(args.agent, invocation),
     artifacts: resolveArtifactUploadRuntimeConfig(args.agent, invocation),
     apify: resolveApifyRunRuntimeConfig(args.agent, invocation),
+    agentInvoke: resolveAgentInvokeRuntimeConfig(args.agent, invocation),
+    rootRunId: invocation.rootRunId ?? args.runId,
+    depth: invocation.depth ?? 0,
   };
 }
 
@@ -87,6 +91,11 @@ export function isConnectorIntentEnabled(agent: ConnectorOverrides, automation: 
     const config = mergeConfig(agent.actors?.run, automation.actors?.run);
     const agentAllow = agent.actors?.run?.allow;
     return config?.enabled === true && config.connector === "apify" && Array.isArray(agentAllow) && agentAllow.length > 0;
+  }
+  if (intent === "agent.invoke") {
+    const config = mergeConfig(agent.agents?.invoke, automation.agents?.invoke);
+    const agentAllow = agent.agents?.invoke?.allow;
+    return config?.enabled === true && config.connector === "jumpygoathq" && Array.isArray(agentAllow) && agentAllow.length > 0;
   }
   return false;
 }
@@ -170,6 +179,19 @@ function resolveApifyRunRuntimeConfig(agent: ConnectorOverrides, automation: Con
   };
 }
 
+function resolveAgentInvokeRuntimeConfig(agent: ConnectorOverrides, automation: ConnectorOverrides): ConnectorPlan["agentInvoke"] {
+  const invoke = mergeConfig(agent.agents?.invoke, automation.agents?.invoke);
+  if (!invoke) return undefined;
+  const agentAllow = agent.agents?.invoke?.allow ?? [];
+  const invocationAllow = automation.agents?.invoke?.allow;
+  return {
+    allow: Array.isArray(invocationAllow) ? intersection(agentAllow, invocationAllow) : agentAllow,
+    timeoutMs: invoke.timeoutMs,
+    maxDepth: invoke.maxDepth,
+    maxOutputChars: invoke.maxOutputChars,
+  };
+}
+
 function mergeConfig<T extends Record<string, unknown>>(base: T | undefined, override: T | undefined): T | undefined {
   if (!base) return override;
   if (!override) return base;
@@ -178,6 +200,11 @@ function mergeConfig<T extends Record<string, unknown>>(base: T | undefined, ove
 
 function firstNumber(values: Array<number | undefined>): number | undefined {
   return values.find((value): value is number => typeof value === "number" && Number.isFinite(value));
+}
+
+function intersection(base: string[], requested: string[]): string[] {
+  const allowed = new Set(base);
+  return requested.filter((entry) => allowed.has(entry));
 }
 
 function firstStringArray(values: Array<string[] | undefined>): string[] | undefined {

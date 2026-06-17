@@ -20,8 +20,9 @@ export async function runPiInvocation(args: {
   runId: string;
   model?: string;
   connectorPlan?: ConnectorPlan;
-}): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; agentFile: string }> {
-  const { invocation, agent, log, runId, model, connectorPlan } = args;
+  timeoutMs?: number;
+}): Promise<{ exitCode: number | null; signal: NodeJS.Signals | null; agentFile: string; timedOut?: boolean }> {
+  const { invocation, agent, log, runId, model, connectorPlan, timeoutMs } = args;
   if (!existsSync(agent.path)) throw new Error(`Agent not found: ${agent.path}`);
 
   const cwd = workdirPath(invocation.workdirKey);
@@ -74,7 +75,21 @@ export async function runPiInvocation(args: {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
+    let timedOut = false;
+    let settled = false;
+    const timeout = timeoutMs && timeoutMs > 0 ? setTimeout(() => {
+      timedOut = true;
+      pushTraceLine(log, { type: "jumpygoathq_pi_timeout", timeout_ms: timeoutMs });
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        if (!settled) child.kill("SIGKILL");
+      }, 1000).unref();
+    }, timeoutMs) : undefined;
+    timeout?.unref();
+
     child.on("error", (error) => {
+      if (timeout) clearTimeout(timeout);
+      settled = true;
       runnerLogger.error("pi_spawn_error", {
         run_id: runId,
         command: "pi",
@@ -111,6 +126,8 @@ export async function runPiInvocation(args: {
     });
 
     child.on("close", (exitCode, signal) => {
+      if (timeout) clearTimeout(timeout);
+      settled = true;
       if (stdoutBuffer.trim()) writePiLine(log, stdoutBuffer.trimEnd());
       if (stderrBuffer.trim()) {
         log.errorLines.push(stderrBuffer.trimEnd());
@@ -122,11 +139,12 @@ export async function runPiInvocation(args: {
         cwd,
         exit_code: exitCode,
         signal,
+        timed_out: timedOut,
         stderr_tail: log.errorLines.join("\n").slice(-1000) || undefined,
       };
       if (exitCode === 0) runnerLogger.info("pi_finish", finishDetails);
       else runnerLogger.error("pi_finish", finishDetails);
-      resolve({ exitCode, signal, agentFile });
+      resolve({ exitCode, signal, agentFile, timedOut });
     });
   });
 }

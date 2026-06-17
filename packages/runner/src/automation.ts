@@ -79,6 +79,15 @@ const ApifyRunConfig = z.object({
   timeoutMs: z.number().int().positive().optional(),
 });
 
+const AgentInvokeConfig = z.object({
+  enabled: z.boolean().optional(),
+  connector: z.literal("jumpygoathq"),
+  allow: z.array(z.string().min(1)).optional(),
+  timeoutMs: z.number().int().positive().optional(),
+  maxDepth: z.number().int().min(1).max(5).optional(),
+  maxOutputChars: z.number().int().min(1000).max(50000).optional(),
+});
+
 export const ConnectorOverridesSchema = z.object({
   web: z.object({
     search: WebSearchConfig.optional(),
@@ -100,6 +109,9 @@ export const ConnectorOverridesSchema = z.object({
   }).optional(),
   actors: z.object({
     run: ApifyRunConfig.optional(),
+  }).optional(),
+  agents: z.object({
+    invoke: AgentInvokeConfig.optional(),
   }).optional(),
 });
 

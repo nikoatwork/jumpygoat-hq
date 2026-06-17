@@ -2,6 +2,10 @@
 
 This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
 
+## 2026-06-17
+
+- feat: added gated synchronous child-agent invocation (`agent.invoke` / `agent_invoke`) with run lineage, bounded child results, docs/tests, and a validated repo-strategy orchestration smoke — completed in `tasks/done/2026-06-17_tasks-agent-invoke.md`.
+
 ## 2026-06-14
 
 - feat: added a generic allowlisted Apify actor connector (`actor.run` / `apify_run_actor`) with agent-owned actor allowlists, automation-owned data input defaults, bounded dataset previews, connector audit summaries, `APIFY_API_TOKEN`/`APIFY_API_KEY` support, mocked tests, docs, and a live one-item `apidojo/tweet-scraper` smoke; validation passed with `test:connectors`, `pnpm build`, `smoke:apify`, `validate:backend`, and `validate:web` — completed in `tasks/done/2026-06-14_tasks-apify-connector.md`.

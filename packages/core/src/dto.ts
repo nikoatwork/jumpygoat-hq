@@ -25,6 +25,7 @@ export type AutomationDto = RawMarkdownResource & {
   mail?: unknown;
   scripts?: unknown;
   actors?: unknown;
+  agents?: unknown;
   prompt: string;
   promptPreview: string;
 };
@@ -85,6 +86,9 @@ export type RunDto = {
   traceText: string;
   errorText: string;
   connectorActionsJson?: string | null;
+  parentRunId?: string | null;
+  rootRunId?: string | null;
+  depth?: number | null;
   board?: string | null;
   taskId?: string | null;
   usage?: Record<string, unknown> | null;
