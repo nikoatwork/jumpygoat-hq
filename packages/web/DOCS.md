@@ -50,18 +50,22 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 
 The web UI uses a persistent sidebar information hierarchy: Overview; Work (Tasks, Boards); Automations (All automations, Schedule); Agents; Activity (Runs); and Settings in the sidebar footer. Schedule is visually grouped under Automations because it is a timeline view of automation markdown schedules, not a separate source object.
 
-The web UI has a deliberately small, server-rendered design system:
+The web UI has a deliberately small, server-rendered design system built on [`@sakun/system.css`](https://github.com/sakofchit/system.css):
 
-- Do not add frontend dependencies, React, Tailwind, CSS-in-JS, component libraries, bundlers, client-side routing, or a build step for styling.
-- Keep common CSS in `public/styles.css` using semantic classes over broad utility sprawl.
-- Use shared helpers from `src/html.ts` for repeated patterns: `pageHeader`, `section`, `toolbar`, `inlineActions`, `notice`, `badge`, `emptyState`, `table`, and `metaTable`.
-- Prefer canonical classes for route markup: `.app-shell`, `.sidebar`, `.sidebar-nav`, `.nav-link`, `.page-header`, `.page-actions`, `.section`, `.toolbar`, `.inline-actions`, `.empty-state`, `.notice`, `.badge`, `.form-stack`, `.form-grid`, `.table-wrap`, and `.meta-table`.
+- Do not add React, Tailwind, CSS-in-JS, component libraries, bundlers, client-side routing, or a build step for styling. `@sakun/system.css` is the only frontend styling dependency.
+- Load System.css from the local npm package via `/system.css`; keep `public/styles.css` as a thin adapter for app layout, accessibility targets, responsive tables, kanban, and route-specific glue.
+- Keep third-party icons tiny and local: vendor only individual SVGs under `public/icons/` and serve them from `/icons/<set>/<name>.svg`; do not add full icon-set packages or CDN dependencies.
+- Use System.css primitives where they fit (`.window`, `.title-bar`, `.separator`, `.window-pane`, `.standard-dialog`, `.btn`-style controls) and keep app markup semantic. Prefer spacious document-like pages, Finder-style navigation, folder/window card treatments, and classic Mac affordances over dense admin-console panels.
+- Use shared helpers from `src/html.ts` for repeated patterns: `appIcon`, `iconLabel`, `pageHeader`, `section`, `pageGrid`, `panel`, `formPanel`, `card`, `folderCard`, `toolbar`, `inlineActions`, `actionLink`, `notice`, `badge`, `emptyState`, `table`, and `metaTable`.
+- UIM is the primary UI icon set. Route code should request semantic icon names through `appIcon()`/`iconLabel()`; Simple Icons are reserved for provider/brand marks.
+- Prefer canonical app classes for route markup: `.app-shell`, `.sidebar`, `.sidebar-nav`, `.nav-link`, `.page-header`, `.page-actions`, `.section`, `.page-grid`, `.panel`, `.card`, `.folder-card`, `.form-panel`, `.toolbar`, `.inline-actions`, `.empty-state`, `.notice`, `.badge`, `.icon-label`, `.app-icon`, `.form-stack`, `.form-grid`, `.table-wrap`, and `.meta-table`.
 - Keep true page-specific layout CSS page-specific. Current examples include `.kanban-*`, `.agenda-*`, `.trace-*`, and `.schedule-*` rules.
 
 Common route patterns:
 
 ```ts
-pageHeader("Automations", { actions: `<a class="button-link" href="/automations/new">Create automation</a>` });
+pageHeader("Automations", { actions: actionLink("/automations/new", "Create automation", "create") });
+pageGrid(card("Ready queue", "<p>Tasks waiting for agents.</p>", { icon: "tasks" }));
 table(["Name", "Action"], rows, { empty: "No automations found." });
 notice("created: daily-report", "success");
 badge("installed", "installed");
@@ -81,13 +85,15 @@ Before shipping web UI changes:
 - Kanban remains usable without drag/drop and without JavaScript-only status changes.
 - Empty states teach the next useful action.
 - Motion respects `prefers-reduced-motion`.
-- Colors come from semantic OKLCH tokens in `public/styles.css`.
+- Visual tone stays close to monochrome classic Mac/System.css; status is carried by text, symbols, and labels rather than color alone.
 
 Reconsider a React/client-heavy migration only if the product needs a genuinely interactive operator console that cannot stay clear with server-rendered HTML plus small progressive-enhancement scripts.
 
 ## Local validation
 
-Run `pnpm check:design` for the lightweight design-system guardrails. Run `pnpm validate:web` from the repo root for web build + Playwright smoke coverage. It starts the web server locally, checks the dashboard, automations page, schedule page, and runs page, and retains screenshots/traces only on failure.
+Run `pnpm check:design` for the lightweight design-system guardrails. Run `pnpm validate:web` from the repo root for web build + Playwright smoke coverage. It starts the web server locally, checks the primary pages, and retains screenshots/traces only on failure.
+
+For broad redesign work, capture one temporary Playwright screenshot per page or route family at desktop width, plus a mobile screenshot for `/`; inspect for overflow/density/obvious rendering defects; then delete approved screenshots before finishing the task.
 
 ## Safety constraints
 
@@ -110,10 +116,14 @@ The same server exposes a thin JSON adapter under `/api/...` for CLI/remote clie
 
 Set `JUMPYGOATHQ_API_TOKEN` to require `Authorization: Bearer <token>` or `x-api-token: <token>` on all `/api/...` requests. Leave it unset only for localhost-only development.
 
-Remote CLI examples:
+CLI examples:
 
 ```bash
-# HTTPS/proxy/Tailscale endpoint
+# Local API server; the CLI defaults to http://127.0.0.1:3000
+pnpm dev:web
+jumpygoathq agents list
+
+# HTTPS/proxy/Tailscale endpoint saved as a named API target
 jumpygoathq instances add home --api-url https://hq.example.com --token "$JUMPYGOATHQ_API_TOKEN"
 jumpygoathq --instance home agents list
 
@@ -230,7 +240,7 @@ Side-effecting API calls such as run-now, setup with `installCron`/`runNow`, and
 
 ### API troubleshooting
 
-- **Tailscale/default instance:** if remote calls hang or fail, verify the server is reachable from the client (`curl $HQ/api`), the server is bound to the expected interface, and `JUMPYGOATHQ_API_TOKEN` matches the CLI/API token. Prefer a named CLI instance for repeat use.
+- **CLI/API reachability:** if local calls fail, start `pnpm dev:web`/`pnpm web` and verify `curl http://127.0.0.1:3000/api`. If remote calls fail, verify the server is reachable from the client (`curl $HQ/api`), the server is bound to the expected interface, and `JUMPYGOATHQ_API_TOKEN` matches the CLI/API token. Prefer a named CLI instance for repeat use.
 - **Cron PATH:** installed cron blocks export the current `HOME`, `PATH`, `JUMPYGOATHQ_HOME`, and `JUMPYGOATHQ_DB_PATH` where present. If cron runs fail, inspect `jumpyGoatHqHome()/data/cron-<automation>.log` and ensure `pnpm` is on the PATH captured during install.
 - **Email `from`:** Resend notifications require `notify.email.from` or `JUMPYGOATHQ_NOTIFY_EMAIL_FROM`; the sender must be valid for the configured Resend account/domain. `notify.email.to` can be supplied in automation frontmatter or `JUMPYGOATHQ_NOTIFY_EMAIL_TO`.
 - **AgentMail inbox:** AgentMail send/list tools require `AGENTMAIL_API_KEY` plus `mail.send.inboxId`, `mail.list.inboxId`, or `AGENTMAIL_INBOX_ID`. Use `mail.send`/`mail.list` in `allowedIntents` and `connector: agentmail` in config.

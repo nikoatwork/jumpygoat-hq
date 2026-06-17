@@ -35,6 +35,8 @@ test("overview renders core sidebar navigation and run summary", async ({ page }
   await expect(page.getByRole("link", { name: "Schedule", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Runs", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page.locator("svg.app-icon").first()).toBeVisible();
+  await expect(page.locator("details.nav-group", { hasText: "Work" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "At a glance" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent activity" })).toBeVisible();
 });
@@ -86,6 +88,15 @@ test("tasks kanban column new-task links prefill status", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/tasks\/new\?status=ready/);
   await expect(page.getByLabel("Status")).toHaveValue("ready");
+});
+
+test("sidebar groups can collapse with accessible details behavior", async ({ page }) => {
+  await page.goto("/");
+
+  const workGroup = page.locator("details.nav-group", { hasText: "Work" });
+  await expect(workGroup).toHaveJSProperty("open", true);
+  await workGroup.getByText("Work").click();
+  await expect(workGroup).toHaveJSProperty("open", false);
 });
 
 test("tasks kanban can focus one status with status query param", async ({ page }) => {

@@ -41,7 +41,7 @@ import {
   type TaskFormValues,
 } from "./actions.js";
 import { TASK_STATUSES, taskStatusLabel, type TaskStatus } from "../../shared/tasks.js";
-import { badge, date, duration, emptyState, errorPage, escapeHtml, icon, inlineActions, layout, metaTable, notFound, notice, pageHeader, raw, runLink, section, status, table, toolbar } from "./html.js";
+import { actionLink, badge, card, date, duration, emptyState, errorPage, escapeHtml, folderCard, formPanel, icon, inlineActions, layout, metaTable, notFound, notice, pageGrid, pageHeader, raw, runLink, section, status, table, toolbar } from "./html.js";
 import { jumpyGoatHqHome } from "./paths.js";
 import { getRun, listAutomations, listBoards, listInstalledCronBlocks, listModelProfileKeys, listRuns, listAgents, listTasks, readBoard, readSchedulePageView, readSettingsView, readTaskHeartbeatCronStatus, runAgentName, usageSummary, type TaskView, type UsageSummaryRow } from "./readers.js";
 import { formatTraceLog, type TraceLogEntry } from "./trace-log.js";
@@ -59,6 +59,7 @@ export async function route(method: string, url: URL, requestBody?: URLSearchPar
     if (apiResponse) return apiResponse;
     if (method === "GET" && url.pathname === "/system.css") return systemCssFile();
     if (method === "GET" && url.pathname.startsWith("/system-assets/")) return systemAssetFile(url.pathname);
+    if (method === "GET" && url.pathname.startsWith("/icons/")) return localIconFile(url.pathname);
     if (method === "GET" && url.pathname === "/styles.css") return staticFile("../public/styles.css", "text/css; charset=utf-8");
     if (method === "GET" && url.pathname === "/kanban.js") return staticFile("../public/kanban.js", "application/javascript; charset=utf-8");
     if (method === "GET" && url.pathname === "/") return html(await dashboard());
@@ -194,6 +195,13 @@ function systemAssetContentType(asset: string): string | null {
   return null;
 }
 
+async function localIconFile(requestPath: string): Promise<ResponseData> {
+  const match = requestPath.match(/^\/icons\/(uim|simple)\/([a-z0-9.-]+\.svg)$/);
+  if (!match) return notFoundResponse();
+  const body = await readFile(new URL(`../public/icons/${match[1]}/${match[2]}`, import.meta.url), "utf8");
+  return { status: 200, headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "public, max-age=31536000, immutable" }, body };
+}
+
 function notFoundResponse(): ResponseData {
   return { status: 404, headers: { "content-type": "text/html; charset=utf-8" }, body: notFound() };
 }
@@ -313,14 +321,12 @@ async function dashboard(): Promise<string> {
   const workingTasks = tasks.filter((task) => task.status === "working-on-it");
   return layout("Dashboard", `
     ${pageHeader("Overview", { description: "Your local control desk for agent helpers, queued work, scheduled prompts, and run receipts." })}
-    ${section("Start with the job", `
-      <div class="concept-grid">
-        ${conceptCard("1", "Choose the helper", "Agents define the role, instructions, context, model defaults, and connector policy for repeatable work.", "/agents", "Review agents")}
-        ${conceptCard("2", "Queue the work", "Boards hold one-off tasks. Assign an agent, move the task to ready, then let the dispatcher pick it up.", "/tasks", "Open task queue")}
-        ${conceptCard("3", "Schedule the repeat", "Automations are reusable prompts that run manually or from markdown schedules.", "/automations", "Review automations")}
-        ${conceptCard("4", "Inspect the receipt", "Runs preserve output, errors, model resolution, connector activity, and trace details.", "/runs", "Inspect runs")}
-      </div>
-    `)}
+    ${section("Start with the job", pageGrid(`
+        ${conceptCard("1", "Choose the helper", "Agents define the role, instructions, context, model defaults, and connector policy for repeatable work.", "/agents", "Review agents", "agents")}
+        ${conceptCard("2", "Queue the work", "Boards hold one-off tasks. Assign an agent, move the task to ready, then let the dispatcher pick it up.", "/tasks", "Open task queue", "tasks")}
+        ${conceptCard("3", "Schedule the repeat", "Automations are reusable prompts that run manually or from markdown schedules.", "/automations", "Review automations", "automations")}
+        ${conceptCard("4", "Inspect the receipt", "Runs preserve output, errors, model resolution, connector activity, and trace details.", "/runs", "Inspect runs", "runs")}
+    `, "concept-grid"))}
     ${section("At a glance", `
       <div class="stat-grid">
         ${statCard("Agents", agents.length, "Helpers available", "/agents")}
@@ -329,20 +335,20 @@ async function dashboard(): Promise<string> {
         ${statCard("Boards", boards.length, "Queues with context", "/boards")}
       </div>
     `)}
-    ${section("Needs attention", `
+    ${section("Needs attention", card("Operator signals", `
       <div class="attention-list">
         ${taskHeartbeat.installed && !taskHeartbeat.warning ? `<p>${badge("Task dispatch on", "success")} Ready tasks can be picked up automatically.</p>` : `<p>${badge("Task dispatch off", "warning")} Ready tasks will not run periodically until the task heartbeat is installed.</p>`}
         ${cron.length ? `<p>${badge(`${cron.length} automation cron`, "installed")} Scheduled automations have local cron evidence.</p>` : `<p>${badge("No automation cron", "manual")} Automations can still be run manually.</p>`}
         ${failures.length ? `<p>${badge(`${failures.length} needs review`, "warning")} Some recent activity is running or did not finish cleanly.</p>` : `<p>${badge("All clear", "success")} No recent failures or running jobs in the latest activity.</p>`}
       </div>
-    `)}
+    `, { icon: "warning" }))}
     ${section("Recent activity", overviewActivity(runs))}
     <details class="local-details"><summary>Local setup details</summary><p class="muted">Workspace: <code>${escapeHtml(jumpyGoatHqHome())}</code>${process.env.JUMPYGOATHQ_HOME ? ` using <code>JUMPYGOATHQ_HOME</code>` : " using the default local workspace"}.</p><p class="muted">Run details, paths, raw traces, and technical IDs live on the detail pages.</p></details>
   `);
 }
 
-function conceptCard(step: string, title: string, body: string, href: string, action: string): string {
-  return `<article class="concept-card"><span class="step-pill">${escapeHtml(step)}</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p><a href="${escapeHtml(href)}">${escapeHtml(action)} →</a></article>`;
+function conceptCard(step: string, title: string, body: string, href: string, action: string, iconName: string): string {
+  return folderCard(title, `<span class="step-pill">${escapeHtml(step)}</span><p>${escapeHtml(body)}</p>`, { icon: iconName, href, actions: `<span class="button-link">${escapeHtml(action)} →</span>`, className: "concept-card" });
 }
 
 function statCard(label: string, value: number, helper: string, href: string): string {
@@ -377,7 +383,7 @@ async function automationsPage(url: URL): Promise<string> {
     raw(inlineActions(`<form method="post" action="/automations/${encodeURIComponent(a.name)}/run"><button type="submit">${icon("play")}Run now</button></form><a href="/automations/${encodeURIComponent(a.name)}/edit">${icon("pen")}Edit</a><details><summary>${icon("trash")}Delete</summary>${deleteAutomationForm(a.name)}</details>`)),
   ]);
   return layout("Automations", `
-    ${pageHeader("Automations", { description: "Reusable prompts that can run manually or on a schedule.", actions: `<a href="/automations/new" class="button-link">${icon("plus")}Create automation</a>` })}
+    ${pageHeader("Automations", { description: "Reusable prompts that can run manually or on a schedule.", actions: actionLink("/automations/new", "Create automation", "create") })}
     ${message}
     ${section("Automation files", table(["Name", "Agent", "Schedule", "Model", "Cron installed", "Prompt", "Action"], rows, { empty: "No automations found." }))}
   `);
@@ -456,15 +462,15 @@ async function settingsPage(url: URL): Promise<string> {
 }
 
 function settingsFormPage(values: SettingsFormValues, errors: string[]): string {
-  return section("Edit settings YAML", `
+  return section("Edit settings YAML", formPanel("Settings file editor", `
     ${errorsList(errors)}
     ${notice("Settings only accept defaultModelProfile and modelProfiles. Keep provider secrets in Pi or environment variables, never in this file.", "info")}
     <form method="post" action="/settings" class="form-stack">
       <label>settings.yml <textarea name="content" rows="18" required aria-describedby="settings-help">${escapeHtml(values.content)}</textarea></label>
       <p id="settings-help" class="muted">Example: <code>defaultModelProfile: fast</code> with <code>modelProfiles.fast.selector</code> pointing to a Pi model selector.</p>
-      <p><button type="submit">${icon("checkmark")}Save settings</button></p>
+      <p><button type="submit">${icon("save")}Save settings</button></p>
     </form>
-  `);
+  `, { icon: "settings" }));
 }
 
 function usageSummaryTable(rows: UsageSummaryRow[]): string {
@@ -502,17 +508,19 @@ async function automationFormPage(title: string, values: AutomationFormValues, e
   const nameAttrs = editingName ? "readonly" : "required";
   return layout(title, `
     ${pageHeader(title)}
-    ${errorsList(errors)}
-    <form method="post" action="${action}" class="form-stack">
-      <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
-      <label>Agent <select name="agent" required>${agents.map((s) => `<option value="${escapeHtml(s.name)}" ${s.name === values.agent ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select></label>
-      ${scheduleFields(values.schedule || "manual")}
-      <label>Model <input name="model" value="${escapeHtml(values.model)}" placeholder="default" list="model-profiles"></label>
-      <datalist id="model-profiles">${profiles.map((profile) => `<option value="${escapeHtml(profile)}"></option>`).join("")}</datalist>
-      ${profiles.length ? `<p class="muted">Available model profiles: ${profiles.map((profile) => `<code>${escapeHtml(profile)}</code>`).join(", ")}. Direct Pi selectors also pass through.</p>` : ""}
-      <label>Prompt <textarea name="prompt" rows="16" required>${escapeHtml(values.prompt)}</textarea></label>
-      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/automations">Cancel</a></p>
-    </form>
+    ${formPanel("Automation file", `
+      ${errorsList(errors)}
+      <form method="post" action="${action}" class="form-stack">
+        <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
+        <label>Agent <select name="agent" required>${agents.map((s) => `<option value="${escapeHtml(s.name)}" ${s.name === values.agent ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select></label>
+        ${scheduleFields(values.schedule || "manual")}
+        <label>Model <input name="model" value="${escapeHtml(values.model)}" placeholder="default" list="model-profiles"></label>
+        <datalist id="model-profiles">${profiles.map((profile) => `<option value="${escapeHtml(profile)}"></option>`).join("")}</datalist>
+        ${profiles.length ? `<p class="muted">Available model profiles: ${profiles.map((profile) => `<code>${escapeHtml(profile)}</code>`).join(", ")}. Direct Pi selectors also pass through.</p>` : ""}
+        <label>Prompt <textarea name="prompt" rows="16" required>${escapeHtml(values.prompt)}</textarea></label>
+        <p><button type="submit">${icon("save")}Save</button> <a href="/automations">Cancel</a></p>
+      </form>
+    `, { icon: "automations" })}
   `);
 }
 
@@ -528,7 +536,7 @@ async function boardsPage(url: URL): Promise<string> {
     raw(inlineActions(`<a href="/boards/${encodeURIComponent(board.id)}/edit">${icon("pen")}Edit</a><a href="/tasks?board=${encodeURIComponent(board.id)}">Kanban</a><a href="/tasks/new?board=${encodeURIComponent(board.id)}">${icon("plus")}Task</a>`)),
   ]);
   return layout("Boards", `
-    ${pageHeader("Boards", { description: "Boards group related one-off tasks and shared context.", actions: `<a href="/boards/new" class="button-link">${icon("plus")}Create board</a><a href="/tasks" class="button-link">Tasks kanban</a>` })}
+    ${pageHeader("Boards", { description: "Boards group related one-off tasks and shared context.", actions: `${actionLink("/boards/new", "Create board", "create")}${actionLink("/tasks", "Tasks kanban", "tasks")}` })}
     ${message}
     ${section("Board files", table(["Id", "Name", "Description", "Default agent", "Tasks", "Action"], rows, { empty: "No boards found. Create one to start assigning tasks." }))}
   `);
@@ -571,7 +579,7 @@ async function kanbanPage(url: URL): Promise<string> {
   const focusActions = focusedStatus ? `<a href="${escapeHtml(tasksHref(board))}" class="button-link">All columns</a>` : "";
   const statusLinks = TASK_STATUSES.map((statusName) => `<a class="button-link" href="${escapeHtml(tasksHref(board, statusName))}"${focusedStatus === statusName ? " data-current=\"true\"" : ""}>${escapeHtml(taskStatusLabel(statusName))}</a>`).join("");
   return layout("Tasks", `
-    ${pageHeader(`Tasks${board ? ` for ${board}` : ""}`, { description: "One-off prompts assigned to agents. Move cards to ready when they should dispatch.", actions: `<a href="${escapeHtml(taskNewHref(undefined, board))}" class="button-link">${icon("plus")}Create task</a><a href="/boards" class="button-link">Boards</a>${focusActions}` })}
+    ${pageHeader(`Tasks${board ? ` for ${board}` : ""}`, { description: "One-off prompts assigned to agents. Move cards to ready when they should dispatch.", actions: `${actionLink(taskNewHref(undefined, board), "Create task", "create")}${actionLink("/boards", "Boards", "boards")}${focusActions}` })}
     ${pageMessage(url, ["created", "updated"])}
     ${focusedStatus ? `<p class="notice">Focused on <strong>${escapeHtml(taskStatusLabel(focusedStatus))}</strong>.</p>` : ""}
     ${notice(taskHeartbeat.installed ? `Task heartbeat cron installed: ${taskHeartbeat.line || "command missing"}${taskHeartbeat.warning ? ` (${taskHeartbeat.warning})` : ""}` : "Task heartbeat cron is not installed. Run `pnpm install:task-cron` to periodically dispatch ready assigned tasks.", taskHeartbeat.installed && !taskHeartbeat.warning ? "success" : "warning")}
@@ -608,15 +616,17 @@ async function boardFormPage(title: string, values: BoardFormValues, errors: str
   const body = values.body || defaultBoardBody(values.name || values.id);
   return layout(title, `
     ${pageHeader(title)}
-    ${errorsList(errors)}
-    <form method="post" action="${action}" class="stack">
-      <label>Board id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
-      <label>Name <input name="name" value="${escapeHtml(values.name)}" required></label>
-      <label>Description <input name="description" value="${escapeHtml(values.description)}"></label>
-      <label>Default agent <select name="default_agent"><option value="">none</option>${agents.map((agent) => `<option value="${escapeHtml(agent.name)}" ${agent.name === values.default_agent ? "selected" : ""}>${escapeHtml(agent.name)}</option>`).join("")}</select></label>
-      <label>Board body <textarea name="body" rows="14">${escapeHtml(body)}</textarea></label>
-      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/boards">Cancel</a></p>
-    </form>
+    ${formPanel("Board file", `
+      ${errorsList(errors)}
+      <form method="post" action="${action}" class="form-stack">
+        <label>Board id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
+        <label>Name <input name="name" value="${escapeHtml(values.name)}" required></label>
+        <label>Description <input name="description" value="${escapeHtml(values.description)}"></label>
+        <label>Default agent <select name="default_agent"><option value="">none</option>${agents.map((agent) => `<option value="${escapeHtml(agent.name)}" ${agent.name === values.default_agent ? "selected" : ""}>${escapeHtml(agent.name)}</option>`).join("")}</select></label>
+        <label>Board body <textarea name="body" rows="14">${escapeHtml(body)}</textarea></label>
+        <p><button type="submit">${icon("save")}Save</button> <a href="/boards">Cancel</a></p>
+      </form>
+    `, { icon: "boards" })}
   `);
 }
 
@@ -626,17 +636,19 @@ async function taskFormPage(title: string, values: TaskFormValues, errors: strin
   const idAttrs = editingId ? "readonly required" : "placeholder=\"auto-generated\"";
   return layout(title, `
     ${pageHeader(title, { description: "Describe the task in markdown, assign an agent when it is ready for dispatch, and use status to control when it runs." })}
-    ${errorsList(errors)}
-    <form method="post" action="${action}" class="stack">
-      <label>Board <select name="board" required ${editingBoard ? "readonly" : ""}>${boards.map((board) => `<option value="${escapeHtml(board.id)}" ${board.id === values.board ? "selected" : ""}>${escapeHtml(board.id)}</option>`).join("")}</select></label>
-      <label>Task id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
-      <label>Title <input name="title" value="${escapeHtml(values.title)}" required></label>
-      <label>Status <select name="status" required>${TASK_STATUSES.map((entry) => `<option value="${entry}" ${entry === values.status ? "selected" : ""}>${escapeHtml(taskStatusLabel(entry))}</option>`).join("")}</select></label>
-      <label>Assignee <select name="assignee"><option value="">unassigned</option>${agents.map((agent) => `<option value="${escapeHtml(agent.name)}" ${agent.name === values.assignee ? "selected" : ""}>${escapeHtml(agent.name)}</option>`).join("")}</select></label>
-      <label>Priority <select name="priority">${["low", "normal", "high", "urgent"].map((entry) => `<option value="${entry}" ${entry === values.priority ? "selected" : ""}>${entry}</option>`).join("")}</select></label>
-      <label>Task body <textarea name="body" rows="16">${escapeHtml(values.body)}</textarea></label>
-      <p><button type="submit">${icon("checkmark")}Save</button> <a href="${escapeHtml(tasksHref(values.board))}">Cancel</a></p>
-    </form>
+    ${formPanel("Task file", `
+      ${errorsList(errors)}
+      <form method="post" action="${action}" class="form-stack">
+        <label>Board <select name="board" required ${editingBoard ? "readonly" : ""}>${boards.map((board) => `<option value="${escapeHtml(board.id)}" ${board.id === values.board ? "selected" : ""}>${escapeHtml(board.id)}</option>`).join("")}</select></label>
+        <label>Task id <input name="id" value="${escapeHtml(values.id)}" ${idAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
+        <label>Title <input name="title" value="${escapeHtml(values.title)}" required></label>
+        <label>Status <select name="status" required>${TASK_STATUSES.map((entry) => `<option value="${entry}" ${entry === values.status ? "selected" : ""}>${escapeHtml(taskStatusLabel(entry))}</option>`).join("")}</select></label>
+        <label>Assignee <select name="assignee"><option value="">unassigned</option>${agents.map((agent) => `<option value="${escapeHtml(agent.name)}" ${agent.name === values.assignee ? "selected" : ""}>${escapeHtml(agent.name)}</option>`).join("")}</select></label>
+        <label>Priority <select name="priority">${["low", "normal", "high", "urgent"].map((entry) => `<option value="${entry}" ${entry === values.priority ? "selected" : ""}>${entry}</option>`).join("")}</select></label>
+        <label>Task body <textarea name="body" rows="16">${escapeHtml(values.body)}</textarea></label>
+        <p><button type="submit">${icon("save")}Save</button> <a href="${escapeHtml(tasksHref(values.board))}">Cancel</a></p>
+      </form>
+    `, { icon: "tasks" })}
   `);
 }
 
@@ -817,7 +829,7 @@ async function agentsPage(url: URL): Promise<string> {
     </article>`;
   }).join("");
   return layout("Agents", `
-    ${pageHeader("Agents", { description: "Your roster of reusable AI helpers. Choose the teammate for the job, tune their role, and see where they are assigned.", actions: `<a href="/agents/new" class="button-link">${icon("plus")}Create agent</a>` })}
+    ${pageHeader("Agents", { description: "Your roster of reusable AI helpers. Choose the teammate for the job, tune their role, and see where they are assigned.", actions: actionLink("/agents/new", "Create agent", "create") })}
     ${message}
     ${section("Agent roster", agents.length ? `<div class="agent-grid">${cards}</div>` : emptyState("No agents yet. Create your first agent to define the helper you want.", `<a class="button-link" href="/agents/new">Create agent</a>`))}
   `);
@@ -836,12 +848,14 @@ function agentFormPage(title: string, values: AgentFormValues, errors: string[],
   const nameAttrs = editingName ? "readonly" : "required";
   return layout(title, `
     ${pageHeader(title, { description: "Advanced: AGENT.md is the bundle entrypoint for identity, instructions, policy, and connector gates. Optional context/*.md files are loaded by the runner; reserved resource directories are not yet loaded." })}
-    ${errorsList(errors)}
-    <form method="post" action="${action}" class="form-stack">
-      <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
-      <label>AGENT.md <textarea name="content" rows="24" required>${escapeHtml(values.content)}</textarea></label>
-      <p><button type="submit">${icon("checkmark")}Save</button> <a href="/agents">Cancel</a></p>
-    </form>
+    ${formPanel("Agent profile file", `
+      ${errorsList(errors)}
+      <form method="post" action="${action}" class="form-stack">
+        <label>Name <input name="name" value="${escapeHtml(values.name)}" ${nameAttrs} pattern="[a-z0-9][a-z0-9-]*"></label>
+        <label>AGENT.md <textarea name="content" rows="24" required>${escapeHtml(values.content)}</textarea></label>
+        <p><button type="submit">${icon("save")}Save</button> <a href="/agents">Cancel</a></p>
+      </form>
+    `, { icon: "agents" })}
   `);
 }
 

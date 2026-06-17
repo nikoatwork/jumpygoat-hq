@@ -1,12 +1,54 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
-import { createRequire } from "node:module";
 
 import type { RunRow } from "./readers.js";
 
-const require = createRequire(import.meta.url);
-const pepiconsRoot = path.dirname(path.dirname(path.dirname(require.resolve("pepicons"))));
 const iconCache = new Map<string, string>();
+const uiIconMap: Record<string, string> = {
+  overview: "apps",
+  dashboard: "apps",
+  tasks: "list-ul",
+  task: "check-square",
+  boards: "layer-group",
+  board: "layer-group",
+  automations: "process",
+  automation: "process",
+  schedule: "calendar",
+  agents: "shield-plus",
+  agent: "shield-plus",
+  runs: "history",
+  run: "rocket",
+  settings: "key-skeleton",
+  create: "plus-square",
+  add: "plus-square",
+  edit: "document-layout-left",
+  delete: "times-circle",
+  save: "check",
+  status: "check-circle",
+  success: "check-circle",
+  warning: "exclamation-triangle",
+  error: "exclamation-octagon",
+  model: "graph-bar",
+  usage: "analytics",
+  connector: "link-h",
+  secure: "lock",
+  local: "lock-open-alt",
+  table: "table",
+  details: "document-layout-left",
+  activity: "history",
+  // Legacy semantic aliases retained so route code stays readable.
+  grid: "apps",
+  list: "list-ul",
+  folder: "layer-group",
+  gear: "process",
+  book: "shield-plus",
+  clock: "clock",
+  wrench: "key-skeleton",
+  play: "rocket",
+  pen: "document-layout-left",
+  trash: "times-circle",
+  plus: "plus-square",
+  checkmark: "check",
+};
 
 export type HtmlFragment = { html: string };
 export type TableCell = HtmlFragment | string | number | null | undefined;
@@ -40,41 +82,66 @@ export function layout(title: string, body: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)} · jumpyGoat</title>
+  <title>${escapeHtml(title)} · Jumpy Goat HQ</title>
+  <link rel="stylesheet" href="/system.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <ul role="menu-bar" class="app-menu-bar" aria-label="Application menu">
+    <li role="menu-item" aria-haspopup="false">Jumpy Goat HQ</li>
+    <li role="menu-item" aria-haspopup="false">File</li>
+    <li role="menu-item" aria-haspopup="false">Edit</li>
+    <li role="menu-item" aria-haspopup="false">View</li>
+  </ul>
+  <div class="desktop-ornaments" aria-hidden="true">
+    <span class="desktop-folder">Agents</span>
+    <span class="desktop-folder">Boards</span>
+    <span class="desktop-disk">Runs</span>
+  </div>
   <div class="app-shell">
-    <aside class="sidebar">
-      <a class="brand-link" href="/" aria-label="jumpyGoat overview"><h1>jumpyGoat</h1></a>
-      <nav class="sidebar-nav" aria-label="Primary navigation">
-        ${navLink("overview", "/", `${icon("grid")}Overview`, active)}
-        <div class="nav-group" aria-label="Work">
-          <p class="nav-group-label">Work</p>
-          ${navLink("tasks", "/tasks", `${icon("list")}Tasks`, active)}
-          ${navLink("boards", "/boards", `${icon("folder")}Boards`, active)}
+    <aside class="window sidebar">
+      <div class="title-bar"><div class="title"><a class="brand-link" href="/" aria-label="Jumpy Goat HQ overview"><span class="apple" aria-hidden="true"></span>Jumpy Goat HQ</a></div></div>
+      <div class="separator"></div>
+      <div class="window-pane sidebar-pane">
+        <nav class="sidebar-nav" aria-label="Primary navigation">
+          ${navLink("overview", "/", iconLabel("overview", "Overview"), active, "root")}
+          <details class="nav-group" open>
+            <summary class="nav-group-label">Work</summary>
+            <div class="nav-children">
+              ${navLink("tasks", "/tasks", iconLabel("tasks", "Tasks"), active)}
+              ${navLink("boards", "/boards", iconLabel("boards", "Boards"), active)}
+            </div>
+          </details>
+          <details class="nav-group" open>
+            <summary class="nav-group-label">Automations</summary>
+            <div class="nav-children">
+              ${navLink("automations", "/automations", iconLabel("automations", "All automations"), active)}
+              ${navLink("schedule", "/schedule", iconLabel("schedule", "Schedule"), active)}
+            </div>
+          </details>
+          <details class="nav-group" open>
+            <summary class="nav-group-label">Agents</summary>
+            <div class="nav-children">
+              ${navLink("agents", "/agents", iconLabel("agents", "Agents"), active)}
+            </div>
+          </details>
+          <details class="nav-group" open>
+            <summary class="nav-group-label">Activity</summary>
+            <div class="nav-children">
+              ${navLink("runs", "/runs", iconLabel("runs", "Runs"), active)}
+            </div>
+          </details>
+        </nav>
+        <div class="sidebar-footer nav-children">
+          ${navLink("settings", "/settings", iconLabel("settings", "Settings"), active)}
         </div>
-        <div class="nav-group" aria-label="Automations">
-          <p class="nav-group-label">Automations</p>
-          ${navLink("automations", "/automations", `${icon("gear")}All automations`, active)}
-          ${navLink("schedule", "/schedule", `${icon("calendar")}Schedule`, active, "nested")}
-        </div>
-        <div class="nav-group" aria-label="Agents">
-          <p class="nav-group-label">Agents</p>
-          ${navLink("agents", "/agents", `${icon("book")}Agents`, active)}
-        </div>
-        <div class="nav-group" aria-label="Activity">
-          <p class="nav-group-label">Activity</p>
-          ${navLink("runs", "/runs", `${icon("clock")}Runs`, active)}
-        </div>
-      </nav>
-      <div class="sidebar-footer">
-        ${navLink("settings", "/settings", `${icon("wrench")}Settings`, active)}
       </div>
     </aside>
     <div class="content-shell">
-      <main>
-        ${body}
+      <main class="standard-dialog content-window">
+        <div class="content-pane">
+          ${body}
+        </div>
       </main>
     </div>
   </div>
@@ -118,6 +185,32 @@ export function inlineActions(content: string): string {
   return `<div class="inline-actions">${content}</div>`;
 }
 
+export function pageGrid(content: string, className = ""): string {
+  return `<div class="${classAttr("page-grid", className)}">${content}</div>`;
+}
+
+export function panel(title: string, body: string, options: { icon?: string; actions?: string; className?: string } = {}): string {
+  return `<article class="${classAttr("panel", options.className)}">${title || options.actions ? `<header class="panel-header">${title ? `<h3>${options.icon ? appIcon(options.icon) : ""}${escapeHtml(title)}</h3>` : ""}${options.actions ? `<div class="panel-actions">${options.actions}</div>` : ""}</header>` : ""}<div class="panel-body">${body}</div></article>`;
+}
+
+export function card(title: string, body: string, options: { icon?: string; actions?: string; className?: string; kicker?: string } = {}): string {
+  return `<article class="${classAttr("card", options.className)}">${options.kicker ? `<p class="card-kicker">${escapeHtml(options.kicker)}</p>` : ""}<h3>${options.icon ? appIcon(options.icon) : ""}${escapeHtml(title)}</h3><div class="card-body">${body}</div>${options.actions ? `<div class="card-actions">${options.actions}</div>` : ""}</article>`;
+}
+
+export function folderCard(title: string, body: string, options: { icon?: string; actions?: string; className?: string; href?: string } = {}): string {
+  const classes = classAttr("folder-card", options.className);
+  const content = `<span class="folder-tab" aria-hidden="true"></span><div class="folder-card-content"><h3>${options.icon ? appIcon(options.icon) : ""}${escapeHtml(title)}</h3><div class="card-body">${body}</div>${options.actions ? `<div class="card-actions">${options.actions}</div>` : ""}</div>`;
+  return options.href ? `<a class="${classes}" href="${escapeHtml(options.href)}">${content}</a>` : `<article class="${classes}">${content}</article>`;
+}
+
+export function formPanel(title: string, body: string, options: { icon?: string; className?: string } = {}): string {
+  return panel(title, body, { icon: options.icon || "edit", className: classAttr("form-panel", options.className) });
+}
+
+export function actionLink(href: string, label: string, iconName?: string, className = "button-link"): string {
+  return `<a href="${escapeHtml(href)}" class="${escapeHtml(className)}">${iconName ? appIcon(iconName) : ""}${escapeHtml(label)}</a>`;
+}
+
 export function notice(message: unknown, tone: "info" | "success" | "warning" | "error" = "info"): string {
   return `<p class="notice ${escapeHtml(tone)}">${escapeHtml(message)}</p>`;
 }
@@ -127,7 +220,7 @@ export function badge(label: unknown, tone = ""): string {
 }
 
 export function emptyState(message: unknown, action = ""): string {
-  return `<p class="empty-state">${escapeHtml(message)}${action ? ` <span>${action}</span>` : ""}</p>`;
+  return `<p class="empty-state">${appIcon("details")}${escapeHtml(message)}${action ? ` <span>${action}</span>` : ""}</p>`;
 }
 
 export function table(headers: TableCell[], rows: TableCell[][], options: { className?: string; empty?: string } = {}): string {
@@ -146,14 +239,26 @@ export function metaTable(rows: Array<[TableCell, TableCell]>): string {
   return `<div class="table-wrap"><table class="meta-table">${rows.map(([key, value]) => `<tr><th>${renderCell(key)}</th><td>${renderCell(value)}</td></tr>`).join("")}</table></div>`;
 }
 
-export function icon(name: string): string {
-  const cached = iconCache.get(name);
+export function appIcon(name: string, label?: string): string {
+  const iconName = uiIconMap[name] || name;
+  const key = `${iconName}:${label || ""}`;
+  const cached = iconCache.get(key);
   if (cached) return cached;
-  const filePath = path.join(pepiconsRoot, "svg", "pencil", `${name}.svg`);
+  const filePath = new URL(`../public/icons/uim/${iconName}.svg`, import.meta.url);
+  const title = label ? `<title>${escapeHtml(label)}</title>` : "";
   const svg = readFileSync(filePath, "utf8")
-    .replace("<svg ", `<svg class="icon" aria-hidden="true" focusable="false" `);
-  iconCache.set(name, svg);
+    .replace(/<svg\b/, `<svg class="app-icon icon" ${label ? `role="img" aria-label="${escapeHtml(label)}"` : "aria-hidden=\"true\""} focusable="false"`)
+    .replace(/<svg([^>]*)>/, `<svg$1>${title}`);
+  iconCache.set(key, svg);
   return svg;
+}
+
+export function icon(name: string): string {
+  return appIcon(name);
+}
+
+export function iconLabel(iconName: string, label: string, options: { className?: string } = {}): string {
+  return `<span class="${classAttr("icon-label", options.className)}">${appIcon(iconName)}<span>${escapeHtml(label)}</span></span>`;
 }
 
 export function status(value: string): string {

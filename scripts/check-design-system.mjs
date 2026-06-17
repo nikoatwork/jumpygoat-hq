@@ -57,7 +57,7 @@ function checkNoFrontendPlatformDeps() {
 }
 
 function checkHtmlHelpers() {
-  const helpers = ["raw", "escapeHtml", "pageHeader", "section", "toolbar", "inlineActions", "notice", "badge", "emptyState", "table", "metaTable"];
+  const helpers = ["raw", "escapeHtml", "appIcon", "iconLabel", "pageHeader", "section", "toolbar", "inlineActions", "card", "folderCard", "panel", "formPanel", "pageGrid", "actionLink", "notice", "badge", "emptyState", "table", "metaTable"];
   for (const helper of helpers) {
     requireRegex("packages/web/src/html.ts", new RegExp(`export function ${helper}\\s*\\(`), `exported helper ${helper}()`);
   }
@@ -71,11 +71,18 @@ function checkCssVocabulary() {
     "page-header",
     "page-actions",
     "section",
+    "page-grid",
+    "panel",
+    "card",
+    "folder-card",
+    "form-panel",
     "toolbar",
     "inline-actions",
     "empty-state",
     "notice",
     "badge",
+    "icon-label",
+    "app-icon",
     "form-stack",
     "form-grid",
     "table-wrap",
@@ -88,18 +95,22 @@ function checkCssVocabulary() {
 
 function checkCssQualityGuards() {
   const css = read("packages/web/public/styles.css");
-  const hexMatches = css.match(/#[0-9a-fA-F]{3,8}\b/g) || [];
-  if (hexMatches.length) fail(`packages/web/public/styles.css: hard-coded hex colors found (${[...new Set(hexMatches)].join(", ")}); use OKLCH tokens`);
   if (/backdrop-filter\s*:/.test(css)) fail("packages/web/public/styles.css: decorative backdrop-filter is not allowed on the raw HTML console");
+  if (/pepicons/.test(read("packages/web/src/html.ts") + read("packages/web/package.json"))) fail("web UI must use local vendored SVG icons instead of pepicons");
+  if (/style=\"/.test(read("packages/web/src/routes.ts"))) fail("packages/web/src/routes.ts: avoid dense inline styling; add shared CSS primitives instead");
   if (!css.includes("@media (prefers-reduced-motion: reduce)")) fail("packages/web/public/styles.css: missing reduced-motion media query");
-  requireRegex("packages/web/public/styles.css", /min-height:\s*2\.75rem/, "44px action target token");
+  requireRegex("packages/web/public/styles.css", /(--jg-target:\s*2\.75rem|min-height:\s*2\.75rem)/, "44px action target token");
   requireText("packages/web/public/styles.css", "table.responsive-table", "responsive table rules");
+  requireText("packages/web/src/html.ts", "href=\"/system.css\"", "local System.css stylesheet link");
+  requireText("packages/web/src/routes.ts", "@sakun/system.css", "System.css static asset route");
 }
 
 function checkDocs() {
   requireText("packages/web/DOCS.md", "## UI conventions", "UI conventions section");
-  requireText("packages/web/DOCS.md", "Do not add frontend dependencies", "no frontend dependencies guidance");
+  requireText("packages/web/DOCS.md", "@sakun/system.css", "System.css guidance");
+  requireText("packages/web/DOCS.md", "Do not add React", "no frontend framework guidance");
   requireText("packages/web/DOCS.md", "Use shared helpers from `src/html.ts`", "helper usage guidance");
+  requireText("packages/web/public/icons/README.md", "UIM is the primary UI icon set", "local icon source guidance");
   requireText("packages/web/DOCS.md", "## UX acceptance checklist", "UX acceptance checklist");
 }
 

@@ -2,60 +2,90 @@
 
 ## Design System Name
 
-jumpyGoat quiet operator
+jumpyGoat classic operator
 
 ## Summary
 
-The web UI is a raw HTML product console for local agent operations. It uses a restrained dark theme, native-feeling controls, semantic server-rendered components, and dense but readable layouts. The design should feel closer to a local operations bench than a neon AI dashboard.
+The web UI is a raw HTML product console for local agent operations. It uses [`@sakun/system.css`](https://github.com/sakofchit/system.css) as the classic Mac/System 6 base, then layers a small server-rendered app design system on top: monochrome, high-contrast, roomy, icon-rich, and easy for a non-technical but AI-native operator to scan.
 
-## Color
+## Visual Language
 
-Use OKLCH tokens in `packages/web/public/styles.css`. The palette is restrained: tinted dark neutrals carry the surface, while a single cyan-green accent marks primary actions, active navigation, links, focus, and selected state. Success, warning, danger, and info colors are semantic only.
+Use System.css as the base style layer. `packages/web/public/styles.css` is only the app adapter: layout shell, responsive behavior, accessibility target sizes, spacing tokens, and route-specific glue.
 
-Primary tokens:
-
-- Background: `--bg`, `--bg-2`
-- Surfaces: `--surface`, `--surface-2`, `--surface-3`
-- Text: `--text`, `--text-strong`, `--muted`, `--muted-2`
-- Lines: `--line`, `--line-strong`
-- Accent: `--accent`
-- States: `--success`, `--warning`, `--danger`, `--info`
-
-Avoid decorative glows, glass panels, gradient text, and large saturated accents on inactive elements.
+Keep the tone monochrome and utilitarian. Use white, black, and a few grays (`--jg-muted`, `--jg-soft`) rather than saturated colors. Status must be communicated by labels, symbols, and text, not by color alone. Avoid decorative glows, glass panels, gradient text, shadows beyond classic hard-offset window/card shadows, and large saturated accents.
 
 ## Typography
 
-Use the existing system UI stack with Inter first when available:
+System.css supplies the classic Chicago/Monaco-style fonts. Use Chicago-style headings for page and panel labels, and Monaco or a monospace fallback for file ids, model selectors, paths, cron values, and trace metadata.
 
-`Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+Heading scale is restrained:
 
-Use `ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace` for file ids, model selectors, paths, cron values, and trace metadata. Product headings use fixed rem sizing, compact weight contrast, and moderate negative tracking only on page titles.
+- Page headline (`h2`): prominent but not billboard-sized (`clamp(1.8rem, 3.1vw, 3rem)`).
+- Section/panel headline (`h3`): strong window-label scale (`clamp(1.35rem, 1.9vw, 1.9rem)`).
+- Record/card headline (`h4`): compact title scale around `1.15rem`.
 
-## Layout
+## Layout and Spacing
 
-The app uses a persistent left sidebar on desktop and a compact top navigation stack on narrow screens. Content is server-rendered into `main` with shared sections, tables, forms, notices, and badges. Dense data may remain in tables on desktop; narrow screens should use responsive table cards or focused views.
+The app uses a persistent left Finder-like sidebar window on desktop and a compact stacked layout on narrow screens. Content is server-rendered into a primary System.css `.standard-dialog` with shared sections, panels, folder cards, tables, forms, notices, and badges.
 
-Spacing should be practical, not decorative. Avoid nested cards unless the inner element is an actual record in a list, such as a task card inside a kanban column.
+Spacing should feel calm, not decorative:
+
+- Page padding: `--jg-space-page-block` / `--jg-space-page-inline`.
+- Major sections: `--jg-section-gap`.
+- Cards/panels: `--jg-card-padding`.
+- Forms: `--jg-form-gap`.
+- Grids: `--jg-grid-gap`.
+- Tables: `--jg-table-cell-block` / `--jg-table-cell-inline`.
+
+Avoid nested cards unless the inner element is an actual record in a list, such as a task card inside a kanban column.
+
+## Icons
+
+UIM (`packages/web/public/icons/uim/*.svg`) is the primary UI icon set. It is used through `appIcon()` / `iconLabel()` in `packages/web/src/html.ts` so SVGs stay local and inline with `currentColor`.
+
+Semantic UI icon mapping:
+
+- Overview: `apps`
+- Tasks: `list-ul`
+- Boards: `layer-group`
+- Automations: `process`
+- Schedule: `calendar`
+- Agents: `shield-plus`
+- Runs/activity: `history`
+- Settings: `key-skeleton`
+- Create: `plus-square`
+- Edit/details: `document-layout-left`
+- Delete/failure: `times-circle`
+- Run/dispatch: `rocket`
+- Save/confirm: `check`
+- Usage/model: `analytics` / `graph-bar`
+
+Brand icons from `packages/web/public/icons/simple/*.svg` are allowed only when provider/technology recognition matters (for example OpenAI, Anthropic, GitHub, Slack, Resend, SQLite). Do not use brand icons as general UI decoration.
 
 ## Components
 
 Canonical helpers live in `packages/web/src/html.ts`:
 
+- `appIcon`, `iconLabel`
 - `pageHeader`
 - `section`
+- `pageGrid`
+- `panel`, `formPanel`
+- `card`, `folderCard`
 - `toolbar`
 - `inlineActions`
+- `actionLink`
 - `notice`
 - `badge`
 - `emptyState`
 - `table`
 - `metaTable`
 
-Controls must have visible focus, 44px target height where they behave as actions, and explicit labels for form inputs. Status should use text plus a visible marker through `.status-badge`, not color-only spans.
+Prefer these helpers over route-local markup for repeated page structures. Controls must have visible focus, 44px target height where they behave as actions, and explicit labels for form inputs. Status should use text plus a visible marker through `.status-badge`/`.badge`, not color-only spans.
 
 ## Motion
 
-Motion is minimal and state-driven. Use short 140ms transitions with an ease-out cubic curve for hover and active feedback only. Respect `prefers-reduced-motion` and avoid animation that delays task completion.
+Motion is minimal and state-driven. Respect `prefers-reduced-motion` and avoid animation that delays task completion.
 
 ## Responsive Behavior
 
@@ -63,4 +93,4 @@ At tablet widths, the sidebar becomes a compact top region. At phone widths, gri
 
 ## Accessibility
 
-Design to WCAG AA. Preserve semantic headings, landmarks, labeled forms, visible focus rings, sufficient contrast, non-color-only state indicators, and readable table alternatives on small screens.
+Design to WCAG AA. Preserve semantic headings, landmarks, labeled forms, visible focus rings, sufficient contrast, non-color-only state indicators, local SVGs with correct hidden/label behavior, and readable table alternatives on small screens.
