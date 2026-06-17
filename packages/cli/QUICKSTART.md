@@ -6,9 +6,11 @@ Install from the repo root:
 pnpm --filter @jumpygoat-hq/cli build
 pnpm --filter @jumpygoat-hq/cli link --global
 ```
-Local mode is default and uses local `JUMPYGOATHQ_HOME`:
+
+Start a local API server. The CLI defaults to `http://127.0.0.1:3000`:
 
 ```bash
+pnpm dev:web
 jumpygoathq agents list
 jumpygoathq automations list
 jumpygoathq runs list --limit 10

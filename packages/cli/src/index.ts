@@ -1,50 +1,9 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import {
-  CoreError,
-  createAgent,
-  createAutomation,
-  createBoard,
-  createTask,
-  deleteAgent,
-  deleteAutomation,
-  deleteBoard,
-  deleteTask,
-  getAgent,
-  getAutomation,
-  getBoard,
-  getCronStatus,
-  getRun,
-  getSettings,
-  getTask,
-  installAutomationCron,
-  installTaskHeartbeatCron,
-  listAgents,
-  listAutomations,
-  listBoards,
-  listRuns,
-  listTasks,
-  runAutomationNow,
-  uninstallAutomationCron,
-  uninstallTaskHeartbeatCron,
-  updateAgent,
-  updateAutomation,
-  updateBoard,
-  updateSettings,
-  updateTask,
-  updateTaskStatus,
-  type AgentCreateInput,
-  type AutomationCreateInput,
-  type BoardCreateInput,
-  type CronInstallInput,
-  type TaskCreateInput,
-  type TaskPriority,
-  type TaskStatus,
-} from "@jumpygoat-hq/core";
 
 type GlobalOptions = {
   apiUrl?: string;
@@ -65,9 +24,10 @@ type CliConfig = {
 };
 
 type Client = {
-  mode: "local" | "remote";
-  apiUrl?: string;
+  apiUrl: string;
   token?: string;
+  selectedInstance?: string;
+  usingDefaultLocalhost: boolean;
 };
 
 type Parsed = {
@@ -77,9 +37,52 @@ type Parsed = {
   positionals: string[];
 };
 
+type AutomationCreateInput = {
+  name: string;
+  agent?: string;
+  schedule?: string;
+  model?: string;
+  prompt?: string;
+  web?: unknown;
+  notify?: unknown;
+  mail?: unknown;
+  scripts?: unknown;
+  actors?: unknown;
+  frontmatter?: Record<string, unknown>;
+  rawMarkdown?: string;
+};
+
+type BoardCreateInput = {
+  id: string;
+  name: string;
+  description: string;
+  defaultAgent?: string;
+  body: string;
+};
+
+type TaskStatus = "not-yet" | "ready" | "working-on-it" | "done";
+
+type TaskPriority = "low" | "normal" | "high" | "urgent";
+
+type TaskCreateInput = {
+  id?: string;
+  board: string;
+  title: string;
+  status: TaskStatus;
+  assignee?: string;
+  priority: TaskPriority;
+  body: string;
+};
+
+type CronInstallInput = {
+  schedule?: string;
+  limit?: number;
+};
+
 const require = createRequire(import.meta.url);
 const yaml = require("js-yaml") as { load(text: string): unknown };
 const CONFIG_PATH = process.env.JUMPYGOATHQ_CLI_CONFIG || path.join(os.homedir(), ".config", "jumpygoathq", "config.json");
+const DEFAULT_API_URL = "http://127.0.0.1:3000";
 const VALUE_FLAGS = new Set([
   "agent",
   "api-url",
@@ -166,7 +169,7 @@ async function handleInstances(action: string, rest: string[], parsed: Parsed): 
     const config = readConfig();
     const rows = Object.entries(config.instances).map(([name, instance]) => ({ name, apiUrl: instance.apiUrl, default: config.defaultInstance === name }));
     output(rows, parsed.globals, (items: typeof rows) => {
-      if (!items.length) return "No instances configured.";
+      if (!items.length) return `No instances configured. Default API target is ${DEFAULT_API_URL}.`;
       return items.map((item) => `${item.default ? "*" : " "} ${item.name}\t${item.apiUrl}`).join("\n");
     });
     return;
@@ -182,7 +185,7 @@ async function handleInstances(action: string, rest: string[], parsed: Parsed): 
     config.instances[name] = { apiUrl, ...(token ? { token } : {}) };
     if (!config.defaultInstance) config.defaultInstance = name;
     await writeConfig(config);
-    print(`Added instance ${name}.`);
+    print(`Added API target ${name}.`);
     return;
   }
 
@@ -193,14 +196,14 @@ async function handleInstances(action: string, rest: string[], parsed: Parsed): 
     if (!config.instances[name]) throw new Error(`Unknown instance: ${name}`);
     config.defaultInstance = name;
     await writeConfig(config);
-    print(`Default instance set to ${name}.`);
+    print(`Default API target set to ${name}.`);
     return;
   }
 
   if (action === "show") {
     const config = readConfig();
     const name = rest[0] || parsed.globals.instance || config.defaultInstance;
-    if (!name) throw new Error("No instance selected.");
+    if (!name) return output({ apiUrl: DEFAULT_API_URL, defaultLocalhost: true }, parsed.globals);
     const instance = config.instances[name];
     if (!instance) throw new Error(`Unknown instance: ${name}`);
     output({ name, apiUrl: instance.apiUrl, hasToken: Boolean(instance.token), default: config.defaultInstance === name }, parsed.globals);
@@ -214,7 +217,7 @@ async function handleInstances(action: string, rest: string[], parsed: Parsed): 
     delete config.instances[name];
     if (config.defaultInstance === name) config.defaultInstance = Object.keys(config.instances)[0];
     await writeConfig(config);
-    print(`Removed instance ${name}.`);
+    print(`Removed API target ${name}.`);
     return;
   }
 
@@ -222,112 +225,108 @@ async function handleInstances(action: string, rest: string[], parsed: Parsed): 
 }
 
 async function handleAgents(client: Client, action: string, rest: string[], parsed: Parsed): Promise<void> {
-  if (isList(action)) return output(await call(client, () => listAgents({ includeRaw: boolFlag(parsed, "raw") }), "GET", "/api/agents" + rawQuery(parsed)), parsed.globals, listSummary("agents", "name", "description"));
+  if (isList(action)) return output(await call(client, "GET", "/api/agents" + rawQuery(parsed)), parsed.globals, listSummary("agents", "name", "description"));
   const name = rest[0] || stringFlag(parsed, "name");
-  if (action === "view" || action === "get" || action === "show") return output(await call(client, () => getAgent(required(name, "agent name"), { includeRaw: boolFlag(parsed, "raw") }), "GET", `/api/agents/${required(name, "agent name")}${rawQuery(parsed)}`), parsed.globals);
+  if (action === "view" || action === "get" || action === "show") return output(await call(client, "GET", `/api/agents/${encodeURIComponent(required(name, "agent name"))}${rawQuery(parsed)}`), parsed.globals);
   if (action === "create") {
     const input = { name: required(name, "agent name"), content: await contentFromFlags(parsed, "content", "file") };
-    return output(await call(client, () => createAgent(input), "POST", "/api/agents", input), parsed.globals);
+    return output(await call(client, "POST", "/api/agents", input), parsed.globals);
   }
-  if (action === "update" || action === "edit") {
+  if (action === "update" || action === "edit" || action === "apply" || action === "upsert") {
     const input = { name: required(name, "agent name"), content: await contentFromFlags(parsed, "content", "file") };
-    return output(await call(client, () => updateAgent(input.name, input), "PUT", `/api/agents/${input.name}`, input), parsed.globals);
+    return output(await call(client, "PUT", `/api/agents/${encodeURIComponent(input.name)}`, input), parsed.globals);
   }
-  if (action === "apply" || action === "upsert") {
-    const input = { name: required(name, "agent name"), content: await contentFromFlags(parsed, "content", "file") };
-    return output(await call(client, () => upsertAgentLocal(input), "PUT", `/api/agents/${input.name}`, input), parsed.globals);
-  }
-  if (isDelete(action)) return output(await call(client, () => deleteAgent(required(name, "agent name")).then(ok), "DELETE", `/api/agents/${required(name, "agent name")}`), parsed.globals);
+  if (isDelete(action)) return output(await call(client, "DELETE", `/api/agents/${encodeURIComponent(required(name, "agent name"))}`), parsed.globals);
   throw new Error(`Unknown agents action: ${action}`);
 }
 
 async function handleAutomations(client: Client, action: string, rest: string[], parsed: Parsed): Promise<void> {
-  if (isList(action)) return output(await call(client, () => listAutomations({ includeRaw: boolFlag(parsed, "raw") }), "GET", "/api/automations" + rawQuery(parsed)), parsed.globals, listSummary("automations", "name", "agent", "schedule"));
+  if (isList(action)) return output(await call(client, "GET", "/api/automations" + rawQuery(parsed)), parsed.globals, listSummary("automations", "name", "agent", "schedule"));
   const name = rest[0] || stringFlag(parsed, "name");
-  if (action === "view" || action === "get" || action === "show") return output(await call(client, () => getAutomation(required(name, "automation name"), { includeRaw: boolFlag(parsed, "raw") }), "GET", `/api/automations/${required(name, "automation name")}${rawQuery(parsed)}`), parsed.globals);
+  if (action === "view" || action === "get" || action === "show") return output(await call(client, "GET", `/api/automations/${encodeURIComponent(required(name, "automation name"))}${rawQuery(parsed)}`), parsed.globals);
   if (action === "create") {
     const input = automationInput(parsed, required(name, "automation name"));
-    return output(await call(client, () => createAutomation(input), "POST", "/api/automations", input), parsed.globals);
+    return output(await call(client, "POST", "/api/automations", input), parsed.globals);
   }
   if (action === "update" || action === "edit") {
     const input = automationInput(parsed, required(name, "automation name"));
-    return output(await call(client, () => updateAutomation(input.name, input), "PUT", `/api/automations/${input.name}`, input), parsed.globals);
+    return output(await call(client, "PUT", `/api/automations/${encodeURIComponent(input.name)}`, input), parsed.globals);
   }
   if (action === "apply" || action === "upsert") {
     const input = automationInput(parsed, required(name, "automation name"), { allowFile: true });
-    const result = await call(client, () => upsertAutomationLocal(input), "PUT", `/api/automations/${input.name}`, input);
+    const result = await call(client, "PUT", `/api/automations/${encodeURIComponent(input.name)}`, input);
     const warnings: string[] = [];
     let cron: unknown;
     let run: unknown;
-    if (boolFlag(parsed, "install-cron")) cron = await safeCall(warnings, "Cron install", () => call(client, () => installAutomationCron(input.name), "PUT", `/api/cron/automations/${input.name}`, {}));
-    if (boolFlag(parsed, "run-now")) run = await safeCall(warnings, "Run now", () => call(client, () => runAutomationNow(input.name), "POST", `/api/automations/${input.name}/runs`, {}));
+    if (boolFlag(parsed, "install-cron")) cron = await safeCall(warnings, "Cron install", () => call(client, "PUT", `/api/cron/automations/${encodeURIComponent(input.name)}`, {}));
+    if (boolFlag(parsed, "run-now")) run = await safeCall(warnings, "Run now", () => call(client, "POST", `/api/automations/${encodeURIComponent(input.name)}/runs`, {}));
     return output({ automation: result, cron, run, warnings }, parsed.globals);
   }
   if (action === "status") {
     const limit = optionalNumberFlag(parsed, "limit");
-    return output(await call(client, () => automationStatusLocal(required(name, "automation name"), limit), "GET", `/api/automations/${required(name, "automation name")}/status${queryString({ limit })}`), parsed.globals);
+    return output(await call(client, "GET", `/api/automations/${encodeURIComponent(required(name, "automation name"))}/status${queryString({ limit })}`), parsed.globals);
   }
-  if (action === "run") return output(await call(client, () => runAutomationNow(required(name, "automation name")), "POST", `/api/automations/${required(name, "automation name")}/runs`, {}), parsed.globals);
-  if (isDelete(action)) return output(await call(client, () => deleteAutomation(required(name, "automation name")).then(ok), "DELETE", `/api/automations/${required(name, "automation name")}`), parsed.globals);
+  if (action === "run") return output(await call(client, "POST", `/api/automations/${encodeURIComponent(required(name, "automation name"))}/runs`, {}), parsed.globals);
+  if (isDelete(action)) return output(await call(client, "DELETE", `/api/automations/${encodeURIComponent(required(name, "automation name"))}`), parsed.globals);
   throw new Error(`Unknown automations action: ${action}`);
 }
 
 async function handleBoards(client: Client, action: string, rest: string[], parsed: Parsed): Promise<void> {
-  if (isList(action)) return output(await call(client, () => listBoards({ includeRaw: boolFlag(parsed, "raw") }), "GET", "/api/boards" + rawQuery(parsed)), parsed.globals, listSummary("boards", "id", "name", "description"));
+  if (isList(action)) return output(await call(client, "GET", "/api/boards" + rawQuery(parsed)), parsed.globals, listSummary("boards", "id", "name", "description"));
   const id = rest[0] || stringFlag(parsed, "id") || stringFlag(parsed, "board");
-  if (action === "view" || action === "get" || action === "show") return output(await call(client, () => getBoard(required(id, "board id"), { includeRaw: boolFlag(parsed, "raw") }), "GET", `/api/boards/${required(id, "board id")}${rawQuery(parsed)}`), parsed.globals);
+  if (action === "view" || action === "get" || action === "show") return output(await call(client, "GET", `/api/boards/${encodeURIComponent(required(id, "board id"))}${rawQuery(parsed)}`), parsed.globals);
   if (action === "create") {
     const input = boardInput(parsed, required(id, "board id"));
-    return output(await call(client, () => createBoard(input), "POST", "/api/boards", input), parsed.globals);
+    return output(await call(client, "POST", "/api/boards", input), parsed.globals);
   }
   if (action === "update" || action === "edit") {
     const input = boardInput(parsed, required(id, "board id"));
-    return output(await call(client, () => updateBoard(input.id, input), "PUT", `/api/boards/${input.id}`, input), parsed.globals);
+    return output(await call(client, "PUT", `/api/boards/${encodeURIComponent(input.id)}`, input), parsed.globals);
   }
-  if (isDelete(action)) return output(await call(client, () => deleteBoard(required(id, "board id")).then(ok), "DELETE", `/api/boards/${required(id, "board id")}`), parsed.globals);
+  if (isDelete(action)) return output(await call(client, "DELETE", `/api/boards/${encodeURIComponent(required(id, "board id"))}`), parsed.globals);
   throw new Error(`Unknown boards action: ${action}`);
 }
 
 async function handleTasks(client: Client, action: string, rest: string[], parsed: Parsed): Promise<void> {
   if (isList(action)) {
     const query = queryString({ board: optionalStringFlag(parsed, "board"), status: optionalStringFlag(parsed, "status") });
-    return output(await call(client, () => listTasks({ board: optionalStringFlag(parsed, "board"), status: optionalStringFlag(parsed, "status") as TaskStatus | undefined }), "GET", `/api/tasks${query}`), parsed.globals, listSummary("tasks", "board", "id", "status", "title"));
+    return output(await call(client, "GET", `/api/tasks${query}`), parsed.globals, listSummary("tasks", "board", "id", "status", "title"));
   }
   const board = stringFlag(parsed, "board") || rest[0];
   const id = stringFlag(parsed, "id") || rest[1];
-  if (action === "view" || action === "get" || action === "show") return output(await call(client, () => getTask(required(board, "board"), required(id, "task id"), { includeRaw: boolFlag(parsed, "raw") }), "GET", `/api/boards/${required(board, "board")}/tasks/${required(id, "task id")}${rawQuery(parsed)}`), parsed.globals);
+  if (action === "view" || action === "get" || action === "show") return output(await call(client, "GET", `/api/boards/${encodeURIComponent(required(board, "board"))}/tasks/${encodeURIComponent(required(id, "task id"))}${rawQuery(parsed)}`), parsed.globals);
   if (action === "create") {
     const input = taskInput(parsed, id);
-    return output(await call(client, () => createTask(input), "POST", "/api/tasks", input), parsed.globals);
+    return output(await call(client, "POST", "/api/tasks", input), parsed.globals);
   }
   if (action === "update" || action === "edit") {
     const input = taskInput(parsed, id) as TaskCreateInput & { id: string };
     input.id = required(input.id, "task id");
-    return output(await call(client, () => updateTask(required(input.board, "board"), input.id, input), "PUT", `/api/boards/${input.board}/tasks/${input.id}`, input), parsed.globals);
+    return output(await call(client, "PUT", `/api/boards/${encodeURIComponent(required(input.board, "board"))}/tasks/${encodeURIComponent(input.id)}`, input), parsed.globals);
   }
   if (action === "status") {
     const status = stringFlag(parsed, "status") || rest[2];
-    return output(await call(client, () => updateTaskStatus(required(board, "board"), required(id, "task id"), { status: required(status, "status") as TaskStatus }), "PATCH", `/api/boards/${required(board, "board")}/tasks/${required(id, "task id")}/status`, { status }), parsed.globals);
+    return output(await call(client, "PATCH", `/api/boards/${encodeURIComponent(required(board, "board"))}/tasks/${encodeURIComponent(required(id, "task id"))}/status`, { status: required(status, "status") }), parsed.globals);
   }
-  if (isDelete(action)) return output(await call(client, () => deleteTask(required(board, "board"), required(id, "task id")).then(ok), "DELETE", `/api/boards/${required(board, "board")}/tasks/${required(id, "task id")}`), parsed.globals);
+  if (isDelete(action)) return output(await call(client, "DELETE", `/api/boards/${encodeURIComponent(required(board, "board"))}/tasks/${encodeURIComponent(required(id, "task id"))}`), parsed.globals);
   throw new Error(`Unknown tasks action: ${action}`);
 }
 
 async function handleRuns(client: Client, action: string, rest: string[], parsed: Parsed): Promise<void> {
   if (isList(action)) {
     const limit = optionalNumberFlag(parsed, "limit");
-    return output(await call(client, () => listRuns({ limit }), "GET", `/api/runs${queryString({ limit })}`), parsed.globals, listSummary("runs", "id", "status", "automation", "agent"));
+    return output(await call(client, "GET", `/api/runs${queryString({ limit })}`), parsed.globals, listSummary("runs", "id", "status", "automation", "agent"));
   }
   const id = rest[0] || stringFlag(parsed, "id");
-  if (action === "view" || action === "get" || action === "show") return output(await call(client, () => getRun(required(id, "run id")), "GET", `/api/runs/${required(id, "run id")}`), parsed.globals);
+  if (action === "view" || action === "get" || action === "show") return output(await call(client, "GET", `/api/runs/${encodeURIComponent(required(id, "run id"))}`), parsed.globals);
   throw new Error(`Unknown runs action: ${action}`);
 }
 
 async function handleSettings(client: Client, action: string, _rest: string[], parsed: Parsed): Promise<void> {
-  if (action === "view" || action === "get" || action === "show") return output(await call(client, () => getSettings(), "GET", "/api/settings"), parsed.globals);
+  if (action === "view" || action === "get" || action === "show") return output(await call(client, "GET", "/api/settings"), parsed.globals);
   if (action === "update" || action === "set") {
     const content = await contentFromFlags(parsed, "content", "file");
-    return output(await call(client, () => updateSettings({ content }), "PUT", "/api/settings", { content }), parsed.globals);
+    return output(await call(client, "PUT", "/api/settings", { content }), parsed.globals);
   }
   throw new Error(`Unknown settings action: ${action}`);
 }
@@ -337,90 +336,25 @@ async function handleSetup(client: Client, action: string, _rest: string[], pars
   const input = await setupAutomationInput(parsed);
   if (boolFlag(parsed, "install-cron")) input.installCron = true;
   if (boolFlag(parsed, "run-now")) input.runNow = true;
-  return output(await call(client, () => setupAutomationLocal(input), "POST", "/api/setup/automation", input), parsed.globals);
+  return output(await call(client, "POST", "/api/setup/automation", input), parsed.globals);
 }
 
 async function handleCron(client: Client, action: string, rest: string[], parsed: Parsed): Promise<void> {
-  if (action === "status" || action === "view" || action === "get") return output(await call(client, () => getCronStatus(), "GET", "/api/cron"), parsed.globals);
+  if (action === "status" || action === "view" || action === "get") return output(await call(client, "GET", "/api/cron"), parsed.globals);
   if (action === "install-automation") {
     const name = rest[0] || stringFlag(parsed, "name");
-    return output(await call(client, () => installAutomationCron(required(name, "automation name")), "PUT", `/api/cron/automations/${required(name, "automation name")}`, {}), parsed.globals);
+    return output(await call(client, "PUT", `/api/cron/automations/${encodeURIComponent(required(name, "automation name"))}`, {}), parsed.globals);
   }
   if (action === "uninstall-automation") {
     const name = rest[0] || stringFlag(parsed, "name");
-    return output(await call(client, () => uninstallAutomationCron(required(name, "automation name")), "DELETE", `/api/cron/automations/${required(name, "automation name")}`), parsed.globals);
+    return output(await call(client, "DELETE", `/api/cron/automations/${encodeURIComponent(required(name, "automation name"))}`), parsed.globals);
   }
   if (action === "install-task-heartbeat") {
     const input: CronInstallInput = { schedule: optionalStringFlag(parsed, "schedule"), limit: optionalNumberFlag(parsed, "limit") };
-    return output(await call(client, () => installTaskHeartbeatCron(input), "PUT", "/api/cron/task-heartbeat", input), parsed.globals);
+    return output(await call(client, "PUT", "/api/cron/task-heartbeat", input), parsed.globals);
   }
-  if (action === "uninstall-task-heartbeat") return output(await call(client, () => uninstallTaskHeartbeatCron(), "DELETE", "/api/cron/task-heartbeat"), parsed.globals);
+  if (action === "uninstall-task-heartbeat") return output(await call(client, "DELETE", "/api/cron/task-heartbeat"), parsed.globals);
   throw new Error(`Unknown cron action: ${action}`);
-}
-
-async function upsertAgentLocal(input: AgentCreateInput): Promise<Record<string, unknown>> {
-  const exists = await agentExistsLocal(input.name);
-  const agent = exists ? await updateAgent(input.name, input) : await createAgent(input);
-  return { agent, created: !exists, updated: exists, path: agent.path, etag: agent.etag };
-}
-
-async function upsertAutomationLocal(input: AutomationCreateInput): Promise<Record<string, unknown>> {
-  const exists = await automationExistsLocal(input.name);
-  const automation = exists ? await updateAutomation(input.name, input) : await createAutomation(input);
-  return { automation, created: !exists, updated: exists, path: automation.path, etag: automation.etag };
-}
-
-async function setupAutomationLocal(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const agentObject = requiredRecord(input.agent, "agent");
-  const automationObject = requiredRecord(input.automation, "automation");
-  const agent = { name: stringValue(agentObject.name, "agent.name"), content: stringValue(agentObject.content ?? agentObject.rawMarkdown, "agent.content") };
-  const automationName = stringValue(automationObject.name, "automation.name");
-  const automation = { ...automationObject, name: automationName, agent: typeof automationObject.agent === "string" ? automationObject.agent : agent.name } as AutomationCreateInput;
-  const warnings: string[] = [];
-  const agentResult = await upsertAgentLocal(agent);
-  const automationResult = await upsertAutomationLocal(automation);
-  const cron = input.installCron === true ? await safeCall(warnings, "Cron install", () => installAutomationCron(automationName)) : undefined;
-  const run = input.runNow === true ? await safeCall(warnings, "Run now", () => runAutomationNow(automationName)) : undefined;
-  return { agent: agentResult, automation: automationResult, cron, run, warnings };
-}
-
-async function automationStatusLocal(name: string, limit = 10): Promise<Record<string, unknown>> {
-  const automation = await getAutomation(name);
-  const cronStatus = await getCronStatus();
-  const cron = cronStatus.automations.find((block) => block.name === name) || null;
-  const runs = await listRuns({ automation: name, limit });
-  const warnings: string[] = [];
-  if (automation.schedule === "manual" && cron) warnings.push("Manual automation has an installed cron block.");
-  if (automation.schedule !== "manual" && !cron) warnings.push("Cron schedule is not installed in the user crontab.");
-  if (cron?.warning) warnings.push(`Cron block warning: ${cron.warning}`);
-  if (runs.some((run) => run.status !== "ok" && run.status !== "running")) warnings.push("Recent runs include failures.");
-  return {
-    automation: { name: automation.name, agent: automation.agent, schedule: automation.schedule, model: automation.model, path: automation.path, etag: automation.etag },
-    cron: cron ? { installed: true, block: cron.block, line: cron.line, warning: cron.warning } : { installed: false },
-    connectors: connectorSummary(automation.web, automation.notify),
-    recentRuns: runs.map((run) => ({ id: run.id, status: run.status, startedAt: run.startedAt, finishedAt: run.finishedAt, durationMs: run.durationMs, exitCode: run.exitCode, signal: run.signal, outputPreview: preview(run.outputText), errorPreview: preview(run.errorText), connectorActions: summarizeConnectorActions(run.connectorActionsJson) })),
-    warnings,
-  };
-}
-
-async function agentExistsLocal(name: string): Promise<boolean> {
-  try {
-    await getAgent(name);
-    return true;
-  } catch (error) {
-    if (error instanceof CoreError && error.code === "NOT_FOUND") return false;
-    throw error;
-  }
-}
-
-async function automationExistsLocal(name: string): Promise<boolean> {
-  try {
-    await getAutomation(name);
-    return true;
-  } catch (error) {
-    if (error instanceof CoreError && error.code === "NOT_FOUND") return false;
-    throw error;
-  }
 }
 
 async function safeCall<T>(warnings: string[], label: string, fn: () => Promise<T>): Promise<T | { ok: false; error: string }> {
@@ -433,13 +367,12 @@ async function safeCall<T>(warnings: string[], label: string, fn: () => Promise<
   }
 }
 
-async function call<T>(client: Client, local: () => Promise<T>, method: string, apiPath: string, body?: unknown): Promise<unknown> {
-  if (client.mode === "local") return await local();
+async function call(client: Client, method: string, apiPath: string, body?: unknown): Promise<unknown> {
   return await remoteRequest(client, method, apiPath, body);
 }
 
 async function remoteRequest(client: Client, method: string, apiPath: string, body?: unknown): Promise<unknown> {
-  const base = required(client.apiUrl, "api url").replace(/\/+$/, "");
+  const base = client.apiUrl.replace(/\/+$/, "");
   let response: Response;
   try {
     response = await fetch(`${base}${apiPath}`, {
@@ -453,13 +386,16 @@ async function remoteRequest(client: Client, method: string, apiPath: string, bo
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Could not reach jumpyGoatHq instance at ${base}: ${message}. Run \`jumpygoathq instances list\` and \`jumpygoathq instances use <name>\`, or pass --api-url.`);
+    const target = client.selectedInstance ? `instance '${client.selectedInstance}' at ${base}` : base;
+    const localHint = client.usingDefaultLocalhost ? "Start the local API server with `pnpm dev:web` or `pnpm web`, or pass `--api-url`/`--instance` for another box." : "Verify the API server is running and reachable, or switch with `jumpygoathq instances use <name>` / pass `--api-url`.";
+    throw new Error(`Could not reach jumpyGoatHq API ${target}: ${message}. ${localHint}`);
   }
   const text = await response.text();
   const parsed = text ? parseJson(text) : null;
   if (!response.ok) {
-    const message = isRecord(parsed) && typeof parsed.message === "string" ? parsed.message : `HTTP ${response.status}`;
-    throw new Error(message);
+    const apiMessage = isRecord(parsed) && typeof parsed.message === "string" ? parsed.message : `HTTP ${response.status}`;
+    const fieldDetails = isRecord(parsed) && Array.isArray(parsed.fields) ? parsed.fields.map(formatFieldError).filter(Boolean).join("\n") : "";
+    throw new Error(fieldDetails ? `${apiMessage}\n${fieldDetails}` : apiMessage);
   }
   if (isRecord(parsed)) {
     const keys = Object.keys(parsed);
@@ -472,10 +408,10 @@ async function resolveClient(globals: GlobalOptions): Promise<Client> {
   const config = readConfig();
   const instanceName = globals.instance || process.env.JUMPYGOATHQ_INSTANCE || config.defaultInstance;
   const instance = instanceName ? config.instances[instanceName] : undefined;
-  const apiUrl = globals.apiUrl || process.env.JUMPYGOATHQ_API_URL || instance?.apiUrl;
+  if (instanceName && !instance) throw new Error(`Unknown instance: ${instanceName}`);
+  const apiUrl = globals.apiUrl || process.env.JUMPYGOATHQ_API_URL || instance?.apiUrl || DEFAULT_API_URL;
   const token = globals.token || process.env.JUMPYGOATHQ_TOKEN || instance?.token;
-  if (apiUrl) return { mode: "remote", apiUrl, token };
-  return { mode: "local" };
+  return { apiUrl, token, selectedInstance: instanceName, usingDefaultLocalhost: !globals.apiUrl && !process.env.JUMPYGOATHQ_API_URL && !instance?.apiUrl };
 }
 
 function parseArgs(argv: string[]): Parsed {
@@ -493,7 +429,7 @@ function parseArgs(argv: string[]): Parsed {
     if (!positionalMode && arg.startsWith("--")) {
       const [rawKey, inlineValue] = arg.slice(2).split("=", 2);
       const key = rawKey!;
-      const value = inlineValue ?? (VALUE_FLAGS.has(key) && argv[index + 1] !== undefined ? argv[++index] : argv[index + 1] && !argv[index + 1]!.startsWith("-") ? argv[++index] : true);
+      const value = inlineValue ?? (VALUE_FLAGS.has(key) && argv[index + 1] !== undefined ? argv[++index] : true);
       if (key === "api-url") globals.apiUrl = String(value);
       else if (key === "token") globals.token = String(value);
       else if (key === "instance") globals.instance = String(value);
@@ -683,10 +619,6 @@ function queryString(values: Record<string, string | number | undefined>): strin
   return text ? `?${text}` : "";
 }
 
-function ok(): { ok: true } {
-  return { ok: true };
-}
-
 function parseJson(text: string): unknown {
   return JSON.parse(text) as unknown;
 }
@@ -705,34 +637,11 @@ function stringValue(value: unknown, field: string): string {
   return value;
 }
 
-function connectorSummary(web: unknown, notify: unknown): Record<string, unknown> {
-  const summary: Record<string, unknown> = {};
-  if (isRecord(web)) summary.web = Object.fromEntries(Object.entries(web).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
-  if (isRecord(notify)) summary.notify = Object.fromEntries(Object.entries(notify).map(([name, config]) => [name, summarizeConnectorConfig(config)]));
-  return summary;
-}
-
-function summarizeConnectorConfig(config: unknown): Record<string, unknown> {
-  if (!isRecord(config)) return { configured: true };
-  return { configured: true, enabled: config.enabled, connector: config.connector };
-}
-
-function summarizeConnectorActions(value: string | null | undefined): Record<string, unknown> {
-  if (!value) return { count: 0 };
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) return { count: 0 };
-    return {
-      count: parsed.length,
-      actions: parsed.map((action) => isRecord(action) ? { intent: action.intent, connector: action.connector, status: action.status } : { status: "unknown" }),
-    };
-  } catch {
-    return { count: 0, warning: "Could not parse connector actions." };
-  }
-}
-
-function preview(value: string | null | undefined, max = 240): string {
-  return (value || "").replace(/\s+/g, " ").trim().slice(0, max);
+function formatFieldError(value: unknown): string {
+  if (!isRecord(value)) return "";
+  const field = typeof value.field === "string" ? value.field : "field";
+  const message = typeof value.message === "string" ? value.message : "is invalid";
+  return `- ${field}: ${message}`;
 }
 
 function print(value: string): void {
@@ -740,11 +649,6 @@ function print(value: string): void {
 }
 
 function printError(error: unknown): void {
-  if (error instanceof CoreError) {
-    process.stderr.write(`${error.code}: ${error.message}\n`);
-    for (const field of error.fields) process.stderr.write(`- ${field.field}: ${field.message}\n`);
-    return;
-  }
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
 }
 
@@ -754,8 +658,11 @@ function printHelp(): void {
 Usage:
   jumpygoathq [--json] [--api-url URL | --instance NAME] <resource> <action> [args] [flags]
 
+The CLI is an HTTP client for the jumpyGoatHq JSON API. By default it targets ${DEFAULT_API_URL}.
+Start a local API server with \`pnpm dev:web\` or \`pnpm web\`, or select a named remote instance.
+
 Resources:
-  instances     add/list/use/show/remove named remote instances
+  instances     add/list/use/show/remove saved API targets
   agents        list/view/create/update/apply/delete
   automations   list/view/create/update/apply/status/delete/run
   boards        list/view/create/update/delete

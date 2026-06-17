@@ -219,14 +219,14 @@ The `runs` table stores legacy-compatible `automation`, explicit `source_type`/`
 
 ## Unified domain API and clients
 
-To let the raw HTML web UI and `jumpygoathq` CLI perform the same CRUD operations, jumpyGoatHq uses one local domain API/service boundary instead of treating web route handlers as the mutation layer.
+The HTTP JSON API is the operator contract. The raw HTML web UI and `jumpygoathq` CLI are clients/adapters over that API/domain boundary rather than separate mutation paths.
 
 Implemented package split:
 
-- `packages/core` — source-of-truth readers/writers and validators for agents, automations, boards, tasks, settings, runs, and cron status/setup. This package owns safe names, canonical markdown/YAML serialization, atomic file writes, delete guards, run-now dispatch, and crontab block parsing/install/uninstall wrappers.
+- `packages/core` — server-side domain internals for agents, automations, boards, tasks, settings, runs, and cron status/setup. This package owns safe names, canonical markdown/YAML serialization, atomic file writes, delete guards, run-now dispatch, and crontab block parsing/install/uninstall wrappers. It is not a public CLI integration surface.
 - `packages/web/src/api.ts` — HTTP JSON adapter over `packages/core`. It exposes stable DTOs and structured errors, but must not contain product rules that are not also enforced by `packages/core`. Split to a standalone `packages/api` only if deployment needs it later.
-- `packages/web` — HTML adapter. Route handlers parse form input, call `packages/core`, then render/redirect. HTML routes stay POST + redirect-after-post.
-- `packages/cli` — command adapter with a `jumpygoathq` bin. Default local mode calls `packages/core` in-process for speed and offline use; `--api-url`, `JUMPYGOATHQ_API_URL`, or named instance profiles call the same JSON API for remote/self-hosted deployments.
+- `packages/web` — HTML adapter. Route handlers parse form input, call domain operations, then render/redirect. HTML routes stay POST + redirect-after-post.
+- `packages/cli` — thin `jumpygoathq` HTTP client. It defaults to `http://127.0.0.1:3000`; `--api-url`, `JUMPYGOATHQ_API_URL`, or named instances select another saved API target/token. It must not import `packages/core` or write workspace files directly.
 - `packages/shared` — pure DTO/schema/path helpers used by core/web/runner. Avoid adding new filesystem side effects here unless intentionally reorganized.
 
 The API shape should stay resource-oriented and mirror the product primitives, not the current HTML route names:
@@ -274,7 +274,7 @@ Cron remains an installation/deployment concern, not a separate authoring source
 
 DTOs should include enough metadata for safe clients: `name`/`id`, parsed fields, raw markdown where raw editing is intentionally supported, warnings, `updatedAt`/mtime, and an `etag` or revision token. Mutations should support optimistic concurrency (`If-Match` or explicit revision) before overwriting files. Errors should be deterministic JSON (`code`, `message`, `fields`) so the CLI can print useful failures and the web UI can map the same failures back into forms.
 
-The JSON API binds with the same web server default of `127.0.0.1`. Set `JUMPYGOATHQ_API_TOKEN` before remote use; `/api/...` then requires `Authorization: Bearer <token>` or `x-api-token: <token>`. Keep the server behind HTTPS/proxy, Tailscale, or an SSH tunnel before binding broadly. Secrets/provider env vars are not returned by API DTOs. Side-effecting endpoints such as run-now and cron install/uninstall emit `[api:audit]` lines to server stdout.
+The JSON API binds with the same web server default of `127.0.0.1`. Local CLI use expects that server to be running (`pnpm dev:web` or `pnpm web`). Set `JUMPYGOATHQ_API_TOKEN` before remote use; `/api/...` then requires `Authorization: Bearer <token>` or `x-api-token: <token>`. Keep the server behind HTTPS/proxy, Tailscale, or an SSH tunnel before binding broadly. Secrets/provider env vars are not returned by API DTOs. Side-effecting endpoints such as run-now and cron install/uninstall emit `[api:audit]` lines to server stdout.
 
 ## Runtime flow
 
@@ -336,10 +336,11 @@ pnpm --filter @jumpygoat-hq/cli build
 pnpm --filter @jumpygoat-hq/cli link --global
 ```
 
-CLI local mode uses local core/files. Remote mode uses the JSON API:
+The CLI is an API client. Start a local server or select a named remote API target:
 
 ```bash
-jumpygoathq agents list
+pnpm dev:web
+jumpygoathq agents list # defaults to http://127.0.0.1:3000
 jumpygoathq instances add home --api-url https://hq.example.com --token "$JUMPYGOATHQ_API_TOKEN"
 jumpygoathq --instance home runs list --limit 10
 ```

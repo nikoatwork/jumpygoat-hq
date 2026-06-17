@@ -1,6 +1,6 @@
 # packages/cli
 
-`jumpygoathq` is the command-line adapter for jumpyGoatHQ CRUD operations.
+`jumpygoathq` is the command-line client for the jumpyGoatHq JSON API. The CLI does not read or write workspace files directly; all commands call `/api/...` on a local or remote web/API server.
 
 ## Local development install
 
@@ -13,24 +13,21 @@ pnpm --filter @jumpygoat-hq/cli link --global
 
 This links the local checkout as a global `jumpygoathq` binary. No npm package publish is required.
 
-## Modes
+## API target selection
 
-Local mode is the default when no API URL or instance profile is selected. It calls `@jumpygoat-hq/core` directly and operates on the local `JUMPYGOATHQ_HOME`.
+Start the local API server, then use the CLI. When no API target is configured, the CLI defaults to `http://127.0.0.1:3000`:
 
 ```bash
+pnpm dev:web
 jumpygoathq agents list
 jumpygoathq automations run daily
 ```
 
-Remote mode uses the hosted JSON API. When the server has `JUMPYGOATHQ_API_TOKEN` set, pass the matching token with `--token`, `JUMPYGOATHQ_TOKEN`, or a named instance profile:
+For remote/VPS use, pass an API URL/token directly or save a named instance. Named instances are saved API targets in `~/.config/jumpygoathq/config.json`:
 
 ```bash
 jumpygoathq --api-url https://hq.example.com --token "$JUMPYGOATHQ_API_TOKEN" agents list
-```
 
-Named per-instance profiles live in `~/.config/jumpygoathq/config.json` by default:
-
-```bash
 jumpygoathq instances add home --api-url https://hq.example.com --token TOKEN
 jumpygoathq instances use home
 jumpygoathq agents list
@@ -72,7 +69,7 @@ Use `--json` for machine-readable output.
 
 ## Setup/status workflow
 
-Idempotent apply commands are thin wrappers over the same local core services or remote JSON API:
+Idempotent apply commands are thin wrappers over API endpoints:
 
 ```bash
 jumpygoathq agents apply news-reporter --file ./AGENT.md
@@ -136,9 +133,9 @@ The backing API primitives are:
 - `POST /api/setup/automation` — one-shot agent + automation setup with optional cron install and run-now.
 - `GET /api/automations/:name/status?limit=5` — automation metadata, cron evidence, connector summaries, and recent runs.
 
-Remote troubleshooting:
+Troubleshooting:
 
-- If the default instance is unreachable, run `jumpygoathq instances list` and `jumpygoathq instances show`; switch with `jumpygoathq instances use <name>` or override with `--api-url`.
+- If the default local target is unreachable, start `pnpm dev:web`/`pnpm web`, select an instance with `jumpygoathq instances use <name>`, or pass `--api-url`.
 - For Tailscale/SSH tunnel setups, verify `curl <api-url>/api` from the same shell before debugging CLI behavior.
 - Cron install captures the server-side environment, not the client shell. Ensure `pnpm` is on the server PATH used by the web/API process, then inspect `jumpyGoatHqHome()/data/cron-<automation>.log` if scheduled runs do not fire.
 - Resend email notifications need `notify.email.from` in automation frontmatter or `JUMPYGOATHQ_NOTIFY_EMAIL_FROM` on the server, and the sender must be authorized in Resend.

@@ -5,6 +5,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 ## 2026-06-17
 
 - feat: completed the classic Mac/System.css web redesign with documented spacing/icon primitives, local UIM SVG helpers, Finder-like shell/sidebar, page-family IA updates, design guardrails, screenshot review, and passing web validation — completed in `tasks/done/2026-06-17_tasks-classic-web-redesign.md`.
+- refactor: made the CLI an API-only client with localhost default, retained named API targets, removed direct core/local-mode dependency, added CLI-over-localhost smoke coverage for CRUD/settings/runs/cron/setup, and updated architecture/CLI/API docs — completed in `tasks/done/2026-06-17_tasks-cli-api-only.md`.
 - feat: added gated synchronous child-agent invocation (`agent.invoke` / `agent_invoke`) with run lineage, bounded child results, docs/tests, and a validated repo-strategy orchestration smoke — completed in `tasks/done/2026-06-17_tasks-agent-invoke.md`.
 
 ## 2026-06-14

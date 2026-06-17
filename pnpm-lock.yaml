@@ -17,9 +17,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@jumpygoat-hq/core':
-        specifier: workspace:*
-        version: link:../core
       js-yaml:
         specifier: ^4.1.1
         version: 4.1.1

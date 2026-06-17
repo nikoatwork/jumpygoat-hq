@@ -27,7 +27,8 @@
     "smoke:firecrawl": "pnpm --filter @jumpygoat-hq/runner smoke:firecrawl",
     "smoke:apify": "pnpm --filter @jumpygoat-hq/runner smoke:apify",
     "smoke:resend": "pnpm --filter @jumpygoat-hq/runner smoke:resend",
-    "smoke:script-run": "pnpm --filter @jumpygoat-hq/runner smoke:script-run"
+    "smoke:script-run": "pnpm --filter @jumpygoat-hq/runner smoke:script-run",
+    "smoke:cli-api": "pnpm --filter @jumpygoat-hq/core build && pnpm --filter @jumpygoat-hq/web build && pnpm --filter @jumpygoat-hq/cli build && pnpm --filter @jumpygoat-hq/web exec tsx ../../scripts/smoke-cli-api.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
