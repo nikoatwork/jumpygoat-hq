@@ -2,6 +2,10 @@
 
 This is the canonical task-level changelog. Completed task files live in `tasks/done/`; do not maintain a separate done-folder changelog.
 
+## 2026-06-18
+
+- docs/deploy: closed the personal VPS/systemd hardening ticket as a lightweight docs pass: keep web under systemd, keep scheduled work on existing cron helpers, clarify `JUMPYGOATHQ_HOME`, `.env.local` permissions, modest systemd web hardening defaults, and avoid new timer/install-script complexity — completed in `tasks/done/2026-06-18_tasks-02-deploy.md`.
+
 ## 2026-06-17
 
 - feat: completed the classic Mac/System.css web redesign with documented spacing/icon primitives, local UIM SVG helpers, Finder-like shell/sidebar, page-family IA updates, design guardrails, screenshot review, and passing web validation — completed in `tasks/done/2026-06-17_tasks-classic-web-redesign.md`.
@@ -83,7 +87,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 - `tasks/done/2026-05-14_tasks-sidebar-ia.md` — closed; sidebar IA, active-state fix/coverage, docs, web validation, backend smoke, and manual top-level/detail active-state checks passed.
 - `tasks/done/2026-05-14_tasks-task-heartbeat-cron.md` — closed; explicit task heartbeat cron setup completed with safe temp-crontab smoke, web validation, and backend smoke.
 - `tasks/done/2026-05-13_tasks-workspace-restructure.md` — closed; workspace restructure completed with build, web, backend, web-write, and external `JUMPYGOATHQ_HOME` validation.
-- `tasks/todo/tasks-02-deploy.md` — not started; partly superseded by simpler cron-first deployment direction, but still useful for future VPS hardening/docs.
+- `tasks/done/2026-06-18_tasks-02-deploy.md` — closed; completed as a lightweight VPS hardening/docs pass with cron-first scheduling retained.
 - `tasks/todo/tasks-03-control-plane.md` — conceptually superseded by `tasks-04-minimal-web.md` for the read-only/minimal viewer; full browser editing remains deferred.
 - `tasks/done/2026-05-08_tasks-04-resend-notifications.md` — closed; build, web smoke, backend smoke, real Resend send, and no-notification smoke passed.
 - `tasks/done/2026-05-08_tasks-self-validating-loop.md` — closed; build, Playwright web smoke, and Pi-backed backend smoke passed.

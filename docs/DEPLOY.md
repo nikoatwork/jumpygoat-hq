@@ -4,6 +4,17 @@ This guide runs the jumpyGoatHq web UI as a `systemd` service and optionally ins
 
 jumpyGoatHq currently has no built-in auth. Keep the web UI bound to `127.0.0.1` and use an SSH tunnel, Tailscale, or a trusted authenticated reverse proxy.
 
+## Keep it boring
+
+The preferred VPS setup is intentionally small:
+
+- run the web UI under one `systemd` service;
+- keep scheduled automations/task dispatch on the existing cron path unless cron becomes painful;
+- keep mutable instance data outside the source checkout with `JUMPYGOATHQ_HOME`;
+- avoid adding a queue, extra daemon, dashboard, reverse proxy, generated timer system, or helper script unless it removes more complexity than it adds.
+
+Good hardening here mostly means clear paths, one responsible Unix user, localhost binding, readable logs, backups, and repeatable update commands.
+
 ## Deployment model
 
 Use one deploy parent that contains both the updateable source checkout and the private mutable instance data:
@@ -75,6 +86,7 @@ If you use API keys or connector secrets, create `.env.local` in the core checko
 ```bash
 cd /root/jumpygoat-hq-deploy/jumpygoat-hq
 cp .env.example .env.local
+chmod 600 .env.local
 nano .env.local
 ```
 
@@ -148,6 +160,9 @@ Environment=JUMPYGOATHQ_HOME=/root/jumpygoat-hq-deploy/jumpygoat-hq-instance
 ExecStart=/root/.local/share/pi-node/current/bin/pnpm web
 Restart=always
 RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
@@ -155,6 +170,8 @@ EOF
 ```
 
 If `command -v pnpm` returned a different path, update both the `PATH=` and `ExecStart=` lines accordingly.
+
+The `UMask`, `NoNewPrivileges`, and `PrivateTmp` lines are deliberately modest hardening defaults. Avoid more restrictive systemd sandboxing until it has been tested against Pi, Node, local logs, and your chosen `JUMPYGOATHQ_HOME` path.
 
 Enable and start the service:
 
@@ -250,6 +267,8 @@ First checks by symptom:
 - **Permission denied:** verify the systemd `User=`, instance ownership, `.env.local` readability, and write access to `$JUMPYGOATHQ_HOME/data`.
 
 ## 7. Install scheduled automations
+
+Cron is the default lightweight scheduler for automations. Do not add systemd automation timers unless cron is causing a concrete operational problem.
 
 The public repo ships with no active automations. Create `$JUMPYGOATHQ_HOME/agents/<name>/AGENT.md` and `$JUMPYGOATHQ_HOME/automations/<name>.md` first (or use the web UI), then install scheduled automation runs separately into cron:
 
