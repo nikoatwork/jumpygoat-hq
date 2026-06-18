@@ -18,6 +18,7 @@ const uiIconMap: Record<string, string> = {
   runs: "history",
   run: "rocket",
   settings: "key-skeleton",
+  docs: "document-layout-left",
   create: "plus-square",
   add: "plus-square",
   edit: "document-layout-left",
@@ -131,6 +132,12 @@ export function layout(title: string, body: string): string {
               ${navLink("runs", "/runs", iconLabel("runs", "Runs"), active)}
             </div>
           </details>
+          <details class="nav-group" open>
+            <summary class="nav-group-label">Reference</summary>
+            <div class="nav-children">
+              ${navLink("docs", "/docs", iconLabel("docs", "Docs"), active)}
+            </div>
+          </details>
         </nav>
         <div class="sidebar-footer nav-children">
           ${navLink("settings", "/settings", iconLabel("settings", "Settings"), active)}
@@ -165,6 +172,7 @@ function activeNavKey(title: string): string {
   if (normalized.includes("project")) return "boards";
   if (normalized.includes("task")) return "tasks";
   if (normalized.includes("run")) return "runs";
+  if (normalized.includes("doc")) return "docs";
   if (normalized.includes("settings")) return "settings";
   return "overview";
 }

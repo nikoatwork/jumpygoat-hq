@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { apiRoute, type RequestBody } from "./api.js";
 
 import {
@@ -50,6 +51,7 @@ export type ResponseData = { status: number; headers?: Record<string, string>; b
 
 const require = createRequire(import.meta.url);
 const systemCssRoot = path.dirname(require.resolve("@sakun/system.css"));
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
 export async function route(method: string, url: URL, requestBody?: URLSearchParams | RequestBody): Promise<ResponseData> {
   const body = normalizeRequestBody(requestBody);
@@ -63,6 +65,7 @@ export async function route(method: string, url: URL, requestBody?: URLSearchPar
     if (method === "GET" && url.pathname === "/styles.css") return staticFile("../public/styles.css", "text/css; charset=utf-8");
     if (method === "GET" && url.pathname === "/kanban.js") return staticFile("../public/kanban.js", "application/javascript; charset=utf-8");
     if (method === "GET" && url.pathname === "/") return html(await dashboard());
+    if (method === "GET" && url.pathname === "/docs") return html(await docsPage(url));
     if (method === "GET" && url.pathname === "/automations") return html(await automationsPage(url));
     if (method === "GET" && url.pathname === "/schedule") return html(await schedulePage());
     if (method === "GET" && url.pathname === "/settings") return html(await settingsPage(url));
@@ -208,6 +211,124 @@ function notFoundResponse(): ResponseData {
 
 function redirect(location: string): ResponseData {
   return { status: 303, headers: { location }, body: "" };
+}
+
+type DocumentationEntry = { path: string; title: string; group: string };
+
+const DOC_SINGLE_FILES = ["README.md", "AGENTS.md", "workspace/agents/README.md", "workspace/automations/README.md", "workspace/boards/README.md"];
+const DOC_DIRECTORIES = ["docs", "packages"];
+
+async function docsPage(url: URL): Promise<string> {
+  const entries = await listDocumentationEntries();
+  if (entries.length === 0) {
+    return layout("Docs", `${pageHeader("Docs", { description: "Local Markdown documentation from this checkout." })}${emptyState("No local documentation markdown files found.")}`);
+  }
+
+  const requestedPath = url.searchParams.get("file") || "docs/DEPLOY.md";
+  const current = entries.find((entry) => entry.path === requestedPath) || entries.find((entry) => entry.path === "docs/DEPLOY.md") || entries[0]!;
+  const source = await readFile(path.join(repoRoot, current.path), "utf8");
+
+  return layout("Docs", `
+    ${pageHeader("Docs", {
+      description: "Local Markdown documentation from this checkout. Markdown is shown as source for now; no renderer or client framework required.",
+      meta: `<code>${escapeHtml(current.path)}</code>`,
+    })}
+    <div class="page-grid docs-browser">
+      ${section("Documentation pages", docsNavigation(entries, current), { className: "docs-sidebar" })}
+      ${section(current.title, `<pre class="docs-source"><code>${escapeHtml(source)}</code></pre>`, { className: "docs-reader" })}
+    </div>
+  `);
+}
+
+async function listDocumentationEntries(): Promise<DocumentationEntry[]> {
+  const files = new Set<string>();
+  for (const file of DOC_SINGLE_FILES) {
+    if (await canReadMarkdown(file)) files.add(file);
+  }
+  for (const directory of DOC_DIRECTORIES) {
+    for (const file of await collectMarkdownFiles(directory)) files.add(file);
+  }
+
+  const entries = await Promise.all([...files].sort().map(async (file) => ({ path: file, title: await documentationTitle(file), group: documentationGroup(file) })));
+  return entries.sort((a, b) => groupOrder(a.group) - groupOrder(b.group) || a.path.localeCompare(b.path));
+}
+
+async function collectMarkdownFiles(directory: string): Promise<string[]> {
+  const absolute = path.join(repoRoot, directory);
+  let dirents;
+  try {
+    dirents = await readdir(absolute, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const files: string[] = [];
+  for (const dirent of dirents) {
+    if (dirent.name.startsWith(".")) continue;
+    const relative = `${directory}/${dirent.name}`;
+    if (dirent.isDirectory()) {
+      if (directory === "packages") {
+        for (const packageDoc of ["DOCS.md", "QUICKSTART.md"]) {
+          if (await canReadMarkdown(`${relative}/${packageDoc}`)) files.push(`${relative}/${packageDoc}`);
+        }
+      } else {
+        files.push(...await collectMarkdownFiles(relative));
+      }
+    } else if (dirent.isFile() && dirent.name.endsWith(".md")) {
+      files.push(relative);
+    }
+  }
+  return files;
+}
+
+async function canReadMarkdown(relativePath: string): Promise<boolean> {
+  if (!relativePath.endsWith(".md") || relativePath.includes("..") || path.isAbsolute(relativePath)) return false;
+  try {
+    await readFile(path.join(repoRoot, relativePath), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function documentationTitle(relativePath: string): Promise<string> {
+  try {
+    const source = await readFile(path.join(repoRoot, relativePath), "utf8");
+    const heading = source.split(/\r?\n/).find((line) => /^#\s+\S/.test(line));
+    if (heading) return heading.replace(/^#\s+/, "").trim();
+  } catch {
+    // Fall through to path-derived title.
+  }
+  return path.basename(relativePath, ".md").replaceAll("-", " ").replaceAll("_", " ");
+}
+
+function documentationGroup(relativePath: string): string {
+  if (relativePath === "README.md" || relativePath === "AGENTS.md") return "Start here";
+  if (relativePath.startsWith("docs/connectors/")) return "Connectors";
+  if (relativePath.startsWith("docs/deploy/") || relativePath === "docs/DEPLOY.md" || relativePath === "docs/UPDATE.md") return "Deploy";
+  if (relativePath.startsWith("docs/testing/")) return "Testing";
+  if (relativePath.startsWith("docs/vision/")) return "Vision";
+  if (relativePath.startsWith("docs/examples/")) return "Examples";
+  if (relativePath.startsWith("docs/")) return "Project docs";
+  if (relativePath.startsWith("packages/")) return "Package docs";
+  if (relativePath.startsWith("workspace/")) return "Workspace contracts";
+  return "Other";
+}
+
+function groupOrder(group: string): number {
+  const index = ["Start here", "Project docs", "Deploy", "Connectors", "Testing", "Vision", "Examples", "Package docs", "Workspace contracts", "Other"].indexOf(group);
+  return index === -1 ? 99 : index;
+}
+
+function docsNavigation(entries: DocumentationEntry[], current: DocumentationEntry): string {
+  const groups = new Map<string, DocumentationEntry[]>();
+  for (const entry of entries) groups.set(entry.group, [...(groups.get(entry.group) || []), entry]);
+  return `<nav aria-label="Documentation pages">${[...groups.entries()].map(([group, groupEntries]) => `
+    <h4>${escapeHtml(group)}</h4>
+    <ul>
+      ${groupEntries.map((entry) => `<li><a href="/docs?file=${encodeURIComponent(entry.path)}"${entry.path === current.path ? " aria-current=\"location\"" : ""}>${escapeHtml(entry.title)}</a><br><code class="docs-path">${escapeHtml(entry.path)}</code></li>`).join("")}
+    </ul>
+  `).join("")}</nav>`;
 }
 
 async function createAutomationRoute(form: URLSearchParams): Promise<ResponseData> {

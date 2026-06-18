@@ -474,6 +474,14 @@ td.actions details form { margin: 0; }
 .form-panel { max-width: 74rem; margin-inline: auto; }
 .icon-label { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; }
 .app-icon { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.14em; fill: currentColor; }
+.docs-source {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.docs-path {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .stat-card {
   position: relative;
   display: flex;

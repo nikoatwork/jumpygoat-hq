@@ -116,8 +116,22 @@ test("runs page renders either empty state or run table", async ({ page }) => {
   await expect(page.locator("body")).toContainText(/No runs found|Source/);
 });
 
+test("docs page renders local markdown source with docs navigation", async ({ page }) => {
+  await page.goto("/docs");
+
+  await expect(page.getByRole("heading", { name: "Docs", exact: true })).toBeVisible();
+  await expectActiveNav(page, "Docs");
+  await expect(page.getByRole("navigation", { name: "Documentation pages" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Deploy jumpyGoatHq on your own server/ })).toBeVisible();
+  await expect(page.locator("pre.docs-source")).toContainText("# Deploy jumpyGoatHq on your own server");
+
+  await page.getByRole("link", { name: /packages\/web/ }).click();
+  await expect(page).toHaveURL(/file=packages%2Fweb%2FDOCS\.md/);
+  await expect(page.locator("pre.docs-source")).toContainText("# packages/web");
+});
+
 test("core forms keep controls labeled and action targets large", async ({ page }) => {
-  for (const path of ["/", "/tasks", "/automations/new", "/agents/new", "/settings", "/runs"]) {
+  for (const path of ["/", "/tasks", "/automations/new", "/agents/new", "/settings", "/runs", "/docs"]) {
     await page.goto(path);
     await expectNoUnlabeledControls(page);
     await expectActionTargetsAtLeast(page);
@@ -126,7 +140,7 @@ test("core forms keep controls labeled and action targets large", async ({ page 
 
 test("mobile pages avoid page-level horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/", "/tasks", "/automations", "/agents/new", "/settings", "/runs"]) {
+  for (const path of ["/", "/tasks", "/automations", "/agents/new", "/settings", "/runs", "/docs"]) {
     await page.goto(path);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);

@@ -4,6 +4,7 @@ This is the canonical task-level changelog. Completed task files live in `tasks/
 
 ## 2026-06-18
 
+- feat/web: added a lightweight `/docs` route for browsing local Markdown documentation as source with docs-specific navigation, no Markdown renderer, and Playwright smoke coverage.
 - docs/deploy: closed the personal VPS/systemd hardening ticket as a lightweight docs pass: keep web under systemd, keep scheduled work on existing cron helpers, clarify `JUMPYGOATHQ_HOME`, `.env.local` permissions, modest systemd web hardening defaults, and avoid new timer/install-script complexity — completed in `tasks/done/2026-06-18_tasks-02-deploy.md`.
 
 ## 2026-06-17

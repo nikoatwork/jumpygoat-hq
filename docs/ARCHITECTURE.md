@@ -308,6 +308,7 @@ Routes:
 - `/tasks`, `/tasks/new`, `/boards/:board/tasks/:task`, `/boards/:board/tasks/:task/edit` — includes task heartbeat install/status notice
 - `/runs`, `/runs/:id`
 - `/settings` — edit instance-local `settings.yml`, view model profiles, and review usage grouped by model/profile
+- `/docs` — local Markdown documentation browser with source rendering and docs-specific navigation
 
 Mutations remain intentionally file-native POST actions in the HTML surface: automation create/update/delete, cautious raw agent create/update/delete, task/board file edits, and “Run now.” The route handlers should delegate to the same domain operations used by the CLI/API. The schedule page does not need to mutate cron; automation markdown is the schedule source of truth and crontab blocks are status/evidence only. If cron setup is exposed in web later, it should call the same explicit cron install/uninstall domain operations as the CLI rather than writing crontab directly.
 

@@ -37,6 +37,7 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 - `GET /runs/:id` — run detail, requested/resolved model audit, best-effort Pi-emitted usage, derived readable trace timeline, output/error, raw trace JSONL hidden in `<details>`
 - `GET /settings` — read/edit instance-local `jumpyGoatHqHome()/settings.yml`, list semantic model profiles, and show usage grouped by model/profile
 - `POST /settings` — validate settings YAML before atomically replacing the previous file
+- `GET /docs` — local documentation browser for Markdown files from this checkout, with source rendering only and a docs-specific navigation sidebar
 
 ## Files
 
@@ -48,7 +49,7 @@ The web UI is informational. It uses Node's built-in `http` server and server-re
 
 ## UI conventions
 
-The web UI uses a persistent sidebar information hierarchy: Overview; Work (Tasks, Boards); Automations (All automations, Schedule); Agents; Activity (Runs); and Settings in the sidebar footer. Schedule is visually grouped under Automations because it is a timeline view of automation markdown schedules, not a separate source object.
+The web UI uses a persistent sidebar information hierarchy: Overview; Work (Tasks, Boards); Automations (All automations, Schedule); Agents; Activity (Runs); Reference (Docs); and Settings in the sidebar footer. Schedule is visually grouped under Automations because it is a timeline view of automation markdown schedules, not a separate source object. `/docs` also has its own route-local documentation sidebar so docs navigation stays separate from product operations.
 
 The web UI has a deliberately small, server-rendered design system built on [`@sakun/system.css`](https://github.com/sakofchit/system.css):
 
