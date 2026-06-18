@@ -4,6 +4,29 @@ This guide runs the jumpyGoatHq web UI as a `systemd` service and optionally ins
 
 jumpyGoatHq currently has no built-in auth. Keep the web UI bound to `127.0.0.1` and use an SSH tunnel, Tailscale, or a trusted authenticated reverse proxy.
 
+## Current deployed-instance note
+
+If you are pulling the 2026-06-18 VPS hardening docs change into an already-running server, there is no app migration and no rebuild required just for this change. To apply the optional hardening to the live service:
+
+```bash
+cd /root/jumpygoat-hq-deploy/jumpygoat-hq
+git pull
+chmod 600 .env.local 2>/dev/null || true
+
+# Add these lines to /etc/systemd/system/jumpygoat-hq-web.service under [Service]
+# if they are not already present:
+# UMask=0077
+# NoNewPrivileges=true
+# PrivateTmp=true
+
+systemctl daemon-reload
+systemctl restart jumpygoat-hq-web
+systemctl status jumpygoat-hq-web --no-pager
+journalctl -u jumpygoat-hq-web -n 80 --no-pager
+```
+
+If you do not edit the systemd unit, nothing breaks; you just keep the previous service sandboxing. Scheduled automations/task dispatch can stay on the existing cron setup.
+
 ## Keep it boring
 
 The preferred VPS setup is intentionally small:
