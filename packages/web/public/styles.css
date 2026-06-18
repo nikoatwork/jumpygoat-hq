@@ -179,16 +179,16 @@ svg { fill: currentColor; }
   margin: 0;
   padding: 0.05rem 0.42rem;
   font-family: Chicago_12, Chicago, serif;
-  font-size: 1.05rem;
+  font-size: 1.5rem;
   font-weight: 700;
   list-style: none;
 }
 .nav-group-label::-webkit-details-marker { display: none; }
 .nav-group-label::before {
   content: "▸";
-  width: 0.7rem;
-  flex: 0 0 0.7rem;
-  font-size: 0.9rem;
+  width: 0.9rem;
+  flex: 0 0 0.9rem;
+  font-size: 1.25rem;
 }
 .nav-group[open] > .nav-group-label::before { content: "▾"; }
 .nav-group-label:hover, .nav-group-label:focus-visible {
@@ -270,13 +270,13 @@ svg { fill: currentColor; }
   padding: 0.12rem 0.42rem;
   color: var(--jg-ink);
   font-family: Monaco, ui-monospace, monospace;
-  font-size: 1rem;
+  font-size: 1.5rem;
   text-align: left;
   text-decoration: none;
   border: 0.08rem solid transparent;
 }
 .nav-link::before { display: none; }
-.nav-link .icon { width: 1.18rem; height: 1.18rem; }
+.nav-link .icon { width: 1.5rem; height: 1.5rem; }
 .nav-link .icon-label { min-width: 0; }
 .nav-link:hover, .nav-link:focus-visible, .nav-link.active {
   background: var(--jg-ink);
@@ -414,6 +414,27 @@ table { width: 100%; min-width: 820px; border-collapse: collapse; background: va
 th, td { border: 0.08rem solid var(--jg-line); padding: var(--jg-table-cell-block) var(--jg-table-cell-inline); vertical-align: top; }
 th { font-family: Chicago_12, Chicago, serif; font-size: 1rem; text-align: left; }
 td { line-height: 1.45; }
+table.responsive-table { font-size: 1.3rem; }
+table.responsive-table th { font-size: 1.3rem; }
+table.responsive-table .badge, table.responsive-table .status-badge { min-height: 2rem; font-size: 1rem; }
+table.responsive-table td .inline-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.8rem;
+  align-items: stretch;
+  min-width: min(24rem, 100%);
+}
+table.responsive-table td .inline-actions > * { width: 100%; margin: 0; }
+table.responsive-table td .inline-actions form { display: flex; }
+table.responsive-table td .inline-actions button,
+table.responsive-table td .inline-actions a,
+table.responsive-table td .inline-actions summary {
+  width: 100%;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+table.responsive-table td .inline-actions details { display: block; padding: 0; background: transparent; border: 0; box-shadow: none; }
+table.responsive-table td .inline-actions details[open] { grid-column: 1 / -1; }
 tr:hover td { outline: 0.08rem dotted var(--jg-line); outline-offset: -0.18rem; }
 .meta-table { min-width: 0; }
 .meta-table th { width: 14rem; }
