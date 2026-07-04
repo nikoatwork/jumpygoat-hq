@@ -197,6 +197,7 @@ function buildRepoCronCommand(root: string, pnpmCommand: string, logFile: string
   const exports = [
     `export HOME=${shellQuote(process.env.HOME || "")}`,
     `export PATH=${shellQuote(process.env.PATH || "/usr/local/bin:/usr/bin:/bin")}`,
+    "export JUMPYGOATHQ_FROM_CRON='1'",
   ];
   if (process.env.JUMPYGOATHQ_HOME) exports.push(`export JUMPYGOATHQ_HOME=${shellQuote(process.env.JUMPYGOATHQ_HOME)}`);
   if (process.env.JUMPYGOATHQ_DB_PATH) exports.push(`export JUMPYGOATHQ_DB_PATH=${shellQuote(process.env.JUMPYGOATHQ_DB_PATH)}`);
